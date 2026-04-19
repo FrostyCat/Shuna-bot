@@ -475,9 +475,20 @@ async def clan_add(interaction: discord.Interaction, tag: str):
         message = f"Klan {name} ({clan_tag}) już był w bazie — zaktualizowano nazwę."
 
     session.commit()
+
+    members = await get_clan_members(clan_tag)
+    added_players = 0
+    for member in members:
+        tag = member["tag"] if isinstance(member, dict) else member
+        result = await add_player_to_db(tag, session, commit=False)
+        if result.get("success"):
+            added_players += 1
+        await asyncio.sleep(0.3)
+
+    session.commit()
     session.close()
 
-    await interaction.followup.send(message)
+    await interaction.followup.send(f"{message}\n👥 Zarejestrowano {added_players} graczy.")
 
 
 
