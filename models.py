@@ -35,3 +35,10 @@ class Attack(Base):
     
 
     player = relationship("Player", back_populates="attacks")
+
+class Clan(Base):
+    __tablename__ = "clans"
+
+    id = Column(Integer, primary_key=True)
+    tag = Column(String, unique=True)
+    name = Column(String)

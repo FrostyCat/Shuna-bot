@@ -1,8 +1,6 @@
-import requests
+import aiohttp
 import os
 from dotenv import load_dotenv
-
-from models import Player
 
 load_dotenv()
 
@@ -13,27 +11,30 @@ headers = {
     "Authorization": f"Bearer {API_KEY}"
 }
 
-def get_battlelog(tag):
+async def _get(url):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers) as response:
+            if response.status == 200:
+                return await response.json()
+            print(f"API error {response.status}: {await response.text()}")
+            return None
+
+async def get_battlelog(tag):
     tag = tag.replace("#", "%23")
-    url = f"{BASE_URL}/players/{tag}/battlelog"
+    data = await _get(f"{BASE_URL}/players/{tag}/battlelog")
+    return data["items"] if data else []
 
-    response = requests.get(url, headers=headers)
-
-    if response.status_code == 200:
-        return response.json()["items"]
-    else:
-        print(response.text)
-        return []
-    
-def get_player(tag):
-    # 1. fetch z API
+async def get_player(tag):
     tag = tag.replace("#", "%23")
-    url = f"{BASE_URL}/players/{tag}"
+    data = await _get(f"{BASE_URL}/players/{tag}")
+    return (data["tag"], data["name"]) if data else None
 
-    response = requests.get(url, headers=headers)
+async def get_clan(tag):
+    tag = tag.replace("#", "%23")
+    data = await _get(f"{BASE_URL}/clans/{tag}")
+    return (data["tag"], data["name"]) if data else None
 
-    if response.status_code == 200:
-        return response.json()["tag"], response.json()["name"]
-    else:        
-        print(response.text)
-        return []
+async def get_clan_members(tag):
+    tag = tag.replace("#", "%23")
+    data = await _get(f"{BASE_URL}/clans/{tag}/members")
+    return data["items"] if data else []
