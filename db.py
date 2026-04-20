@@ -13,10 +13,11 @@ def set_wal_mode(dbapi_connection, _):
 
 def init_db():
     Base.metadata.create_all(engine)
+    from sqlalchemy import text
     with engine.connect() as conn:
-        for col in ["initial_rank INTEGER", "current_rank INTEGER"]:
+        for col in ["initial_rank INTEGER", "current_rank INTEGER", "discord_user_id INTEGER"]:
             try:
-                conn.execute(__import__("sqlalchemy").text(f"ALTER TABLE players ADD COLUMN {col}"))
+                conn.execute(text(f"ALTER TABLE players ADD COLUMN {col}"))
                 conn.commit()
             except Exception:
                 pass

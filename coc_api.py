@@ -43,3 +43,13 @@ async def get_clan_members(tag):
     tag = tag.replace("#", "%23")
     data = await _get(f"{BASE_URL}/clans/{tag}/members")
     return data["items"] if data else []
+
+async def verify_player_token(tag: str, token: str) -> bool:
+    tag = tag.replace("#", "%23")
+    url = f"{BASE_URL}/players/{tag}/verifytoken"
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, headers=headers, json={"token": token}) as response:
+            if response.status == 200:
+                data = await response.json()
+                return data.get("status") == "ok"
+            return False

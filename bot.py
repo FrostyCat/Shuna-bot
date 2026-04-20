@@ -7,14 +7,14 @@ from discord.ext import tasks
 
 import discord
 from discord.ext import commands
-from coc_api import get_battlelog, get_player, get_clan, get_clan_members
+from coc_api import get_battlelog, get_player, get_clan, get_clan_members, verify_player_token
 from db import Session, init_db
 from models import Attack
 import os
 from dotenv import load_dotenv
 import json
 from discord import app_commands
-from models import Player, Clan
+from models import Player, Clan, DiscordUser
 from datetime import UTC, datetime, timedelta, time as dt_time
 
 
@@ -500,6 +500,237 @@ async def season_autocomplete(_interaction: discord.Interaction, current: str):
         if not current or current.lower() in label.lower():
             choices.append(app_commands.Choice(name=label, value=i))
     return choices[:25]
+
+
+@bot.tree.command(name="link", description="Połącz konto Clash of Clans z Discord")
+@app_commands.describe(
+    tag="Tag gracza, np. #ABC123",
+    user="Użytkownik Discord",
+    api_token="API token z ustawień konta w grze"
+)
+async def link(interaction: discord.Interaction, tag: str, user: discord.Member, api_token: str):
+    await interaction.response.defer(ephemeral=True)
+
+    tag = tag.upper().replace("O", "0")
+    if not tag.startswith("#"):
+        tag = "#" + tag
+
+    valid = await verify_player_token(tag, api_token)
+    if not valid:
+        await interaction.followup.send("❌ Nieprawidłowy API token. Sprawdź token w ustawieniach gry.", ephemeral=True)
+        return
+
+    session = Session()
+    discord_id = str(user.id)
+
+    player = session.query(Player).filter_by(tag=tag).first()
+    if not player:
+        result = await add_player_to_db(tag, session)
+        if not result["success"]:
+            await interaction.followup.send("❌ " + result["error"], ephemeral=True)
+            session.close()
+            return
+        player = session.query(Player).filter_by(tag=result["tag"]).first()
+
+    discord_user = session.query(DiscordUser).filter_by(discord_id=discord_id).first()
+    if not discord_user:
+        discord_user = DiscordUser(discord_id=discord_id)
+        session.add(discord_user)
+        session.flush()
+
+    player_name = player.name
+
+    if player.discord_user_id == discord_user.id:
+        session.close()
+        await interaction.followup.send(f"ℹ️ **{player_name}** jest już połączony z kontem {user.mention}.", ephemeral=True)
+        return
+
+    player.discord_user_id = discord_user.id
+    session.commit()
+    session.close()
+
+    await interaction.followup.send(f"✅ Połączono **{player_name}** ({tag}) z kontem {user.mention}.", ephemeral=True)
+
+
+@link.autocomplete("tag")
+async def link_tag_autocomplete(_interaction: discord.Interaction, current: str):
+    session = Session()
+    players = session.query(Player).all()
+    current_lower = current.lower()
+    choices = [
+        app_commands.Choice(name=f"{p.name} ({p.tag})", value=p.tag)
+        for p in players
+        if current_lower in p.tag.lower() or current_lower in p.name.lower()
+    ]
+    session.close()
+    return choices[:25]
+
+
+@bot.tree.command(name="unlink", description="Odłącz konto Clash of Clans od Discord")
+@app_commands.describe(
+    tag="Tag gracza, np. #ABC123",
+    user="Użytkownik Discord",
+    api_token="API token z ustawień konta w grze"
+)
+async def unlink(interaction: discord.Interaction, tag: str, user: discord.Member, api_token: str):
+    await interaction.response.defer(ephemeral=True)
+
+    tag = tag.upper().replace("O", "0")
+    if not tag.startswith("#"):
+        tag = "#" + tag
+
+    valid = await verify_player_token(tag, api_token)
+    if not valid:
+        await interaction.followup.send("❌ Nieprawidłowy API token.", ephemeral=True)
+        return
+
+    session = Session()
+    player = session.query(Player).filter_by(tag=tag).first()
+
+    if not player or not player.discord_user or player.discord_user.discord_id != str(user.id):
+        session.close()
+        await interaction.followup.send("❌ To konto nie jest połączone z podanym użytkownikiem.", ephemeral=True)
+        return
+
+    player_name = player.name
+    player.discord_user_id = None
+    session.commit()
+    session.close()
+
+    await interaction.followup.send(f"✅ Odłączono **{player_name}** ({tag}) od konta {user.mention}.", ephemeral=True)
+
+
+@unlink.autocomplete("tag")
+async def unlink_tag_autocomplete(_interaction: discord.Interaction, current: str):
+    session = Session()
+    players = session.query(Player).filter(Player.discord_user_id.isnot(None)).all()
+    current_lower = current.lower()
+    choices = [
+        app_commands.Choice(name=f"{p.name} ({p.tag})", value=p.tag)
+        for p in players
+        if current_lower in p.tag.lower() or current_lower in p.name.lower()
+    ]
+    session.close()
+    return choices[:25]
+
+
+@bot.tree.command(name="profile", description="Pokaż konta CoC połączone z użytkownikiem Discord")
+@app_commands.describe(user="Użytkownik Discord (domyślnie Ty)")
+async def profile(interaction: discord.Interaction, user: discord.Member | None = None):
+    target = user or interaction.user
+    session = Session()
+
+    discord_user = session.query(DiscordUser).filter_by(discord_id=str(target.id)).first()
+
+    if not discord_user or not discord_user.players:
+        await interaction.response.send_message(
+            f"❌ {target.mention} nie ma połączonych kont CoC.", ephemeral=True
+        )
+        session.close()
+        return
+
+    lines = []
+    for p in discord_user.players:
+        tag_encoded = p.tag.replace("#", "%23")
+        url = f"https://link.clashofclans.com/en?action=OpenPlayerProfile&tag={tag_encoded}"
+        lines.append(f"• [{p.name} ({p.tag})]({url})")
+
+    embed = discord.Embed(
+        title=f"Konta CoC — {target.display_name}",
+        description="\n".join(lines),
+        color=0x8B4513
+    )
+    embed.set_thumbnail(url=target.display_avatar.url)
+    session.close()
+
+    await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="stats_user_legend", description="Statystyki legendy wszystkich kont użytkownika")
+@app_commands.describe(user="Użytkownik Discord (domyślnie Ty)")
+async def stats_user_legend(interaction: discord.Interaction, user: discord.Member | None = None):
+    await interaction.response.defer()
+
+    target = user or interaction.user
+    session = Session()
+
+    discord_user = session.query(DiscordUser).filter_by(discord_id=str(target.id)).first()
+    if not discord_user or not discord_user.players:
+        await interaction.followup.send(f"❌ {target.mention} nie ma połączonych kont CoC.")
+        session.close()
+        return
+
+    start, end = get_day_window(0)
+
+    rows = []
+    for player in discord_user.players:
+        player_data = await get_player(player.tag)
+        season_trophies = player_data[2] if player_data else None
+
+        attacks = session.query(Attack).filter(
+            Attack.player_id == player.id,
+            Attack.created_at >= start,
+            Attack.created_at < end,
+            Attack.is_attack == True
+        ).order_by(Attack.created_at.asc()).all()[-8:]
+
+        defenses = session.query(Attack).filter(
+            Attack.player_id == player.id,
+            Attack.created_at >= start,
+            Attack.created_at < end,
+            Attack.is_attack == False
+        ).order_by(Attack.created_at.asc()).all()[-8:]
+
+        atk_trophies = sum(a.trophies for a in attacks)
+        def_trophies = sum(d.trophies for d in defenses)
+        net = atk_trophies + def_trophies
+        init = (season_trophies - net) if season_trophies is not None else None
+        rows.append((player.name, player.tag, atk_trophies, def_trophies, net, init, season_trophies, player.initial_rank, len(attacks), len(defenses)))
+
+    session.close()
+
+    def fmt_name(name, tag):
+        clean = ''.join(c for c in name if c.isascii() or '\u0100' <= c <= '\u024F').strip()
+        return f"{clean} ({tag})"[:23]
+
+    N, AD, ST, TR, RK = 23, 5, 4, 5, 5
+
+    embed = discord.Embed(
+        title=f"📊 Legend Day — {target.display_name}",
+        color=0x8B4513
+    )
+
+    header = (
+        f"`{'Gracz':<{N}}` "
+        f"`{'A/D':^{AD}}` "
+        f"`{'ATK':>{ST}}` "
+        f"`{'DEF':>{ST}}` "
+        f"`{'NET':>{ST}}` "
+        f"`{'Reset':>{TR}}` "
+        f"`{'Curr':>{TR}}` "
+        f"`{'Rnk':>{RK}}`"
+    )
+    embed.add_field(name="", value=header, inline=False)
+
+    for name, tag, atk, deff, net, init, final, rank, atk_n, def_n in rows:
+        label     = fmt_name(name, tag)
+        init_str  = str(init)  if init  is not None else "—"
+        final_str = str(final) if final is not None else "—"
+        rank_str  = f"#{rank}" if rank is not None else "—"
+        ad_str    = f"{atk_n}/{def_n}"
+        row = (
+            f"`{label:<{N}}` "
+            f"`{ad_str:^{AD}}` "
+            f"`{atk:>+{ST}}` "
+            f"`{deff:>+{ST}}` "
+            f"`{net:>+{ST}}` "
+            f"`{init_str:>{TR}}` "
+            f"`{final_str:>{TR}}` "
+            f"`{rank_str:>{RK}}`"
+        )
+        embed.add_field(name="", value=row, inline=False)
+
+    await interaction.followup.send(embed=embed)
 
 
 @tasks.loop(minutes=10)
