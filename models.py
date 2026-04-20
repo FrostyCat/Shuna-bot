@@ -12,6 +12,8 @@ class Player(Base):
     id = Column(Integer, primary_key=True)
     tag = Column(String, unique=True)
     name = Column(String)
+    initial_rank = Column(Integer, nullable=True)
+    current_rank = Column(Integer, nullable=True)
 
     attacks = relationship("Attack", back_populates="player")
 

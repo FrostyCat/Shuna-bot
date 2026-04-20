@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 import json
 from discord import app_commands
 from models import Player, Clan
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, time as dt_time
 
 
 async def add_player_to_db(tag: str, session, commit=True):
@@ -102,6 +102,8 @@ async def fetch_player_attacks(session, player):
     return total_count
 
 def calculate_trophies(stars, destruction):
+    if stars == 0:
+        return 0
     table = {
         0: [
             (0, 0), (10, 1), (20, 2), (28, 3), (30, 4),
@@ -162,6 +164,7 @@ async def on_ready():
     await bot.tree.sync()
     refresh_players.start()
     refresh_clans.start()
+    snapshot_ranks.start()
     print(f"Zalogowano jako {bot.user}")
 
 
@@ -201,7 +204,7 @@ def get_day_window(day_offset: int):
     return start, end
 
 
-def build_legend_embed(player, session, day_offset: int, season_trophies: int | None = None, rank: int | None = None):
+def build_legend_embed(player, session, day_offset: int, season_trophies: int | None = None, rank: int | None = None, initial_rank: int | None = None):
     start, end = get_day_window(day_offset)
 
     attacks = session.query(Attack).filter(
@@ -248,7 +251,14 @@ def build_legend_embed(player, session, day_offset: int, season_trophies: int | 
         color=0x8B4513
     )
     net = total_trophies + total_trophies_defenses
-    rank_line = f"Rank: #{rank}\n" if rank is not None else ""
+    if rank is not None and initial_rank is not None:
+        rank_diff = initial_rank - rank
+        diff_str = f" ({rank_diff:+})" if rank_diff != 0 else ""
+        rank_line = f"Rank: #{rank}{diff_str} (start: #{initial_rank})\n"
+    elif rank is not None:
+        rank_line = f"Rank: #{rank}\n"
+    else:
+        rank_line = ""
     trophy_line = f"Season: {season_trophies} 🏆\n" if season_trophies is not None else ""
     reset_line = f"Start of day: {season_trophies - net} 🏆\n" if season_trophies is not None else ""
     embed.add_field(
@@ -323,7 +333,7 @@ async def legend(interaction: discord.Interaction, tag: str):
     season_trophies = player_data[2] if player_data else None
     rank = player_data[3] if player_data else None
 
-    embed = build_legend_embed(player, session, day_offset=0, season_trophies=season_trophies, rank=rank)
+    embed = build_legend_embed(player, session, day_offset=0, season_trophies=season_trophies, rank=rank, initial_rank=player.initial_rank)
     session.close()
 
     await interaction.followup.send(embed=embed, view=LegendView(player.tag))
@@ -500,6 +510,9 @@ async def refresh_players():
         tag = p.tag
         try:
             count += await fetch_player_attacks(session, p)
+            data = await get_player(tag)
+            if data:
+                p.current_rank = data[3]
             print(f"Refreshed {p.name} ({tag}), total new attacks: {count}")
         except Exception as e:
             session.rollback()
@@ -513,6 +526,22 @@ async def refresh_players():
 
 @refresh_players.before_loop
 async def before_refresh():
+    await bot.wait_until_ready()
+
+
+@tasks.loop(time=dt_time(hour=6, minute=50, tzinfo=WARSAW))
+async def snapshot_ranks():
+    session = Session()
+    players = session.query(Player).all()
+    for p in players:
+        if p.current_rank is not None:
+            p.initial_rank = p.current_rank
+    session.commit()
+    session.close()
+    print("Rank snapshot saved.")
+
+@snapshot_ranks.before_loop
+async def before_snapshot():
     await bot.wait_until_ready()
 
 
