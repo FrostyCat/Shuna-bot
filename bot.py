@@ -27,7 +27,7 @@ async def add_player_to_db(tag: str, session, commit=True):
     if not data:
         return {"success": False, "error": "Nie znaleziono gracza"}
 
-    tag_api, name, _ = data
+    tag_api, name, *_ = data
 
     player = session.query(Player).filter_by(tag=tag_api).first()
 
@@ -201,7 +201,7 @@ def get_day_window(day_offset: int):
     return start, end
 
 
-def build_legend_embed(player, session, day_offset: int, season_trophies: int | None = None):
+def build_legend_embed(player, session, day_offset: int, season_trophies: int | None = None, rank: int | None = None):
     start, end = get_day_window(day_offset)
 
     attacks = session.query(Attack).filter(
@@ -248,11 +248,13 @@ def build_legend_embed(player, session, day_offset: int, season_trophies: int | 
         color=0x8B4513
     )
     net = total_trophies + total_trophies_defenses
+    rank_line = f"Rank: #{rank}\n" if rank is not None else ""
     trophy_line = f"Season: {season_trophies} 🏆\n" if season_trophies is not None else ""
     reset_line = f"Start of day: {season_trophies - net} 🏆\n" if season_trophies is not None else ""
     embed.add_field(
         name="🏆 Overview",
         value=(
+            f"{rank_line}"
             f"{trophy_line}"
             f"{reset_line}"
             f"⚔️ {total} / 🛡️ {len(last_8_defenses)}\n"
@@ -319,8 +321,9 @@ async def legend(interaction: discord.Interaction, tag: str):
 
     player_data = await get_player(player.tag)
     season_trophies = player_data[2] if player_data else None
+    rank = player_data[3] if player_data else None
 
-    embed = build_legend_embed(player, session, day_offset=0, season_trophies=season_trophies)
+    embed = build_legend_embed(player, session, day_offset=0, season_trophies=season_trophies, rank=rank)
     session.close()
 
     await interaction.followup.send(embed=embed, view=LegendView(player.tag))
