@@ -78,6 +78,12 @@ async def fetch_player_attacks(session, player):
         if exists:
             continue
 
+        battle_time_str = b.get("battleTime")
+        try:
+            created_at = datetime.strptime(battle_time_str, "%Y%m%dT%H%M%S.%fZ").replace(tzinfo=UTC)
+        except (TypeError, ValueError):
+            created_at = datetime.now(UTC)
+
         record = Attack(
             player_id=player.id,
             defender=b.get("opponentPlayerTag"),
@@ -85,7 +91,7 @@ async def fetch_player_attacks(session, player):
             destruction=destruction,
             trophies=trophies,
             is_attack=is_attack,
-            created_at=datetime.now(UTC)
+            created_at=created_at
         )
 
         session.add(record)
@@ -156,16 +162,6 @@ async def on_ready():
     refresh_clans.start()
     print(f"Zalogowano jako {bot.user}")
 
-## Lista kont
-@bot.tree.command(name="players", description="Lista kont")
-async def players(interaction: discord.Interaction):
-    session = Session()
-
-    players = session.query(Player).all()
-    text = "\n".join(p.tag for p in players) or "Brak kont"
-
-    await interaction.response.send_message(text)
-    session.close()
 
 
 @bot.command()
@@ -337,9 +333,18 @@ async def tag_autocomplete(interaction: discord.Interaction, current: str):
     return choices[:25]
 
 
+SEASON_EPOCH = datetime(2026, 4, 20, 7, 0, 0, tzinfo=UTC)
+SEASON_DURATION = timedelta(days=28)
+
+def get_season_window(season: int):
+    start = SEASON_EPOCH - SEASON_DURATION * (season - 1)
+    end = start + SEASON_DURATION
+    return start, end
+
+
 @bot.tree.command(name="hit_rate", description="Hit rate 3⭐ graczy klanu w legendzie")
-@app_commands.describe(tag="Tag klanu, np. #ABC123")
-async def hit_rate(interaction: discord.Interaction, tag: str):
+@app_commands.describe(tag="Tag klanu, np. #ABC123", season="Numer sezonu (1=aktualny, 2=poprzedni...). Puste = cała historia")
+async def hit_rate(interaction: discord.Interaction, tag: str, season: int | None = None):
     await interaction.response.defer()
 
     session = Session()
@@ -349,6 +354,7 @@ async def hit_rate(interaction: discord.Interaction, tag: str):
         tag = "#" + tag
 
     clan = session.query(Clan).filter_by(tag=tag).first()
+    is_new = not clan
     if not clan:
         data = await get_clan(tag)
         if not data:
@@ -363,13 +369,27 @@ async def hit_rate(interaction: discord.Interaction, tag: str):
     members = await get_clan_members(clan.tag)
     member_tags = {m["tag"] if isinstance(m, dict) else m for m in members}
 
+    if is_new:
+        await interaction.followup.send(f"⏳ Nowy klan — rejestruję {len(member_tags)} graczy...", wait=True)
+        for member_tag in member_tags:
+            await add_player_to_db(member_tag, session, commit=False)
+            await asyncio.sleep(0.3)
+        session.commit()
+
+    season_start, season_end = get_season_window(season) if season else (None, None)
+
     rows = []
     for member_tag in member_tags:
         player = session.query(Player).filter_by(tag=member_tag).first()
         if not player:
             continue
-        total = session.query(Attack).filter_by(player_id=player.id, is_attack=True).count()
-        triples = session.query(Attack).filter_by(player_id=player.id, is_attack=True, stars=3).count()
+
+        q = session.query(Attack).filter(Attack.player_id == player.id, Attack.is_attack == True)
+        if season_start:
+            q = q.filter(Attack.created_at >= season_start, Attack.created_at < season_end)
+
+        total = q.count()
+        triples = q.filter(Attack.stars == 3).count()
         if total == 0:
             continue
         rate = triples / total * 100
@@ -392,16 +412,26 @@ async def hit_rate(interaction: discord.Interaction, tag: str):
     header = f"{'#':>3}  {'RATE%':>6}  {'HITS':>7}  NAME\n"
     divider = "─" * 34 + "\n"
 
-    text = "```ansi\n" + header + divider
+    lines = []
     for i, (name, triples, total, rate) in enumerate(rows, 1):
         fraction = f"{triples}/{total}"
         line = f"{i:>3}.  {rate:>5.1f}%  {fraction:>7}  {name}\n"
         color = rank_colors.get(i, "")
-        text += f"{color}{line}{RESET if color else ''}"
-    text += "```"
+        lines.append(f"{color}{line}{RESET if color else ''}")
 
-    embed = discord.Embed(title=f"⚔️ Hit rate 3⭐ — {clan.name}", color=0x8B4513)
-    embed.add_field(name="\u200b", value=text, inline=False)
+    # Dziel na chunki po ~20 wierszy żeby nie przekroczyć limitu 1024 znaków
+    CHUNK = 20
+    chunks = [lines[i:i + CHUNK] for i in range(0, len(lines), CHUNK)]
+
+    season_label = f"Sezon {season}" if season else "Cała historia"
+    embed = discord.Embed(title=f"⚔️ Hit rate 3⭐ — {clan.name} — {season_label}", color=0x8B4513)
+    for idx, chunk in enumerate(chunks):
+        block = "```ansi\n"
+        if idx == 0:
+            block += header + divider
+        block += "".join(chunk) + "```"
+        embed.add_field(name="\u200b", value=block, inline=False)
+
     embed.set_footer(text=f"{clan.tag} • {len(rows)} graczy")
     await interaction.followup.send(embed=embed)
 
@@ -416,6 +446,19 @@ async def clan_tag_autocomplete(_interaction: discord.Interaction, current: str)
         if current_lower in c.tag.lower() or current_lower in c.name.lower()
     ]
     session.close()
+    return choices[:25]
+
+MONTHS_PL = ["Styczeń","Luty","Marzec","Kwiecień","Maj","Czerwiec",
+             "Lipiec","Sierpień","Wrzesień","Październik","Listopad","Grudzień"]
+
+@hit_rate.autocomplete("season")
+async def season_autocomplete(_interaction: discord.Interaction, current: str):
+    choices = []
+    for i in range(1, 13):
+        start = SEASON_EPOCH - SEASON_DURATION * (i - 1)
+        label = f"{MONTHS_PL[start.month - 1]} {start.year}"
+        if not current or current.lower() in label.lower():
+            choices.append(app_commands.Choice(name=label, value=i))
     return choices[:25]
 
 
@@ -444,51 +487,6 @@ async def before_refresh():
     await bot.wait_until_ready()
 
 
-
-@bot.tree.command(name="clan_add", description="Dodaje klan do monitorowania")
-async def clan_add(interaction: discord.Interaction, tag: str):
-    await interaction.response.defer()
-
-    session = Session()
-
-    tag = tag.upper().replace("O", "0")
-    if not tag.startswith("#"):
-        tag = "#" + tag
-
-    data = await get_clan(tag)
-
-    if not data:
-        await interaction.followup.send("Klan o podanym tagu nie został znaleziony.")
-        session.close()
-        return
-
-    clan_tag, name = data
-
-    clan = session.query(Clan).filter_by(tag=clan_tag).first()
-
-    if not clan:
-        clan = Clan(tag=clan_tag, name=name)
-        session.add(clan)
-        message = f"Klan {name} ({clan_tag}) został dodany do monitorowania."
-    else:
-        clan.name = name
-        message = f"Klan {name} ({clan_tag}) już był w bazie — zaktualizowano nazwę."
-
-    session.commit()
-
-    members = await get_clan_members(clan_tag)
-    added_players = 0
-    for member in members:
-        tag = member["tag"] if isinstance(member, dict) else member
-        result = await add_player_to_db(tag, session, commit=False)
-        if result.get("success"):
-            added_players += 1
-        await asyncio.sleep(0.3)
-
-    session.commit()
-    session.close()
-
-    await interaction.followup.send(f"{message}\n👥 Zarejestrowano {added_players} graczy.")
 
 
 
