@@ -1,5 +1,7 @@
 import asyncio
 from sqlite3 import IntegrityError
+from zoneinfo import ZoneInfo
+from sqlalchemy import func
 
 from discord.ext import tasks
 
@@ -186,13 +188,15 @@ async def fetch(ctx):
     await ctx.send(f"Dodano {total_count} nowych ataków 🚀")
 
 
+WARSAW = ZoneInfo("Europe/Warsaw")
+
 def get_day_window(day_offset: int):
-    now = datetime.now(UTC)
-    if now.hour < 5:
-        current_start = (now - timedelta(days=1)).replace(hour=5, minute=0, second=0, microsecond=0)
+    now = datetime.now(WARSAW)
+    if now.hour < 7:
+        current_start = (now - timedelta(days=1)).replace(hour=7, minute=0, second=0, microsecond=0)
     else:
-        current_start = now.replace(hour=5, minute=0, second=0, microsecond=0)
-    start = current_start + timedelta(days=day_offset)
+        current_start = now.replace(hour=7, minute=0, second=0, microsecond=0)
+    start = (current_start + timedelta(days=day_offset)).astimezone(UTC)
     end = start + timedelta(days=1)
     return start, end
 
@@ -333,7 +337,7 @@ async def tag_autocomplete(interaction: discord.Interaction, current: str):
     return choices[:25]
 
 
-SEASON_EPOCH = datetime(2026, 4, 20, 7, 0, 0, tzinfo=UTC)
+SEASON_EPOCH = datetime(2026, 4, 20, 7, 0, 0, tzinfo=WARSAW)
 SEASON_DURATION = timedelta(days=28)
 
 def get_season_window(season: int):
@@ -423,8 +427,8 @@ async def hit_rate(interaction: discord.Interaction, tag: str, season: int | Non
     CHUNK = 20
     chunks = [lines[i:i + CHUNK] for i in range(0, len(lines), CHUNK)]
 
-    season_label = f"Sezon {season}" if season else "Cała historia"
-    embed = discord.Embed(title=f"⚔️ Hit rate 3⭐ — {clan.name} — {season_label}", color=0x8B4513)
+    season_label_str = season_label(season) if season else "Cała historia"
+    embed = discord.Embed(title=f"⚔️ Hit rate 3⭐ — {clan.name} — {season_label_str}", color=0x8B4513)
     for idx, chunk in enumerate(chunks):
         block = "```ansi\n"
         if idx == 0:
@@ -451,12 +455,27 @@ async def clan_tag_autocomplete(_interaction: discord.Interaction, current: str)
 MONTHS_PL = ["Styczeń","Luty","Marzec","Kwiecień","Maj","Czerwiec",
              "Lipiec","Sierpień","Wrzesień","Październik","Listopad","Grudzień"]
 
+def season_label(season: int) -> str:
+    end = SEASON_EPOCH - SEASON_DURATION * (season - 1) + SEASON_DURATION
+    return f"{MONTHS_PL[end.month - 1]} {end.year}"
+
 @hit_rate.autocomplete("season")
 async def season_autocomplete(_interaction: discord.Interaction, current: str):
+    session = Session()
+    oldest = session.query(func.min(Attack.created_at)).scalar()
+    session.close()
+
+    if not oldest:
+        return []
+
+    if oldest.tzinfo is None:
+        oldest = oldest.replace(tzinfo=UTC)
+
+    max_seasons = max(1, int((SEASON_EPOCH - oldest) / SEASON_DURATION) + 2)
+
     choices = []
-    for i in range(1, 13):
-        start = SEASON_EPOCH - SEASON_DURATION * (i - 1)
-        label = f"{MONTHS_PL[start.month - 1]} {start.year}"
+    for i in range(1, max_seasons + 1):
+        label = season_label(i)
         if not current or current.lower() in label.lower():
             choices.append(app_commands.Choice(name=label, value=i))
     return choices[:25]
