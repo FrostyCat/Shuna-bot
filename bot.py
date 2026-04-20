@@ -817,7 +817,6 @@ async def refresh_players():
             data = await get_player(tag)
             if data:
                 p.current_rank = data[3]
-            print(f"Refreshed {p.name} ({tag}), total new attacks: {count}")
         except Exception as e:
             session.rollback()
             print(f"Error for {tag}: {e}")
@@ -826,7 +825,6 @@ async def refresh_players():
 
     session.commit()
     session.close()
-    print(f"Finished refresh cycle, total new attacks: {count}")
 
 @refresh_players.before_loop
 async def before_refresh():
