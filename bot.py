@@ -607,6 +607,46 @@ async def force_link_tag_autocomplete(_interaction: discord.Interaction, current
     return choices[:25]
 
 
+@bot.tree.command(name="force_unlink", description="Unlink a CoC account from Discord without token verification (admin only)")
+@app_commands.describe(tag="Player tag, e.g. #ABC123")
+@app_commands.default_permissions(administrator=True)
+async def force_unlink(interaction: discord.Interaction, tag: str):
+    await interaction.response.defer(ephemeral=True)
+
+    tag = tag.upper().replace("O", "0")
+    if not tag.startswith("#"):
+        tag = "#" + tag
+
+    session = Session()
+    player = session.query(Player).filter_by(tag=tag).first()
+
+    if not player or player.discord_user_id is None:
+        session.close()
+        await interaction.followup.send("❌ This account is not linked to any user.", ephemeral=True)
+        return
+
+    player_name = player.name
+    player.discord_user_id = None
+    session.commit()
+    session.close()
+
+    await interaction.followup.send(f"✅ Unlinked **{player_name}** ({tag}).", ephemeral=True)
+
+
+@force_unlink.autocomplete("tag")
+async def force_unlink_tag_autocomplete(_interaction: discord.Interaction, current: str):
+    session = Session()
+    players = session.query(Player).filter(Player.discord_user_id.isnot(None)).all()
+    current_lower = current.lower()
+    choices = [
+        app_commands.Choice(name=f"{p.name} ({p.tag})", value=p.tag)
+        for p in players
+        if current_lower in p.tag.lower() or current_lower in p.name.lower()
+    ]
+    session.close()
+    return choices[:25]
+
+
 @link.autocomplete("tag")
 async def link_tag_autocomplete(_interaction: discord.Interaction, current: str):
     session = Session()
