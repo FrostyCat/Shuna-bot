@@ -25,7 +25,7 @@ async def add_player_to_db(tag: str, session, commit=True):
 
     data = await get_player(tag)
     if not data:
-        return {"success": False, "error": "Nie znaleziono gracza"}
+        return {"success": False, "error": "Player not found"}
 
     tag_api, name, *_ = data
 
@@ -154,7 +154,8 @@ load_dotenv()
 import discord
 
 intents = discord.Intents.default()
-intents.message_content = True  # WAŻNE
+intents.message_content = True
+intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -165,7 +166,7 @@ async def on_ready():
     refresh_players.start()
     refresh_clans.start()
     snapshot_ranks.start()
-    print(f"Zalogowano jako {bot.user}")
+    print(f"Logged in as {bot.user}")
 
 
 
@@ -176,7 +177,7 @@ async def fetch(ctx):
     players = session.query(Player).all()
 
     if not players:
-        await ctx.send("Brak kont w bazie ❗ Dodaj przez /add")
+        await ctx.send("No accounts in database ❗ Add via /legend_day")
         session.close()
         return
 
@@ -188,7 +189,7 @@ async def fetch(ctx):
     session.commit()
     session.close()
 
-    await ctx.send(f"Dodano {total_count} nowych ataków 🚀")
+    await ctx.send(f"Added {total_count} new attacks 🚀")
 
 
 WARSAW = ZoneInfo("Europe/Warsaw")
@@ -310,7 +311,7 @@ class LegendView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)
 
 
-@bot.tree.command(name="legend_day", description="Statystyki legendy dla konta")
+@bot.tree.command(name="legend_day", description="Legend league stats for a player")
 async def legend(interaction: discord.Interaction, tag: str):
     await interaction.response.defer()
 
@@ -347,7 +348,7 @@ async def tag_autocomplete(interaction: discord.Interaction, current: str):
     current_lower = current.lower()
     choices = [
         app_commands.Choice(
-            name=f"{p.name} ({p.tag})",  # <- wyświetlanie nazwy + tagu
+            name=f"{p.name} ({p.tag})",
             value=p.tag
         )
         for p in players
@@ -367,8 +368,8 @@ def get_season_window(season: int):
     return start, end
 
 
-@bot.tree.command(name="clan_legend_stats", description="Hit rate 3⭐ graczy klanu w legendzie")
-@app_commands.describe(tag="Tag klanu, np. #ABC123", season="Numer sezonu (1=aktualny, 2=poprzedni...). Puste = cała historia")
+@bot.tree.command(name="clan_legend_stats", description="3⭐ hit rate for clan members in legend league")
+@app_commands.describe(tag="Clan tag, e.g. #ABC123", season="Season number (1=current, 2=previous...). Empty = all time")
 async def hit_rate(interaction: discord.Interaction, tag: str, season: int | None = None):
     await interaction.response.defer()
 
@@ -383,7 +384,7 @@ async def hit_rate(interaction: discord.Interaction, tag: str, season: int | Non
     if not clan:
         data = await get_clan(tag)
         if not data:
-            await interaction.followup.send("❌ Klan o podanym tagu nie został znaleziony.")
+            await interaction.followup.send("❌ Clan with the given tag was not found.")
             session.close()
             return
         clan_tag, name = data
@@ -395,7 +396,7 @@ async def hit_rate(interaction: discord.Interaction, tag: str, season: int | Non
     member_tags = {m["tag"] if isinstance(m, dict) else m for m in members}
 
     if is_new:
-        await interaction.followup.send(f"⏳ Nowy klan — rejestruję {len(member_tags)} graczy...", wait=True)
+        await interaction.followup.send(f"⏳ New clan — registering {len(member_tags)} members...", wait=True)
         for member_tag in member_tags:
             await add_player_to_db(member_tag, session, commit=False)
             await asyncio.sleep(0.3)
@@ -423,7 +424,7 @@ async def hit_rate(interaction: discord.Interaction, tag: str, season: int | Non
     session.close()
 
     if not rows:
-        await interaction.followup.send("Brak danych dla graczy tego klanu.")
+        await interaction.followup.send("No data for this clan's members.")
         return
 
     rows.sort(key=lambda r: r[3], reverse=True)
@@ -444,11 +445,10 @@ async def hit_rate(interaction: discord.Interaction, tag: str, season: int | Non
         color = rank_colors.get(i, "")
         lines.append(f"{color}{line}{RESET if color else ''}")
 
-    # Dziel na chunki po ~20 wierszy żeby nie przekroczyć limitu 1024 znaków
-    CHUNK = 20
+        CHUNK = 20
     chunks = [lines[i:i + CHUNK] for i in range(0, len(lines), CHUNK)]
 
-    season_label_str = season_label(season) if season else "Cała historia"
+    season_label_str = season_label(season) if season else "All time"
     embed = discord.Embed(title=f"⚔️ Hit rate 3⭐ — {clan.name} — {season_label_str}", color=0x8B4513)
     for idx, chunk in enumerate(chunks):
         block = "```ansi\n"
@@ -457,7 +457,7 @@ async def hit_rate(interaction: discord.Interaction, tag: str, season: int | Non
         block += "".join(chunk) + "```"
         embed.add_field(name="\u200b", value=block, inline=False)
 
-    embed.set_footer(text=f"{clan.tag} • {len(rows)} graczy")
+    embed.set_footer(text=f"{clan.tag} • {len(rows)} players")
     await interaction.followup.send(embed=embed)
 
 @hit_rate.autocomplete("tag")
@@ -473,12 +473,12 @@ async def clan_tag_autocomplete(_interaction: discord.Interaction, current: str)
     session.close()
     return choices[:25]
 
-MONTHS_PL = ["Styczeń","Luty","Marzec","Kwiecień","Maj","Czerwiec",
-             "Lipiec","Sierpień","Wrzesień","Październik","Listopad","Grudzień"]
+MONTHS_EN = ["January","February","March","April","May","June",
+             "July","August","September","October","November","December"]
 
 def season_label(season: int) -> str:
     end = SEASON_EPOCH - SEASON_DURATION * (season - 1) + SEASON_DURATION
-    return f"{MONTHS_PL[end.month - 1]} {end.year}"
+    return f"{MONTHS_EN[end.month - 1]} {end.year}"
 
 @hit_rate.autocomplete("season")
 async def season_autocomplete(_interaction: discord.Interaction, current: str):
@@ -502,11 +502,11 @@ async def season_autocomplete(_interaction: discord.Interaction, current: str):
     return choices[:25]
 
 
-@bot.tree.command(name="link", description="Połącz konto Clash of Clans z Discord")
+@bot.tree.command(name="link", description="Link a Clash of Clans account to Discord")
 @app_commands.describe(
-    tag="Tag gracza, np. #ABC123",
-    user="Użytkownik Discord",
-    api_token="API token z ustawień konta w grze"
+    tag="Player tag, e.g. #ABC123",
+    user="Discord user",
+    api_token="API token from in-game settings"
 )
 async def link(interaction: discord.Interaction, tag: str, user: discord.Member, api_token: str):
     await interaction.response.defer(ephemeral=True)
@@ -517,7 +517,7 @@ async def link(interaction: discord.Interaction, tag: str, user: discord.Member,
 
     valid = await verify_player_token(tag, api_token)
     if not valid:
-        await interaction.followup.send("❌ Nieprawidłowy API token. Sprawdź token w ustawieniach gry.", ephemeral=True)
+        await interaction.followup.send("❌ Invalid API token. Check the token in your in-game settings.", ephemeral=True)
         return
 
     session = Session()
@@ -542,14 +542,14 @@ async def link(interaction: discord.Interaction, tag: str, user: discord.Member,
 
     if player.discord_user_id == discord_user.id:
         session.close()
-        await interaction.followup.send(f"ℹ️ **{player_name}** jest już połączony z kontem {user.mention}.", ephemeral=True)
+        await interaction.followup.send(f"ℹ️ **{player_name}** is already linked to {user.mention}.", ephemeral=True)
         return
 
     player.discord_user_id = discord_user.id
     session.commit()
     session.close()
 
-    await interaction.followup.send(f"✅ Połączono **{player_name}** ({tag}) z kontem {user.mention}.", ephemeral=True)
+    await interaction.followup.send(f"✅ Linked **{player_name}** ({tag}) to {user.mention}.", ephemeral=True)
 
 
 @link.autocomplete("tag")
@@ -566,11 +566,11 @@ async def link_tag_autocomplete(_interaction: discord.Interaction, current: str)
     return choices[:25]
 
 
-@bot.tree.command(name="unlink", description="Odłącz konto Clash of Clans od Discord")
+@bot.tree.command(name="unlink", description="Unlink a Clash of Clans account from Discord")
 @app_commands.describe(
-    tag="Tag gracza, np. #ABC123",
-    user="Użytkownik Discord",
-    api_token="API token z ustawień konta w grze"
+    tag="Player tag, e.g. #ABC123",
+    user="Discord user",
+    api_token="API token from in-game settings"
 )
 async def unlink(interaction: discord.Interaction, tag: str, user: discord.Member, api_token: str):
     await interaction.response.defer(ephemeral=True)
@@ -581,7 +581,7 @@ async def unlink(interaction: discord.Interaction, tag: str, user: discord.Membe
 
     valid = await verify_player_token(tag, api_token)
     if not valid:
-        await interaction.followup.send("❌ Nieprawidłowy API token.", ephemeral=True)
+        await interaction.followup.send("❌ Invalid API token.", ephemeral=True)
         return
 
     session = Session()
@@ -589,7 +589,7 @@ async def unlink(interaction: discord.Interaction, tag: str, user: discord.Membe
 
     if not player or not player.discord_user or player.discord_user.discord_id != str(user.id):
         session.close()
-        await interaction.followup.send("❌ To konto nie jest połączone z podanym użytkownikiem.", ephemeral=True)
+        await interaction.followup.send("❌ This account is not linked to the given user.", ephemeral=True)
         return
 
     player_name = player.name
@@ -597,7 +597,7 @@ async def unlink(interaction: discord.Interaction, tag: str, user: discord.Membe
     session.commit()
     session.close()
 
-    await interaction.followup.send(f"✅ Odłączono **{player_name}** ({tag}) od konta {user.mention}.", ephemeral=True)
+    await interaction.followup.send(f"✅ Unlinked **{player_name}** ({tag}) from {user.mention}.", ephemeral=True)
 
 
 @unlink.autocomplete("tag")
@@ -614,8 +614,8 @@ async def unlink_tag_autocomplete(_interaction: discord.Interaction, current: st
     return choices[:25]
 
 
-@bot.tree.command(name="profile", description="Pokaż konta CoC połączone z użytkownikiem Discord")
-@app_commands.describe(user="Użytkownik Discord (domyślnie Ty)")
+@bot.tree.command(name="profile", description="Show CoC accounts linked to a Discord user")
+@app_commands.describe(user="Discord user (defaults to you)")
 async def profile(interaction: discord.Interaction, user: discord.Member | None = None):
     target = user or interaction.user
     session = Session()
@@ -624,7 +624,7 @@ async def profile(interaction: discord.Interaction, user: discord.Member | None 
 
     if not discord_user or not discord_user.players:
         await interaction.response.send_message(
-            f"❌ {target.mention} nie ma połączonych kont CoC.", ephemeral=True
+            f"❌ {target.mention} has no linked CoC accounts.", ephemeral=True
         )
         session.close()
         return
@@ -636,7 +636,7 @@ async def profile(interaction: discord.Interaction, user: discord.Member | None 
         lines.append(f"• [{p.name} ({p.tag})]({url})")
 
     embed = discord.Embed(
-        title=f"Konta CoC — {target.display_name}",
+        title=f"CoC Accounts — {target.display_name}",
         description="\n".join(lines),
         color=0x8B4513
     )
@@ -646,8 +646,8 @@ async def profile(interaction: discord.Interaction, user: discord.Member | None 
     await interaction.response.send_message(embed=embed)
 
 
-@bot.tree.command(name="stats_user_legend", description="Statystyki legendy wszystkich kont użytkownika")
-@app_commands.describe(user="Użytkownik Discord (domyślnie Ty)")
+@bot.tree.command(name="stats_user_legend", description="Legend day stats for all linked accounts of a user")
+@app_commands.describe(user="Discord user (defaults to you)")
 async def stats_user_legend(interaction: discord.Interaction, user: discord.Member | None = None):
     await interaction.response.defer()
 
@@ -656,7 +656,7 @@ async def stats_user_legend(interaction: discord.Interaction, user: discord.Memb
 
     discord_user = session.query(DiscordUser).filter_by(discord_id=str(target.id)).first()
     if not discord_user or not discord_user.players:
-        await interaction.followup.send(f"❌ {target.mention} nie ma połączonych kont CoC.")
+        await interaction.followup.send(f"❌ {target.mention} has no linked CoC accounts.")
         session.close()
         return
 
@@ -689,19 +689,19 @@ async def stats_user_legend(interaction: discord.Interaction, user: discord.Memb
 
     session.close()
 
-    def fmt_name(name, tag):
-        clean = ''.join(c for c in name if c.isascii() or '\u0100' <= c <= '\u024F').strip()
-        return f"{clean} ({tag})"[:23]
+    embeds = build_legend_table_embeds(f"📊 Legend Day — {target.display_name}", rows)
+    for embed in embeds:
+        await interaction.followup.send(embed=embed)
 
+
+def fmt_name(name, tag, width):
+    clean = ''.join(c for c in name if c.isascii() or '\u0100' <= c <= '\u024F').strip()
+    return f"{clean} ({tag})"[:width]
+
+def build_legend_table_embeds(title: str, rows: list) -> list[discord.Embed]:
     N, AD, ST, TR, RK = 23, 5, 4, 5, 5
-
-    embed = discord.Embed(
-        title=f"📊 Legend Day — {target.display_name}",
-        color=0x8B4513
-    )
-
     header = (
-        f"`{'Gracz':<{N}}` "
+        f"`{'Player':<{N}}` "
         f"`{'A/D':^{AD}}` "
         f"`{'ATK':>{ST}}` "
         f"`{'DEF':>{ST}}` "
@@ -710,15 +710,15 @@ async def stats_user_legend(interaction: discord.Interaction, user: discord.Memb
         f"`{'Curr':>{TR}}` "
         f"`{'Rnk':>{RK}}`"
     )
-    embed.add_field(name="", value=header, inline=False)
 
+    fields = []
     for name, tag, atk, deff, net, init, final, rank, atk_n, def_n in rows:
-        label     = fmt_name(name, tag)
+        label     = fmt_name(name, tag, N)
         init_str  = str(init)  if init  is not None else "—"
         final_str = str(final) if final is not None else "—"
         rank_str  = f"#{rank}" if rank is not None else "—"
         ad_str    = f"{atk_n}/{def_n}"
-        row = (
+        fields.append(
             f"`{label:<{N}}` "
             f"`{ad_str:^{AD}}` "
             f"`{atk:>+{ST}}` "
@@ -728,9 +728,74 @@ async def stats_user_legend(interaction: discord.Interaction, user: discord.Memb
             f"`{final_str:>{TR}}` "
             f"`{rank_str:>{RK}}`"
         )
-        embed.add_field(name="", value=row, inline=False)
 
-    await interaction.followup.send(embed=embed)
+    embeds = []
+    FIELDS_PER_EMBED = 24  # 1 reserved for header
+    for i in range(0, max(1, len(fields)), FIELDS_PER_EMBED):
+        chunk = fields[i:i + FIELDS_PER_EMBED]
+        embed = discord.Embed(title=title if i == 0 else f"{title} (cd.)", color=0x8B4513)
+        embed.add_field(name="", value=header, inline=False)
+        for f in chunk:
+            embed.add_field(name="", value=f, inline=False)
+        embeds.append(embed)
+    return embeds
+
+
+@bot.tree.command(name="stats_role_legend", description="Legend day stats for all accounts of users with a role")
+@app_commands.describe(role="Discord role")
+async def stats_role_legend(interaction: discord.Interaction, role: discord.Role):
+    await interaction.response.defer()
+
+    session = Session()
+    start, end = get_day_window(0)
+
+    rows = []
+    unlinked = []
+    for member in role.members:
+        discord_user = session.query(DiscordUser).filter_by(discord_id=str(member.id)).first()
+        if not discord_user or not discord_user.players:
+            unlinked.append(member.display_name)
+            continue
+
+        for player in discord_user.players:
+            player_data = await get_player(player.tag)
+            season_trophies = player_data[2] if player_data else None
+
+            attacks = session.query(Attack).filter(
+                Attack.player_id == player.id,
+                Attack.created_at >= start,
+                Attack.created_at < end,
+                Attack.is_attack == True
+            ).order_by(Attack.created_at.asc()).all()[-8:]
+
+            defenses = session.query(Attack).filter(
+                Attack.player_id == player.id,
+                Attack.created_at >= start,
+                Attack.created_at < end,
+                Attack.is_attack == False
+            ).order_by(Attack.created_at.asc()).all()[-8:]
+
+            atk_trophies = sum(a.trophies for a in attacks)
+            def_trophies = sum(d.trophies for d in defenses)
+            net = atk_trophies + def_trophies
+            init = (season_trophies - net) if season_trophies is not None else None
+            rows.append((player.name, player.tag, atk_trophies, def_trophies, net, init, season_trophies, player.initial_rank, len(attacks), len(defenses)))
+
+    session.close()
+
+    if not rows:
+        await interaction.followup.send(f"❌ No linked CoC accounts found for role {role.mention}.")
+        return
+
+    rows.sort(key=lambda r: r[4], reverse=True)
+
+    embeds = build_legend_table_embeds(f"📊 Legend Day — {role.name}", rows)
+    for embed in embeds:
+        await interaction.followup.send(embed=embed)
+
+    if unlinked:
+        names = ", ".join(unlinked)
+        await interaction.followup.send(f"⚠️ No linked accounts: {names}")
 
 
 @tasks.loop(minutes=10)
