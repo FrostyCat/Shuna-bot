@@ -749,8 +749,6 @@ async def stats_role_legend(interaction: discord.Interaction, role: discord.Role
     session = Session()
     start, end = get_day_window(0)
 
-    await interaction.guild.chunk()
-
     rows = []
     unlinked = []
     for member in role.members:
