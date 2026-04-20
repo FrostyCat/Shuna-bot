@@ -27,7 +27,10 @@ async def get_battlelog(tag):
 async def get_player(tag):
     tag = tag.replace("#", "%23")
     data = await _get(f"{BASE_URL}/players/{tag}")
-    return (data["tag"], data["name"]) if data else None
+    if not data:
+        return None
+    season_trophies = data.get("legendStatistics", {}).get("currentSeason", {}).get("trophies")
+    return (data["tag"], data["name"], season_trophies)
 
 async def get_clan(tag):
     tag = tag.replace("#", "%23")

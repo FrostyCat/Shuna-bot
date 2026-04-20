@@ -27,7 +27,7 @@ async def add_player_to_db(tag: str, session, commit=True):
     if not data:
         return {"success": False, "error": "Nie znaleziono gracza"}
 
-    tag_api, name = data
+    tag_api, name, _ = data
 
     player = session.query(Player).filter_by(tag=tag_api).first()
 
@@ -201,7 +201,7 @@ def get_day_window(day_offset: int):
     return start, end
 
 
-def build_legend_embed(player, session, day_offset: int):
+def build_legend_embed(player, session, day_offset: int, season_trophies: int | None = None):
     start, end = get_day_window(day_offset)
 
     attacks = session.query(Attack).filter(
@@ -247,14 +247,18 @@ def build_legend_embed(player, session, day_offset: int):
         title=f"📊 {player.name} ({player.tag}) — {day_label}",
         color=0x8B4513
     )
+    net = total_trophies + total_trophies_defenses
+    trophy_line = f"Season: {season_trophies} 🏆\n" if season_trophies is not None else ""
+    reset_line = f"Start of day: {season_trophies - net} 🏆\n" if season_trophies is not None else ""
     embed.add_field(
         name="🏆 Overview",
         value=(
-            f"{total}/8 attacks\n"
+            f"{trophy_line}"
+            f"{reset_line}"
+            f"⚔️ {total} / 🛡️ {len(last_8_defenses)}\n"
             f"Avg ⭐: {avg_stars:.2f}\n"
             f"Trophies: {total_trophies:+}\n"
             f"Defenses: {total_trophies_defenses:-}\n"
-            f"Gain/Loss: {total_trophies + total_trophies_defenses:+}\n"
         ),
         inline=False
     )
@@ -293,7 +297,7 @@ class LegendView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)
 
 
-@bot.tree.command(name="legend", description="Statystyki legendy dla konta")
+@bot.tree.command(name="legend_day", description="Statystyki legendy dla konta")
 async def legend(interaction: discord.Interaction, tag: str):
     await interaction.response.defer()
 
@@ -313,7 +317,10 @@ async def legend(interaction: discord.Interaction, tag: str):
             return
         player = session.query(Player).filter_by(tag=result["tag"]).first()
 
-    embed = build_legend_embed(player, session, day_offset=0)
+    player_data = await get_player(player.tag)
+    season_trophies = player_data[2] if player_data else None
+
+    embed = build_legend_embed(player, session, day_offset=0, season_trophies=season_trophies)
     session.close()
 
     await interaction.followup.send(embed=embed, view=LegendView(player.tag))
@@ -346,7 +353,7 @@ def get_season_window(season: int):
     return start, end
 
 
-@bot.tree.command(name="hit_rate", description="Hit rate 3⭐ graczy klanu w legendzie")
+@bot.tree.command(name="clan_legend_stats", description="Hit rate 3⭐ graczy klanu w legendzie")
 @app_commands.describe(tag="Tag klanu, np. #ABC123", season="Numer sezonu (1=aktualny, 2=poprzedni...). Puste = cała historia")
 async def hit_rate(interaction: discord.Interaction, tag: str, season: int | None = None):
     await interaction.response.defer()
