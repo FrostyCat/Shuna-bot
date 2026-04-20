@@ -259,8 +259,8 @@ def build_legend_embed(player, session, day_offset: int, season_trophies: int | 
         rank_line = f"Rank: #{rank}\n"
     else:
         rank_line = ""
-    trophy_line = f"Season: {season_trophies} 🏆\n" if season_trophies is not None else ""
-    reset_line = f"Start of day: {season_trophies - net} 🏆\n" if season_trophies is not None else ""
+    trophy_line = f"Current: {season_trophies} 🏆\n" if season_trophies is not None else ""
+    reset_line = f"Reset: {season_trophies - net} 🏆\n" if season_trophies is not None else ""
     embed.add_field(
         name="🏆 Overview",
         value=(
@@ -271,6 +271,7 @@ def build_legend_embed(player, session, day_offset: int, season_trophies: int | 
             f"Avg ⭐: {avg_stars:.2f}\n"
             f"Trophies: {total_trophies:+}\n"
             f"Defenses: {total_trophies_defenses:-}\n"
+            f"Net: {net:+}\n"
         ),
         inline=False
     )
