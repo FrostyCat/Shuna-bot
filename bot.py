@@ -552,6 +552,61 @@ async def link(interaction: discord.Interaction, tag: str, user: discord.Member,
     await interaction.followup.send(f"✅ Linked **{player_name}** ({tag}) to {user.mention}.", ephemeral=True)
 
 
+@bot.tree.command(name="force_link", description="Link a CoC account to Discord without token verification (admin only)")
+@app_commands.describe(tag="Player tag, e.g. #ABC123", user="Discord user")
+@app_commands.default_permissions(administrator=True)
+async def force_link(interaction: discord.Interaction, tag: str, user: discord.Member):
+    await interaction.response.defer(ephemeral=True)
+
+    tag = tag.upper().replace("O", "0")
+    if not tag.startswith("#"):
+        tag = "#" + tag
+
+    session = Session()
+
+    player = session.query(Player).filter_by(tag=tag).first()
+    if not player:
+        result = await add_player_to_db(tag, session)
+        if not result["success"]:
+            await interaction.followup.send("❌ " + result["error"], ephemeral=True)
+            session.close()
+            return
+        player = session.query(Player).filter_by(tag=result["tag"]).first()
+
+    discord_user = session.query(DiscordUser).filter_by(discord_id=str(user.id)).first()
+    if not discord_user:
+        discord_user = DiscordUser(discord_id=str(user.id))
+        session.add(discord_user)
+        session.flush()
+
+    player_name = player.name
+
+    if player.discord_user_id == discord_user.id:
+        session.close()
+        await interaction.followup.send(f"ℹ️ **{player_name}** is already linked to {user.mention}.", ephemeral=True)
+        return
+
+    player.discord_user_id = discord_user.id
+    session.commit()
+    session.close()
+
+    await interaction.followup.send(f"✅ Linked **{player_name}** ({tag}) to {user.mention}.", ephemeral=True)
+
+
+@force_link.autocomplete("tag")
+async def force_link_tag_autocomplete(_interaction: discord.Interaction, current: str):
+    session = Session()
+    players = session.query(Player).all()
+    current_lower = current.lower()
+    choices = [
+        app_commands.Choice(name=f"{p.name} ({p.tag})", value=p.tag)
+        for p in players
+        if current_lower in p.tag.lower() or current_lower in p.name.lower()
+    ]
+    session.close()
+    return choices[:25]
+
+
 @link.autocomplete("tag")
 async def link_tag_autocomplete(_interaction: discord.Interaction, current: str):
     session = Session()
