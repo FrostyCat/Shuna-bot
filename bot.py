@@ -755,7 +755,11 @@ async def stats_role_legend(interaction: discord.Interaction, role: discord.Role
     unlinked = []
     for member in role.members:
         discord_user = session.query(DiscordUser).filter_by(discord_id=str(member.id)).first()
-        if not discord_user or not discord_user.players:
+        if not discord_user:
+            discord_user = DiscordUser(discord_id=str(member.id))
+            session.add(discord_user)
+            session.flush()
+        if not discord_user.players:
             unlinked.append(member.display_name)
             continue
 
@@ -783,6 +787,7 @@ async def stats_role_legend(interaction: discord.Interaction, role: discord.Role
             init = (season_trophies - net) if season_trophies is not None else None
             rows.append((player.name, player.tag, atk_trophies, def_trophies, net, init, season_trophies, player.initial_rank, len(attacks), len(defenses)))
 
+    session.commit()
     session.close()
 
     if not rows:
