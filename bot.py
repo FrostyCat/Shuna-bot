@@ -69,22 +69,23 @@ async def fetch_player_attacks(session, player):
         if not is_attack:
             trophies = -trophies
 
-        exists = session.query(Attack).filter_by(
-            player_id=player.id,
-            defender=b.get("opponentPlayerTag"),
-            stars=stars,
-            destruction=destruction,
-            is_attack=is_attack
-        ).first()
-
-        if exists:
-            continue
-
         battle_time_str = b.get("battleTime")
         try:
             created_at = datetime.strptime(battle_time_str, "%Y%m%dT%H%M%S.%fZ").replace(tzinfo=UTC)
         except (TypeError, ValueError):
             created_at = datetime.now(UTC)
+
+        exists = session.query(Attack).filter_by(
+            player_id=player.id,
+            defender=b.get("opponentPlayerTag"),
+            stars=stars,
+            destruction=destruction,
+            is_attack=is_attack,
+            created_at=created_at
+        ).first()
+
+        if exists:
+            continue
 
         record = Attack(
             player_id=player.id,
