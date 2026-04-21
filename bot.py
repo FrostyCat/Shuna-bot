@@ -368,7 +368,7 @@ def get_season_window(season: int):
     return start, end
 
 
-@bot.tree.command(name="clan_legend_stats", description="3⭐ hit rate for clan members in legend league")
+@bot.tree.command(name="legend_stats_clan", description="3⭐ hit rate for clan members in legend league")
 @app_commands.describe(tag="Clan tag, e.g. #ABC123", season="Season number (1=current, 2=previous...). Empty = all time")
 async def hit_rate(interaction: discord.Interaction, tag: str, season: int | None = None):
     await interaction.response.defer()
@@ -429,33 +429,29 @@ async def hit_rate(interaction: discord.Interaction, tag: str, season: int | Non
 
     rows.sort(key=lambda r: r[3], reverse=True)
 
-    GOLD   = "\u001b[33m"
-    SILVER = "\u001b[37m"
-    BRONZE = "\u001b[31m"
-    RESET  = "\u001b[0m"
-    rank_colors = {1: GOLD, 2: SILVER, 3: BRONZE}
-
-    header = f"{'#':>3}  {'RATE%':>6}  {'HITS':>7}  NAME\n"
-    divider = "─" * 34 + "\n"
-
-    lines = []
+    season_label_str = season_label(season) if season else "All time"
+    header = f"‎`{'#':>3} {'RATE':>6} {'HITS':>7} `  **NAME**"
+    lines = [header]
     for i, (name, triples, total, rate) in enumerate(rows, 1):
         fraction = f"{triples}/{total}"
-        line = f"{i:>3}.  {rate:>5.1f}%  {fraction:>7}  {name}\n"
-        color = rank_colors.get(i, "")
-        lines.append(f"{color}{line}{RESET if color else ''}")
+        nums = f"{i:>3} {rate:>5.1f}% {fraction:>7} "
+        clean_name = ''.join(c for c in name if c.isascii() or 'Ā' <= c <= 'ɏ').strip() or name
+        lines.append(f"‎`{nums}` ‎{clean_name}")
 
-        CHUNK = 20
-    chunks = [lines[i:i + CHUNK] for i in range(0, len(lines), CHUNK)]
-
-    season_label_str = season_label(season) if season else "All time"
-    embed = discord.Embed(title=f"⚔️ Hit rate 3⭐ — {clan.name} — {season_label_str}", color=0x8B4513)
-    for idx, chunk in enumerate(chunks):
-        block = "```ansi\n"
-        if idx == 0:
-            block += header + divider
-        block += "".join(chunk) + "```"
-        embed.add_field(name="\u200b", value=block, inline=False)
+    embed = discord.Embed(title=f"⚔️ Legend Stats — {clan.name} — {season_label_str}", color=0x8B4513)
+    desc = "\n".join(lines)
+    if len(desc) <= 4000:
+        embed.description = desc
+    else:
+        block = header
+        for line in lines[1:]:
+            if len(block) + len(line) + 1 > 1024:
+                embed.add_field(name="", value=block, inline=False)
+                block = line
+            else:
+                block += "\n" + line
+        if block:
+            embed.add_field(name="", value=block, inline=False)
 
     embed.set_footer(text=f"{clan.tag} • {len(rows)} players")
     await interaction.followup.send(embed=embed)
@@ -552,6 +548,20 @@ async def link(interaction: discord.Interaction, tag: str, user: discord.Member,
     await interaction.followup.send(f"✅ Linked **{player_name}** ({tag}) to {user.mention}.", ephemeral=True)
 
 
+@link.autocomplete("tag")
+async def link_tag_autocomplete(_interaction: discord.Interaction, current: str):
+    session = Session()
+    players = session.query(Player).all()
+    current_lower = current.lower()
+    choices = [
+        app_commands.Choice(name=f"{p.name} ({p.tag})", value=p.tag)
+        for p in players
+        if current_lower in p.tag.lower() or current_lower in p.name.lower()
+    ]
+    session.close()
+    return choices[:25]
+
+
 @bot.tree.command(name="force_link", description="Link a CoC account to Discord without token verification (admin only)")
 @app_commands.describe(tag="Player tag, e.g. #ABC123", user="Discord user")
 @app_commands.default_permissions(administrator=True)
@@ -595,60 +605,6 @@ async def force_link(interaction: discord.Interaction, tag: str, user: discord.M
 
 @force_link.autocomplete("tag")
 async def force_link_tag_autocomplete(_interaction: discord.Interaction, current: str):
-    session = Session()
-    players = session.query(Player).all()
-    current_lower = current.lower()
-    choices = [
-        app_commands.Choice(name=f"{p.name} ({p.tag})", value=p.tag)
-        for p in players
-        if current_lower in p.tag.lower() or current_lower in p.name.lower()
-    ]
-    session.close()
-    return choices[:25]
-
-
-@bot.tree.command(name="force_unlink", description="Unlink a CoC account from Discord without token verification (admin only)")
-@app_commands.describe(tag="Player tag, e.g. #ABC123")
-@app_commands.default_permissions(administrator=True)
-async def force_unlink(interaction: discord.Interaction, tag: str):
-    await interaction.response.defer(ephemeral=True)
-
-    tag = tag.upper().replace("O", "0")
-    if not tag.startswith("#"):
-        tag = "#" + tag
-
-    session = Session()
-    player = session.query(Player).filter_by(tag=tag).first()
-
-    if not player or player.discord_user_id is None:
-        session.close()
-        await interaction.followup.send("❌ This account is not linked to any user.", ephemeral=True)
-        return
-
-    player_name = player.name
-    player.discord_user_id = None
-    session.commit()
-    session.close()
-
-    await interaction.followup.send(f"✅ Unlinked **{player_name}** ({tag}).", ephemeral=True)
-
-
-@force_unlink.autocomplete("tag")
-async def force_unlink_tag_autocomplete(_interaction: discord.Interaction, current: str):
-    session = Session()
-    players = session.query(Player).filter(Player.discord_user_id.isnot(None)).all()
-    current_lower = current.lower()
-    choices = [
-        app_commands.Choice(name=f"{p.name} ({p.tag})", value=p.tag)
-        for p in players
-        if current_lower in p.tag.lower() or current_lower in p.name.lower()
-    ]
-    session.close()
-    return choices[:25]
-
-
-@link.autocomplete("tag")
-async def link_tag_autocomplete(_interaction: discord.Interaction, current: str):
     session = Session()
     players = session.query(Player).all()
     current_lower = current.lower()
@@ -709,6 +665,46 @@ async def unlink_tag_autocomplete(_interaction: discord.Interaction, current: st
     return choices[:25]
 
 
+@bot.tree.command(name="force_unlink", description="Unlink a CoC account from Discord without token verification (admin only)")
+@app_commands.describe(tag="Player tag, e.g. #ABC123")
+@app_commands.default_permissions(administrator=True)
+async def force_unlink(interaction: discord.Interaction, tag: str):
+    await interaction.response.defer(ephemeral=True)
+
+    tag = tag.upper().replace("O", "0")
+    if not tag.startswith("#"):
+        tag = "#" + tag
+
+    session = Session()
+    player = session.query(Player).filter_by(tag=tag).first()
+
+    if not player or player.discord_user_id is None:
+        session.close()
+        await interaction.followup.send("❌ This account is not linked to any user.", ephemeral=True)
+        return
+
+    player_name = player.name
+    player.discord_user_id = None
+    session.commit()
+    session.close()
+
+    await interaction.followup.send(f"✅ Unlinked **{player_name}** ({tag}).", ephemeral=True)
+
+
+@force_unlink.autocomplete("tag")
+async def force_unlink_tag_autocomplete(_interaction: discord.Interaction, current: str):
+    session = Session()
+    players = session.query(Player).filter(Player.discord_user_id.isnot(None)).all()
+    current_lower = current.lower()
+    choices = [
+        app_commands.Choice(name=f"{p.name} ({p.tag})", value=p.tag)
+        for p in players
+        if current_lower in p.tag.lower() or current_lower in p.name.lower()
+    ]
+    session.close()
+    return choices[:25]
+
+
 @bot.tree.command(name="profile", description="Show CoC accounts linked to a Discord user")
 @app_commands.describe(user="Discord user (defaults to you)")
 async def profile(interaction: discord.Interaction, user: discord.Member | None = None):
@@ -741,9 +737,9 @@ async def profile(interaction: discord.Interaction, user: discord.Member | None 
     await interaction.response.send_message(embed=embed)
 
 
-@bot.tree.command(name="stats_user_legend", description="Legend day stats for all linked accounts of a user")
+@bot.tree.command(name="legend_day_user", description="Legend day stats for all linked accounts of a user")
 @app_commands.describe(user="Discord user (defaults to you)")
-async def stats_user_legend(interaction: discord.Interaction, user: discord.Member | None = None):
+async def legend_day_user(interaction: discord.Interaction, user: discord.Member | None = None):
     await interaction.response.defer()
 
     target = user or interaction.user
@@ -785,60 +781,46 @@ async def stats_user_legend(interaction: discord.Interaction, user: discord.Memb
     session.close()
 
     embeds = build_legend_table_embeds(f"📊 Legend Day — {target.display_name}", rows)
-    for embed in embeds:
-        await interaction.followup.send(embed=embed)
+    await interaction.followup.send(embeds=embeds)
 
 
 def fmt_name(name, tag, width):
-    clean = ''.join(c for c in name if c.isascii() or '\u0100' <= c <= '\u024F').strip()
+    clean = ''.join(c for c in name if c.isascii() or 'Ā' <= c <= 'ɏ').strip()
     return f"{clean} ({tag})"[:width]
 
 def build_legend_table_embeds(title: str, rows: list) -> list[discord.Embed]:
-    N, AD, ST, TR, RK = 23, 5, 4, 5, 5
-    header = (
-        f"`{'Player':<{N}}` "
-        f"`{'A/D':^{AD}}` "
-        f"`{'ATK':>{ST}}` "
-        f"`{'DEF':>{ST}}` "
-        f"`{'NET':>{ST}}` "
-        f"`{'Reset':>{TR}}` "
-        f"`{'Curr':>{TR}}` "
-        f"`{'Rnk':>{RK}}`"
-    )
-
-    fields = []
+    header = f"‎`{'A/D':<5} {'ATK':>4} {'DEF':>4} {'NET':>4}  {'Reset':>5}  {'Curr':>5}  {'Rnk':>4} `  **NAME**"
+    lines = [header]
     for name, tag, atk, deff, net, init, final, rank, atk_n, def_n in rows:
-        label     = fmt_name(name, tag, N)
         init_str  = str(init)  if init  is not None else "—"
         final_str = str(final) if final is not None else "—"
         rank_str  = f"#{rank}" if rank is not None else "—"
         ad_str    = f"{atk_n}/{def_n}"
-        fields.append(
-            f"`{label:<{N}}` "
-            f"`{ad_str:^{AD}}` "
-            f"`{atk:>+{ST}}` "
-            f"`{deff:>+{ST}}` "
-            f"`{net:>+{ST}}` "
-            f"`{init_str:>{TR}}` "
-            f"`{final_str:>{TR}}` "
-            f"`{rank_str:>{RK}}`"
-        )
+        nums = f"{ad_str:<5} {atk:>+4} {deff:>+4} {net:>+4}  {init_str:>5}  {final_str:>5}  {rank_str:>4} "
+        clean_name = ''.join(c for c in name if c.isascii() or 'Ā' <= c <= 'ɏ').strip() or name
+        lines.append(f"‎`{nums}` ‎{clean_name}")
 
-    embeds = []
-    FIELDS_PER_EMBED = 24  # 1 reserved for header
-    for i in range(0, max(1, len(fields)), FIELDS_PER_EMBED):
-        chunk = fields[i:i + FIELDS_PER_EMBED]
-        embed = discord.Embed(title=title if i == 0 else f"{title} (cd.)", color=0x8B4513)
-        embed.add_field(name="", value=header, inline=False)
-        for f in chunk:
-            embed.add_field(name="", value=f, inline=False)
-        embeds.append(embed)
-    return embeds
+    embed = discord.Embed(title=title, color=0x8B4513)
+    desc = "\n".join(lines)
+    if len(desc) <= 4000:
+        embed.description = desc
+    else:
+        block = header
+        for line in lines[1:]:
+            if len(block) + len(line) + 1 > 1024:
+                embed.add_field(name="", value=block, inline=False)
+                block = line
+            else:
+                block += "\n" + line
+        if block:
+            embed.add_field(name="", value=block, inline=False)
+
+    return [embed]
 
 
-@bot.tree.command(name="stats_role_legend", description="Legend day stats for all accounts of users with a role")
+@bot.tree.command(name="legend_day_role", description="Legend day stats for all accounts of users with a role")
 @app_commands.describe(role="Discord role")
-async def stats_role_legend(interaction: discord.Interaction, role: discord.Role):
+async def legend_day_role(interaction: discord.Interaction, role: discord.Role):
     await interaction.response.defer()
 
     session = Session()
@@ -887,15 +869,99 @@ async def stats_role_legend(interaction: discord.Interaction, role: discord.Role
         await interaction.followup.send(f"❌ No linked CoC accounts found for role {role.mention}.")
         return
 
-    rows.sort(key=lambda r: r[4], reverse=True)
+    rows = [r for r in rows if r[6] is not None and r[6] > 0]
+    rows.sort(key=lambda r: (r[5] if r[5] is not None else 0, r[4]), reverse=True)
 
     embeds = build_legend_table_embeds(f"📊 Legend Day — {role.name}", rows)
-    for embed in embeds:
-        await interaction.followup.send(embed=embed)
+    await interaction.followup.send(embeds=embeds)
 
     if unlinked:
         names = ", ".join(unlinked)
         await interaction.followup.send(f"⚠️ No linked accounts: {names}")
+
+
+@bot.tree.command(name="legend_day_clan", description="Legend day stats for all members of a clan")
+@app_commands.describe(tag="Clan tag, e.g. #ABC123")
+async def legend_day_clan(interaction: discord.Interaction, tag: str):
+    await interaction.response.defer()
+
+    tag = tag.upper().replace("O", "0")
+    if not tag.startswith("#"):
+        tag = "#" + tag
+
+    session = Session()
+
+    clan = session.query(Clan).filter_by(tag=tag).first()
+    if not clan:
+        data = await get_clan(tag)
+        if not data:
+            await interaction.followup.send("❌ Clan with the given tag was not found.")
+            session.close()
+            return
+        clan_tag, name = data
+        clan = Clan(tag=clan_tag, name=name)
+        session.add(clan)
+        session.commit()
+
+    members = await get_clan_members(clan.tag)
+    member_tags = {m["tag"] if isinstance(m, dict) else m for m in members}
+
+    start, end = get_day_window(0)
+
+    rows = []
+    for member_tag in member_tags:
+        player = session.query(Player).filter_by(tag=member_tag).first()
+        if not player:
+            continue
+
+        player_data = await get_player(player.tag)
+        season_trophies = player_data[2] if player_data else None
+
+        attacks = session.query(Attack).filter(
+            Attack.player_id == player.id,
+            Attack.created_at >= start,
+            Attack.created_at < end,
+            Attack.is_attack == True
+        ).order_by(Attack.created_at.asc()).all()[-8:]
+
+        defenses = session.query(Attack).filter(
+            Attack.player_id == player.id,
+            Attack.created_at >= start,
+            Attack.created_at < end,
+            Attack.is_attack == False
+        ).order_by(Attack.created_at.asc()).all()[-8:]
+
+        atk_trophies = sum(a.trophies for a in attacks)
+        def_trophies = sum(d.trophies for d in defenses)
+        net = atk_trophies + def_trophies
+        init = (season_trophies - net) if season_trophies is not None else None
+        rows.append((player.name, player.tag, atk_trophies, def_trophies, net, init, season_trophies, player.initial_rank, len(attacks), len(defenses)))
+
+    session.close()
+
+    if not rows:
+        await interaction.followup.send("❌ No data for this clan's members.")
+        return
+
+    rows = [r for r in rows if r[6] is not None and r[6] > 0]
+    rows.sort(key=lambda r: (r[5] if r[5] is not None else 0, r[4]), reverse=True)
+
+    embeds = build_legend_table_embeds(f"📊 Legend Day — {clan.name}", rows)
+    await interaction.followup.send(embeds=embeds)
+
+
+@legend_day_clan.autocomplete("tag")
+async def legend_day_clan_tag_autocomplete(_interaction: discord.Interaction, current: str):
+    session = Session()
+    clans = session.query(Clan).all()
+    current_lower = current.lower()
+    choices = [
+        app_commands.Choice(name=f"{c.name} ({c.tag})", value=c.tag)
+        for c in clans
+        if current_lower in c.tag.lower() or current_lower in c.name.lower()
+    ]
+    session.close()
+    return choices[:25]
 
 
 @tasks.loop(minutes=10)
@@ -910,6 +976,7 @@ async def refresh_players():
             data = await get_player(tag)
             if data:
                 p.current_rank = data[3]
+            print(f"Refreshed {p.name} ({tag}), total new attacks: {count}")
         except Exception as e:
             session.rollback()
             print(f"Error for {tag}: {e}")
@@ -918,6 +985,7 @@ async def refresh_players():
 
     session.commit()
     session.close()
+    print(f"Finished refresh cycle, total new attacks: {count}")
 
 @refresh_players.before_loop
 async def before_refresh():
@@ -938,9 +1006,6 @@ async def snapshot_ranks():
 @snapshot_ranks.before_loop
 async def before_snapshot():
     await bot.wait_until_ready()
-
-
-
 
 
 @tasks.loop(hours=12)
@@ -968,7 +1033,6 @@ async def refresh_clans():
 @refresh_clans.before_loop
 async def before_refresh_clans():
     await bot.wait_until_ready()
-
 
 
 if __name__ == "__main__":
