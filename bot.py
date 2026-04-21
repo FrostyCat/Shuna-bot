@@ -81,10 +81,11 @@ async def fetch_player_attacks(session, player):
             stars=stars,
             destruction=destruction,
             is_attack=is_attack,
-            created_at=created_at
         ).first()
 
         if exists:
+            if abs((exists.created_at - created_at).total_seconds()) > 3600:
+                exists.created_at = created_at
             continue
 
         record = Attack(
