@@ -11,7 +11,7 @@ seen = {}
 to_delete = []
 
 for attack in all_attacks:
-    key = (attack.player_id, attack.defender, attack.stars, attack.destruction, attack.is_attack, attack.created_at)
+    key = (attack.player_id, attack.defender, attack.stars, attack.destruction, attack.is_attack)
     if key in seen:
         to_delete.append(attack)
     else:
