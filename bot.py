@@ -69,11 +69,7 @@ async def fetch_player_attacks(session, player):
         if not is_attack:
             trophies = -trophies
 
-        battle_time_str = b.get("battleTime")
-        try:
-            created_at = datetime.strptime(battle_time_str, "%Y%m%dT%H%M%S.%fZ").replace(tzinfo=UTC)
-        except (TypeError, ValueError):
-            created_at = datetime.now(UTC)
+        created_at = datetime.now(UTC)
 
         exists = session.query(Attack).filter_by(
             player_id=player.id,
@@ -84,8 +80,6 @@ async def fetch_player_attacks(session, player):
         ).first()
 
         if exists:
-            if abs((exists.created_at - created_at).total_seconds()) > 3600:
-                exists.created_at = created_at
             continue
 
         record = Attack(
