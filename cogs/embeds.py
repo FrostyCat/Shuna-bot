@@ -26,7 +26,8 @@ class Embeds(commands.Cog):
         color: discord.Option(str, "Hex color, e.g. #ff0000", required=False, default="#5865F2"),
         channel: discord.Option(discord.TextChannel, "Target channel (default: current)", required=False, default=None),
         footer: discord.Option(str, "Footer text", required=False, default=None),
-        image: discord.Option(str, "Image URL (large, at the bottom)", required=False, default=None),
+        thumbnail: discord.Option(str, "Small image URL (top right corner)", required=False, default=None),
+        image: discord.Option(str, "Large image URL (bottom of embed)", required=False, default=None),
     ):
         embed = discord.Embed(
             title=title,
@@ -38,6 +39,8 @@ class Embeds(commands.Cog):
             embed.set_footer(text=footer)
         else:
             embed.set_footer(text=f"Sent by {ctx.author}", icon_url=ctx.author.display_avatar.url)
+        if thumbnail:
+            embed.set_thumbnail(url=thumbnail)
         if image:
             embed.set_image(url=image)
 
