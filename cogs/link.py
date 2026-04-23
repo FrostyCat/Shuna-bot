@@ -4,7 +4,7 @@ from discord.ext import commands
 from coc_api import get_player, verify_player_token
 from db import Session
 from models import DiscordUser, Player
-from utils import add_player_to_db
+from helpers import add_player_to_db
 
 
 async def player_tag_autocomplete(ctx: discord.AutocompleteContext):

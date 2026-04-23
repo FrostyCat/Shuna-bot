@@ -8,7 +8,7 @@ from sqlalchemy import func
 from coc_api import get_clan, get_clan_members, get_player
 from db import Session
 from models import Attack, Clan, Player
-from utils import WARSAW, add_player_to_db
+from helpers import WARSAW, add_player_to_db
 
 SEASON_EPOCH = datetime(2026, 4, 20, 7, 0, 0, tzinfo=WARSAW)
 SEASON_DURATION = timedelta(days=28)

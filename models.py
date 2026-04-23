@@ -48,3 +48,12 @@ class Clan(Base):
     id = Column(Integer, primary_key=True)
     tag = Column(String, unique=True)
     name = Column(String)
+
+
+class GuildConfig(Base):
+    __tablename__ = "guild_configs"
+
+    guild_id = Column(String, primary_key=True)
+    staff_role_id = Column(String, nullable=True)
+    ticket_category_id = Column(String, nullable=True)
+    log_channel_id = Column(String, nullable=True)

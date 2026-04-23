@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 from db import Session, init_db
 from models import Player
-from utils import fetch_player_attacks
+from helpers import fetch_player_attacks
 
 load_dotenv()
 
@@ -20,6 +20,9 @@ COGS = [
     "cogs.legend",
     "cogs.link",
     "cogs.tasks",
+    "cogs.tickets",
+    "cogs.embeds",
+    "cogs.config",
 ]
 
 

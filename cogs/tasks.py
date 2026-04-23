@@ -7,7 +7,7 @@ from discord.ext import commands, tasks
 from coc_api import get_clan_members, get_player
 from db import Session
 from models import Clan, Player
-from utils import WARSAW, add_player_to_db, fetch_player_attacks
+from helpers import WARSAW, add_player_to_db, fetch_player_attacks
 
 
 class TasksCog(discord.Cog):
