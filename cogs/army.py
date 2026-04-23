@@ -3,8 +3,7 @@ from discord.ext import commands
 from collections import defaultdict
 
 from db import Session
-from models import Attack, Player
-from cogs.legend import tag_autocomplete
+from models import Attack
 
 # (name, housing_space, exclude_from_category)
 TROOP_DATA = {
@@ -105,37 +104,20 @@ class ArmyCog(discord.Cog):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
 
-    @discord.slash_command(name="army_stats", description="Attack category stats based on army composition")
-    async def army_stats(
-        self,
-        ctx: discord.ApplicationContext,
-        tag: discord.Option(str, "Player tag, e.g. #ABC123", autocomplete=tag_autocomplete),
-    ):
+    @discord.slash_command(name="army_stats", description="Overall army composition stats across all players")
+    async def army_stats(self, ctx: discord.ApplicationContext):
         await ctx.defer()
 
-        tag = tag.upper().replace("O", "0")
-        if not tag.startswith("#"):
-            tag = "#" + tag
-
         session = Session()
-        player = session.query(Player).filter_by(tag=tag).first()
-        if not player:
-            await ctx.followup.send("❌ Player not found in database.")
-            session.close()
-            return
-
-        records = session.query(Attack).filter(
-            Attack.player_id == player.id,
-            Attack.army_share_code.isnot(None),
-        ).all()
+        records = session.query(Attack).filter(Attack.army_share_code.isnot(None)).all()
         session.close()
+
+        if not records:
+            await ctx.followup.send("❌ No army data yet. Data is collected from new battles only.")
+            return
 
         attacks = [a for a in records if a.is_attack]
         defenses = [a for a in records if not a.is_attack]
-
-        if not records:
-            await ctx.followup.send("❌ No data with army codes found. Data is collected from new battles only.")
-            return
 
         def build_rows(entries):
             counts: dict[str, int] = defaultdict(int)
@@ -158,10 +140,7 @@ class ArmyCog(discord.Cog):
                 lines.append(f"‎`{nums}` ‎{cat}")
             return "\n".join(lines), total
 
-        embed = discord.Embed(
-            title=f"⚔️ Army Stats — {player.name}",
-            color=0x8B4513,
-        )
+        embed = discord.Embed(title="⚔️ Army Stats — All Players", color=0x8B4513)
 
         if attacks:
             atk_text, atk_total = build_rows(attacks)
