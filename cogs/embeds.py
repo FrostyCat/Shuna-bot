@@ -31,7 +31,7 @@ class Embeds(commands.Cog):
     ):
         embed = discord.Embed(
             title=title,
-            description=description,
+            description=description.replace("\\n", "\n"),
             color=parse_color(color),
             timestamp=datetime.utcnow(),
         )
