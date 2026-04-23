@@ -7,6 +7,7 @@ from models import Attack
 
 # (name, housing_space, exclude_from_category)
 TROOP_DATA = {
+    # Elixir troops
     0:  ("Barbarian",      1,  False),
     1:  ("Archer",         1,  False),
     2:  ("Giant",          5,  False),
@@ -14,7 +15,7 @@ TROOP_DATA = {
     4:  ("Wall Breaker",   2,  False),
     5:  ("Balloon",        5,  False),
     6:  ("Wizard",         4,  False),
-    7:  ("Healer",         14, True),   # excluded
+    7:  ("Healer",         14, True),
     8:  ("Dragon",         20, False),
     9:  ("P.E.K.K.A",      25, False),
     10: ("Baby Dragon",    10, False),
@@ -22,31 +23,38 @@ TROOP_DATA = {
     12: ("Electro Dragon", 30, False),
     13: ("Yeti",           18, False),
     14: ("Dragon Rider",   25, False),
-    15: ("Electro Titan",  30, False),
-    16: ("Root Rider",     25, False),
+    15: ("Electro Titan",  32, False),
+    16: ("Root Rider",     20, False),
+    # Dark Elixir troops
     17: ("Minion",         2,  False),
-    18: ("Hog Rider",      6,  False),
+    18: ("Hog Rider",      5,  False),
     19: ("Valkyrie",       8,  False),
     20: ("Golem",          30, False),
     21: ("Witch",          12, False),
-    22: ("Lava Hound",     30, False),
+    22: ("Lava Hound",     30, True),
     23: ("Bowler",         6,  False),
     24: ("Ice Golem",      15, False),
     25: ("Headhunter",     6,  False),
+    26: ("Apprentice Warden", 20, False),
+    27: ("Druid",          16, False),
     # Super troops
-    50: ("Super Barbarian",   1,  False),
-    51: ("Super Archer",      1,  False),
-    52: ("Sneaky Goblin",     1,  False),
-    53: ("Super Wall Breaker",2,  False),
-    54: ("Rocket Balloon",    5,  False),
-    55: ("Inferno Dragon",    20, False),
-    56: ("Super Witch",       12, False),
-    57: ("Ice Hound",         30, True),  # similar to healer role
-    58: ("Super Bowler",      6,  False),
-    59: ("Super Dragon",      20, False),
-    60: ("Super Miner",       6,  False),
-    61: ("Super Hog Rider",   6,  False),
-    62: ("Super Giant",       5,  False),
+    50: ("Super Barbarian",    5,  False),
+    51: ("Super Archer",       12, False),
+    52: ("Sneaky Goblin",      3,  False),
+    53: ("Super Wall Breaker", 8,  False),
+    54: ("Rocket Balloon",     8,  False),
+    55: ("Inferno Dragon",     15, False),
+    56: ("Super Witch",        40, False),
+    57: ("Ice Hound",          40, True),
+    58: ("Super Bowler",       30, False),
+    59: ("Super Dragon",       40, False),
+    60: ("Super Miner",        24, False),
+    61: ("Super Hog Rider",    8,  False),
+    62: ("Super Giant",        10, False),
+    63: ("Super Valkyrie",     20, False),
+    64: ("Super Wizard",       10, False),
+    65: ("Super Minion",       12, False),
+    66: ("Super Yeti",         35, False),
 }
 
 SPELL_DATA = {
