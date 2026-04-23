@@ -35,7 +35,7 @@ async def fetch_player_attacks(session, player):
         stars = b.get("stars", 0)
         destruction = b.get("destructionPercentage", 0)
         trophies = calculate_trophies(stars, destruction)
-        army_share_code = b.get("armyShareCode") if is_attack else None
+        army_share_code = b.get("armyShareCode")
 
         if not is_attack:
             trophies = -trophies
