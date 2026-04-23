@@ -51,8 +51,52 @@ class EmbedModal(discord.ui.Modal):
             embed.set_image(url=self.image)
 
         target = self.channel or interaction.channel
+        perms = target.permissions_for(interaction.guild.me)
+        if not perms.send_messages or not perms.embed_links:
+            await interaction.response.send_message(
+                f"❌ I don't have permission to send messages in {target.mention}.", ephemeral=True
+            )
+            return
         await target.send(embed=embed)
         await interaction.response.send_message("Embed sent!", ephemeral=True)
+
+
+class EmbedEditModal(discord.ui.Modal):
+    def __init__(self, msg, existing, color, thumbnail, image):
+        super().__init__(title="Edit Embed")
+        self.msg = msg
+        self.existing = existing
+        self.color = color
+        self.thumbnail = thumbnail
+        self.image = image
+
+        self.add_item(discord.ui.InputText(
+            label="Title",
+            placeholder="Embed title...",
+            value=existing.title or "",
+            max_length=256,
+        ))
+        self.add_item(discord.ui.InputText(
+            label="Description",
+            placeholder="Embed content...",
+            style=discord.InputTextStyle.long,
+            value=existing.description or "",
+            max_length=4000,
+        ))
+
+    async def callback(self, interaction: discord.Interaction):
+        embed = self.existing
+        embed.title = self.children[0].value
+        embed.description = self.children[1].value
+        if self.color:
+            embed.color = parse_color(self.color)
+        if self.thumbnail:
+            embed.set_thumbnail(url=self.thumbnail)
+        if self.image:
+            embed.set_image(url=self.image)
+
+        await self.msg.edit(embed=embed)
+        await interaction.response.send_message("Embed updated!", ephemeral=True)
 
 
 class Embeds(commands.Cog):
@@ -80,9 +124,9 @@ class Embeds(commands.Cog):
         self,
         ctx: discord.ApplicationContext,
         message_id: discord.Option(str, "Message ID containing the embed"),
-        title: discord.Option(str, "New title", required=False, default=None),
-        description: discord.Option(str, "New description", required=False, default=None),
         color: discord.Option(str, "New hex color", required=False, default=None),
+        thumbnail: discord.Option(str, "New small image URL (top right)", required=False, default=None),
+        image: discord.Option(str, "New large image URL (bottom)", required=False, default=None),
     ):
         try:
             msg = await ctx.channel.fetch_message(int(message_id))
@@ -94,16 +138,8 @@ class Embeds(commands.Cog):
             await ctx.respond("That message does not contain an embed.", ephemeral=True)
             return
 
-        embed = msg.embeds[0]
-        if title:
-            embed.title = title
-        if description:
-            embed.description = description
-        if color:
-            embed.color = parse_color(color)
-
-        await msg.edit(embed=embed)
-        await ctx.respond("Embed updated!", ephemeral=True)
+        existing = msg.embeds[0]
+        await ctx.send_modal(EmbedEditModal(msg, existing, color, thumbnail, image))
 
     @discord.slash_command(name="help", description="Shows all available commands")
     async def help_command(self, ctx: discord.ApplicationContext):
