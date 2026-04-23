@@ -145,7 +145,11 @@ class ArmyCog(discord.Cog):
                 avg_stars = stars[cat] / count
                 avg_trophies = trophies[cat] / count
                 nums = f"{i:>3} {count:>6} {pct:>4.1f}% {avg_stars:>5.2f}⭐ {avg_trophies:>+5.1f} "
-                lines.append(f"‎`{nums}` ‎{cat}")
+                line = f"‎`{nums}` ‎{cat}"
+                if sum(len(l) + 1 for l in lines) + len(line) > 1000:
+                    lines.append(f"‎*...and {len(rows) - i + 1} more*")
+                    break
+                lines.append(line)
             return "\n".join(lines), total
 
         embed = discord.Embed(title="⚔️ Army Stats — All Players", color=0x8B4513)
