@@ -35,6 +35,7 @@ async def fetch_player_attacks(session, player):
         stars = b.get("stars", 0)
         destruction = b.get("destructionPercentage", 0)
         trophies = calculate_trophies(stars, destruction)
+        army_share_code = b.get("armyShareCode") if is_attack else None
 
         if not is_attack:
             trophies = -trophies
@@ -50,6 +51,8 @@ async def fetch_player_attacks(session, player):
         ).first()
 
         if exists:
+            if army_share_code and not exists.army_share_code:
+                exists.army_share_code = army_share_code
             continue
 
         record = Attack(
@@ -60,6 +63,7 @@ async def fetch_player_attacks(session, player):
             trophies=trophies,
             is_attack=is_attack,
             created_at=created_at,
+            army_share_code=army_share_code,
         )
 
         session.add(record)

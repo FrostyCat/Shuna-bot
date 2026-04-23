@@ -107,6 +107,57 @@ def build_legend_embed(player, session, day_offset: int, season_trophies=None, r
     return embed
 
 
+def build_season_embed(player, session, season_trophies: int | None) -> discord.Embed:
+    season_start, season_end = get_season_window(1)
+
+    all_attacks = session.query(Attack).filter(
+        Attack.player_id == player.id,
+        Attack.created_at >= season_start,
+        Attack.created_at < season_end,
+    ).order_by(Attack.created_at.asc()).all()
+
+    days: dict[int, dict] = {}
+    for a in all_attacks:
+        local = a.created_at.astimezone(WARSAW)
+        if local.hour < 7:
+            local -= timedelta(days=1)
+        day_start = local.replace(hour=7, minute=0, second=0, microsecond=0)
+        day_num = int((day_start - season_start.astimezone(WARSAW)).days) + 1
+        if day_num not in days:
+            days[day_num] = {"atk": 0, "def": 0}
+        if a.is_attack:
+            days[day_num]["atk"] += a.trophies
+        else:
+            days[day_num]["def"] += a.trophies
+
+    total_net = sum(d["atk"] + d["def"] for d in days.values())
+    starting = (season_trophies - total_net) if season_trophies is not None else None
+
+    header = f"\u200E`{'DAY':>3} {'ATK':>5} {'DEF':>5} {'+/-':>5}  {'INIT':>5}  {'FINAL':>5} `"
+    lines = [header]
+    cumulative = 0
+    for day_num in sorted(days.keys()):
+        d = days[day_num]
+        net = d["atk"] + d["def"]
+        init = (starting + cumulative) if starting is not None else None
+        final = (init + net) if init is not None else None
+        init_str = str(init) if init is not None else "—"
+        final_str = str(final) if final is not None else "—"
+        nums = f"{day_num:>3} {d['atk']:>+5} {d['def']:>+5} {net:>+5}  {init_str:>5}  {final_str:>5} "
+        lines.append(f"\u200E`{nums}`")
+        cumulative += net
+
+    now = datetime.now(WARSAW)
+    month = MONTHS_EN[now.month - 1]
+    embed = discord.Embed(
+        title=f"📅 Season Log — {player.name}",
+        description="\n".join(lines),
+        color=0x8B4513,
+    )
+    embed.set_footer(text=f"{month} {now.year} • {len(days)} days played")
+    return embed
+
+
 def build_legend_table_embeds(title: str, rows: list) -> list[discord.Embed]:
     header = f"‎`{'A/D':<5} {'ATK':>4} {'DEF':>4} {'NET':>4}  {'Reset':>5}  {'Curr':>5}  {'Rnk':>6} `  **NAME**"
     lines = [header]
@@ -158,12 +209,36 @@ class LegendView(discord.ui.View):
         self._update_buttons()
         await self._refresh(interaction)
 
+    @discord.ui.button(label="📅 Season", style=discord.ButtonStyle.primary)
+    async def season_log(self, _button: discord.ui.Button, interaction: discord.Interaction):
+        session = Session()
+        player = session.query(Player).filter_by(tag=self.player_tag).first()
+        player_data = await get_player(player.tag)
+        season_trophies = player_data[2] if player_data else None
+        embed = build_season_embed(player, session, season_trophies)
+        session.close()
+        await interaction.response.edit_message(embed=embed, view=SeasonView(self.player_tag))
+
     async def _refresh(self, interaction: discord.Interaction):
         session = Session()
         player = session.query(Player).filter_by(tag=self.player_tag).first()
         embed = build_legend_embed(player, session, self.day_offset)
         session.close()
         await interaction.response.edit_message(embed=embed, view=self)
+
+
+class SeasonView(discord.ui.View):
+    def __init__(self, player_tag: str):
+        super().__init__(timeout=300)
+        self.player_tag = player_tag
+
+    @discord.ui.button(label="◀ Back", style=discord.ButtonStyle.secondary)
+    async def back(self, _button: discord.ui.Button, interaction: discord.Interaction):
+        session = Session()
+        player = session.query(Player).filter_by(tag=self.player_tag).first()
+        embed = build_legend_embed(player, session, day_offset=0)
+        session.close()
+        await interaction.response.edit_message(embed=embed, view=LegendView(self.player_tag))
 
 
 async def tag_autocomplete(ctx: discord.AutocompleteContext):
