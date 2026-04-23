@@ -10,6 +10,51 @@ def parse_color(hex_str: str) -> discord.Color:
         return discord.Color.blurple()
 
 
+class EmbedModal(discord.ui.Modal):
+    def __init__(self, color, channel, footer, thumbnail, image):
+        super().__init__(title="Create Embed")
+        self.color = color
+        self.channel = channel
+        self.footer = footer
+        self.thumbnail = thumbnail
+        self.image = image
+
+        self.add_item(discord.ui.InputText(
+            label="Title",
+            placeholder="Embed title...",
+            max_length=256,
+        ))
+        self.add_item(discord.ui.InputText(
+            label="Description",
+            placeholder="Embed content...",
+            style=discord.InputTextStyle.long,
+            max_length=4000,
+        ))
+
+    async def callback(self, interaction: discord.Interaction):
+        title = self.children[0].value
+        description = self.children[1].value
+
+        embed = discord.Embed(
+            title=title,
+            description=description,
+            color=parse_color(self.color),
+            timestamp=datetime.utcnow(),
+        )
+        if self.footer:
+            embed.set_footer(text=self.footer)
+        else:
+            embed.set_footer(text=f"Sent by {interaction.user}", icon_url=interaction.user.display_avatar.url)
+        if self.thumbnail:
+            embed.set_thumbnail(url=self.thumbnail)
+        if self.image:
+            embed.set_image(url=self.image)
+
+        target = self.channel or interaction.channel
+        await target.send(embed=embed)
+        await interaction.response.send_message("Embed sent!", ephemeral=True)
+
+
 class Embeds(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -21,32 +66,13 @@ class Embeds(commands.Cog):
     async def send_embed(
         self,
         ctx: discord.ApplicationContext,
-        title: discord.Option(str, "Embed title"),
-        description: discord.Option(str, "Embed description/content"),
         color: discord.Option(str, "Hex color, e.g. #ff0000", required=False, default="#5865F2"),
         channel: discord.Option(discord.TextChannel, "Target channel (default: current)", required=False, default=None),
         footer: discord.Option(str, "Footer text", required=False, default=None),
         thumbnail: discord.Option(str, "Small image URL (top right corner)", required=False, default=None),
         image: discord.Option(str, "Large image URL (bottom of embed)", required=False, default=None),
     ):
-        embed = discord.Embed(
-            title=title,
-            description=description.replace("\\n", "\n"),
-            color=parse_color(color),
-            timestamp=datetime.utcnow(),
-        )
-        if footer:
-            embed.set_footer(text=footer)
-        else:
-            embed.set_footer(text=f"Sent by {ctx.author}", icon_url=ctx.author.display_avatar.url)
-        if thumbnail:
-            embed.set_thumbnail(url=thumbnail)
-        if image:
-            embed.set_image(url=image)
-
-        target = channel or ctx.channel
-        await target.send(embed=embed)
-        await ctx.respond("Embed sent!", ephemeral=True)
+        await ctx.send_modal(EmbedModal(color, channel, footer, thumbnail, image))
 
     @embed_group.command(name="edit", description="Edits an embed from a message (by ID)")
     @commands.has_permissions(manage_messages=True)
