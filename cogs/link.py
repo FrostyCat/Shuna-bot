@@ -78,9 +78,10 @@ class LinkCog(discord.Cog):
             return
 
         player.discord_user_id = discord_user.id
+        player_name = player.name
         session.commit()
         session.close()
-        await ctx.followup.send(f"✅ Linked **{player.name}** ({tag}) to {user.mention}.", ephemeral=True)
+        await ctx.followup.send(f"✅ Linked **{player_name}** ({tag}) to {user.mention}.", ephemeral=True)
 
     @discord.slash_command(
         name="force_link",
@@ -121,9 +122,10 @@ class LinkCog(discord.Cog):
             return
 
         player.discord_user_id = discord_user.id
+        player_name = player.name
         session.commit()
         session.close()
-        await ctx.followup.send(f"✅ Linked **{player.name}** ({tag}) to {user.mention}.", ephemeral=True)
+        await ctx.followup.send(f"✅ Linked **{player_name}** ({tag}) to {user.mention}.", ephemeral=True)
 
     @discord.slash_command(name="unlink", description="Unlink a Clash of Clans account from Discord")
     async def unlink(
