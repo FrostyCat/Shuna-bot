@@ -1,6 +1,8 @@
 from zoneinfo import ZoneInfo
 from datetime import UTC, datetime
 
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+
 from coc_api import get_battlelog, get_player
 from db import Session
 from models import Attack, Player
@@ -40,18 +42,7 @@ async def fetch_player_attacks(session, player):
 
         created_at = datetime.now(UTC)
 
-        exists = session.query(Attack).filter_by(
-            player_id=player.id,
-            defender=b.get("opponentPlayerTag"),
-            stars=stars,
-            destruction=destruction,
-            is_attack=is_attack,
-        ).first()
-
-        if exists:
-            continue
-
-        record = Attack(
+        stmt = pg_insert(Attack).values(
             player_id=player.id,
             defender=b.get("opponentPlayerTag"),
             stars=stars,
@@ -59,10 +50,11 @@ async def fetch_player_attacks(session, player):
             trophies=trophies,
             is_attack=is_attack,
             created_at=created_at,
+        ).on_conflict_do_nothing(
+            index_elements=["player_id", "defender", "stars", "destruction", "is_attack"]
         )
-
-        session.add(record)
-        total_count += 1
+        result = session.execute(stmt)
+        total_count += result.rowcount
 
     return total_count
 
