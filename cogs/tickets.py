@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import re
+import secrets
 import discord
 from discord.ext import commands
 from datetime import datetime, UTC
@@ -213,6 +214,7 @@ class ConfirmCloseView(discord.ui.View):
 
         session = Session()
         transcript = Transcript(
+            token=secrets.token_urlsafe(12),
             guild_id=str(interaction.guild.id),
             channel_name=interaction.channel.name,
             closed_by=str(interaction.user),
@@ -221,7 +223,7 @@ class ConfirmCloseView(discord.ui.View):
         )
         session.add(transcript)
         session.commit()
-        transcript_id = transcript.id
+        transcript_token = transcript.token
         session.close()
 
         embed = discord.Embed(
@@ -241,14 +243,12 @@ class ConfirmCloseView(discord.ui.View):
             )
             log_embed.add_field(name="Channel", value=interaction.channel.name, inline=True)
             log_embed.add_field(name="Closed by", value=str(interaction.user), inline=True)
-            log_embed.add_field(name="Transcript ID", value=f"`#{transcript_id}`", inline=True)
-
             web_url = os.getenv("WEB_URL")
             view = discord.ui.View()
             if web_url:
                 view.add_item(discord.ui.Button(
                     label="View Transcript",
-                    url=f"{web_url}/transcript/{transcript_id}",
+                    url=f"{web_url}/transcript/{transcript_token}",
                     style=discord.ButtonStyle.link,
                     emoji="📄",
                 ))

@@ -53,6 +53,7 @@ class Transcript(Base):
     __tablename__ = "transcripts"
 
     id = Column(Integer, primary_key=True)
+    token = Column(String, unique=True)
     guild_id = Column(String)
     channel_name = Column(String)
     closed_by = Column(String)

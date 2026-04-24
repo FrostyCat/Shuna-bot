@@ -12,10 +12,10 @@ load_dotenv()
 app = Flask(__name__)
 
 
-@app.route("/transcript/<int:transcript_id>")
-def transcript(transcript_id):
+@app.route("/transcript/<string:token>")
+def transcript(token):
     session = Session()
-    t = session.get(Transcript, transcript_id)
+    t = session.query(Transcript).filter_by(token=token).first()
     session.close()
 
     if not t:
