@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transcript — {{ transcript.channel_name }}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #313338;
+      color: #dbdee1;
+      font-family: "gg sans", "Noto Sans", Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    .header {
+      background: #1e1f22;
+      padding: 20px 32px;
+      border-bottom: 1px solid #3f4046;
+    }
+
+    .header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #f2f3f5;
+    }
+
+    .header .meta {
+      margin-top: 6px;
+      font-size: 13px;
+      color: #949ba4;
+    }
+
+    .messages {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 24px 16px;
+    }
+
+    .message {
+      display: flex;
+      gap: 16px;
+      padding: 4px 0;
+      border-radius: 4px;
+    }
+
+    .message:hover {
+      background: #2e3035;
+    }
+
+    .avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .msg-body { flex: 1; min-width: 0; }
+
+    .msg-header {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 2px;
+    }
+
+    .author {
+      font-weight: 600;
+      color: #f2f3f5;
+    }
+
+    .timestamp {
+      font-size: 11px;
+      color: #949ba4;
+    }
+
+    .content {
+      color: #dbdee1;
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+
+    .embed {
+      margin-top: 8px;
+      border-left: 4px solid #5865f2;
+      background: #2b2d31;
+      border-radius: 4px;
+      padding: 12px 16px;
+      max-width: 520px;
+    }
+
+    .embed-title {
+      font-weight: 700;
+      font-size: 14px;
+      color: #f2f3f5;
+      margin-bottom: 4px;
+    }
+
+    .embed-desc {
+      font-size: 13px;
+      color: #dbdee1;
+      white-space: pre-wrap;
+    }
+
+    .system-msg {
+      color: #949ba4;
+      font-size: 13px;
+      font-style: italic;
+      padding: 2px 0 2px 56px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1># {{ transcript.channel_name }}</h1>
+  <div class="meta">
+    Closed by <strong>{{ transcript.closed_by }}</strong>
+    &nbsp;·&nbsp;
+    {{ transcript.closed_at.strftime("%d %b %Y, %H:%M UTC") }}
+    &nbsp;·&nbsp;
+    {{ messages | length }} messages
+  </div>
+</div>
+
+<div class="messages">
+  {% for msg in messages %}
+    {% if msg.content or msg.embeds %}
+    <div class="message">
+      <img class="avatar" src="{{ msg.avatar }}" alt="" />
+      <div class="msg-body">
+        <div class="msg-header">
+          <span class="author">{{ msg.author }}</span>
+          <span class="timestamp">{{ msg.timestamp[:16].replace("T", " ") }} UTC</span>
+        </div>
+        {% if msg.content %}
+          <div class="content">{{ msg.content }}</div>
+        {% endif %}
+        {% for embed in msg.embeds %}
+          <div class="embed" {% if embed.color %}style="border-color: #{{ '%06x' % embed.color }}"{% endif %}>
+            {% if embed.title %}
+              <div class="embed-title">{{ embed.title }}</div>
+            {% endif %}
+            {% if embed.description %}
+              <div class="embed-desc">{{ embed.description }}</div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  {% endfor %}
+</div>
+
+</body>
+</html>
