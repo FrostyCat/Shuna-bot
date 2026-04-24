@@ -1,8 +1,12 @@
 import asyncio
+import json
+import re
 import discord
 from discord.ext import commands
-from datetime import datetime
+from datetime import datetime, UTC
 from utils import guild_config
+from db import Session
+from models import Transcript
 
 
 def _staff_role(guild: discord.Guild) -> discord.Role | None:
@@ -20,73 +24,129 @@ def _log_channel(guild: discord.Guild) -> discord.TextChannel | None:
     return guild.get_channel(int(cid)) if cid else None
 
 
-class TicketPanelView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
+def _ticket_types(guild_id) -> list[str]:
+    raw = guild_config.get(guild_id, "ticket_types")
+    if not raw:
+        return ["Support"]
+    return [t.strip() for t in raw.split(",") if t.strip()]
 
-    @discord.ui.button(
-        label="Open Ticket",
-        style=discord.ButtonStyle.primary,
-        emoji="🎫",
-        custom_id="ticket:open",
-    )
-    async def open_ticket(self, _button: discord.ui.Button, interaction: discord.Interaction):
-        guild = interaction.guild
-        user = interaction.user
 
-        staff_role = _staff_role(guild)
-        category = _ticket_category(guild)
+def parse_color(hex_str: str) -> discord.Color:
+    try:
+        return discord.Color(int(hex_str.lstrip("#"), 16) & 0xFFFFFF)
+    except (ValueError, AttributeError):
+        return discord.Color.blurple()
 
-        if category is None:
-            await interaction.response.send_message(
-                "⚠️ The bot is not configured yet. An administrator must set `/config ticket_category`.",
-                ephemeral=True,
-            )
-            return
 
-        existing = discord.utils.get(guild.text_channels, name=f"ticket-{user.name.lower()}")
-        if existing:
-            await interaction.response.send_message(
-                f"You already have an open ticket: {existing.mention}", ephemeral=True
-            )
-            return
+def _next_channel_name(guild: discord.Guild, ticket_type: str, username: str) -> str:
+    prefix = f"{ticket_type.lower()}-{username.lower()}"
+    existing_numbers = []
+    for ch in guild.text_channels:
+        m = re.match(rf"^{re.escape(prefix)}-(\d+)$", ch.name)
+        if m:
+            existing_numbers.append(int(m.group(1)))
+    n = max(existing_numbers) + 1 if existing_numbers else 1
+    return f"{prefix}-{n}"
 
-        overwrites = {
-            guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True),
-            user: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
-        }
-        if staff_role:
-            overwrites[staff_role] = discord.PermissionOverwrite(
-                view_channel=True, send_messages=True, read_message_history=True
-            )
 
-        channel = await guild.create_text_channel(
-            name=f"ticket-{user.name.lower()}",
-            category=category,
-            overwrites=overwrites,
-            topic=f"Ticket by {user} | ID: {user.id}",
-        )
+class TicketPanelEditModal(discord.ui.Modal):
+    def __init__(self, msg: discord.Message, existing: discord.Embed):
+        super().__init__(title="Edit Ticket Panel")
+        self.msg = msg
+        self.existing = existing
 
-        embed = discord.Embed(
-            title="🎫 New Ticket",
-            description=(
-                f"Welcome {user.mention}!\n\n"
-                "Describe your issue and our team will help you shortly.\n"
-                "To close this ticket, click the button below."
-            ),
-            color=discord.Color.blurple(),
-            timestamp=datetime.utcnow(),
-        )
-        embed.set_thumbnail(url=user.display_avatar.url)
-        embed.set_footer(text=f"Ticket ID: {channel.id}")
+        self.add_item(discord.ui.InputText(
+            label="Title",
+            value=existing.title or "",
+            max_length=256,
+        ))
+        self.add_item(discord.ui.InputText(
+            label="Description",
+            style=discord.InputTextStyle.long,
+            value=existing.description or "",
+            max_length=4000,
+        ))
+        self.add_item(discord.ui.InputText(
+            label="Color (hex, e.g. #5865F2)",
+            placeholder="#5865F2",
+            value=f"#{existing.color.value:06x}" if existing.color else "#5865F2",
+            max_length=7,
+            required=False,
+        ))
+        self.add_item(discord.ui.InputText(
+            label="Thumbnail URL (small image, top-right)",
+            value=existing.thumbnail.url if existing.thumbnail else "",
+            max_length=500,
+            required=False,
+        ))
+        self.add_item(discord.ui.InputText(
+            label="Image URL (large image, bottom)",
+            value=existing.image.url if existing.image else "",
+            max_length=500,
+            required=False,
+        ))
 
-        mention = f"{user.mention} {staff_role.mention}" if staff_role else user.mention
-        await channel.send(content=mention, embed=embed, view=TicketManageView())
+    async def callback(self, interaction: discord.Interaction):
+        embed = self.existing
+        embed.title = self.children[0].value
+        embed.description = self.children[1].value
 
-        await interaction.response.send_message(
-            f"Your ticket has been opened: {channel.mention}", ephemeral=True
-        )
+        color_val = self.children[2].value.strip()
+        if color_val:
+            embed.color = parse_color(color_val)
+
+        thumbnail = self.children[3].value.strip()
+        embed.set_thumbnail(url=thumbnail if thumbnail else None)
+
+        image = self.children[4].value.strip()
+        embed.set_image(url=image if image else None)
+
+        await self.msg.edit(embed=embed)
+        await interaction.response.send_message("✅ Panel updated!", ephemeral=True)
+
+
+class TicketMessageModal(discord.ui.Modal):
+    def __init__(self, guild_id, current: dict):
+        super().__init__(title="Set Ticket Welcome Message")
+        self.guild_id = guild_id
+
+        self.add_item(discord.ui.InputText(
+            label="Title (use {type} for ticket type)",
+            value=current.get("ticket_msg_title", "🎫 {type} Ticket"),
+            max_length=256,
+        ))
+        self.add_item(discord.ui.InputText(
+            label="Description (use {type}, {user})",
+            style=discord.InputTextStyle.long,
+            value=current.get("ticket_msg_description", "Welcome {user}!\n\nDescribe your issue and our team will help you shortly.\nTo close this ticket, click the button below."),
+            max_length=4000,
+        ))
+        self.add_item(discord.ui.InputText(
+            label="Color (hex, e.g. #5865F2)",
+            value=current.get("ticket_msg_color", "#5865F2"),
+            max_length=7,
+            required=False,
+        ))
+        self.add_item(discord.ui.InputText(
+            label="Thumbnail URL (small image, top-right)",
+            value=current.get("ticket_msg_thumbnail", ""),
+            max_length=500,
+            required=False,
+        ))
+        self.add_item(discord.ui.InputText(
+            label="Image URL (large image, bottom)",
+            value=current.get("ticket_msg_image", ""),
+            max_length=500,
+            required=False,
+        ))
+
+    async def callback(self, interaction: discord.Interaction):
+        guild_config.set_value(self.guild_id, "ticket_msg_title", self.children[0].value)
+        guild_config.set_value(self.guild_id, "ticket_msg_description", self.children[1].value)
+        guild_config.set_value(self.guild_id, "ticket_msg_color", self.children[2].value.strip() or "#5865F2")
+        guild_config.set_value(self.guild_id, "ticket_msg_thumbnail", self.children[3].value.strip())
+        guild_config.set_value(self.guild_id, "ticket_msg_image", self.children[4].value.strip())
+        await interaction.response.send_message("✅ Ticket welcome message saved!", ephemeral=True)
 
 
 class TicketManageView(discord.ui.View):
@@ -140,6 +200,29 @@ class ConfirmCloseView(discord.ui.View):
     async def confirm(self, _button: discord.ui.Button, interaction: discord.Interaction):
         await interaction.response.defer()
 
+        messages = []
+        async for msg in interaction.channel.history(limit=500, oldest_first=True):
+            messages.append({
+                "author": str(msg.author),
+                "avatar": str(msg.author.display_avatar.url),
+                "content": msg.content,
+                "embeds": [e.to_dict() for e in msg.embeds],
+                "timestamp": msg.created_at.isoformat(),
+            })
+
+        session = Session()
+        transcript = Transcript(
+            guild_id=str(interaction.guild.id),
+            channel_name=interaction.channel.name,
+            closed_by=str(interaction.user),
+            closed_at=datetime.now(UTC),
+            messages=json.dumps(messages),
+        )
+        session.add(transcript)
+        session.commit()
+        transcript_id = transcript.id
+        session.close()
+
         embed = discord.Embed(
             title="🔒 Ticket Closed",
             description=f"Closed by {interaction.user.mention}",
@@ -157,6 +240,7 @@ class ConfirmCloseView(discord.ui.View):
             )
             log_embed.add_field(name="Channel", value=interaction.channel.name, inline=True)
             log_embed.add_field(name="Closed by", value=str(interaction.user), inline=True)
+            log_embed.add_field(name="Transcript ID", value=f"`#{transcript_id}`", inline=True)
             await log_ch.send(embed=log_embed)
 
         await asyncio.sleep(3)
@@ -173,8 +257,68 @@ class Tickets(commands.Cog):
         self.bot = bot
 
     async def cog_load(self):
-        self.bot.add_view(TicketPanelView())
         self.bot.add_view(TicketManageView())
+
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction: discord.Interaction):
+        if interaction.type != discord.InteractionType.component:
+            return
+        custom_id = interaction.data.get("custom_id", "")
+        if custom_id.startswith("ticket:open:"):
+            ticket_type = custom_id[len("ticket:open:"):]
+            await self._open_ticket(interaction, ticket_type)
+
+    async def _open_ticket(self, interaction: discord.Interaction, ticket_type: str):
+        guild = interaction.guild
+        user = interaction.user
+        staff_role = _staff_role(guild)
+        category = _ticket_category(guild)
+
+        if category is None:
+            await interaction.response.send_message(
+                "⚠️ Bot not configured. Admin must set `/config ticket_category`.",
+                ephemeral=True,
+            )
+            return
+
+        channel_name = _next_channel_name(guild, ticket_type, user.name)
+
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True),
+            user: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
+        }
+        if staff_role:
+            overwrites[staff_role] = discord.PermissionOverwrite(
+                view_channel=True, send_messages=True, read_message_history=True
+            )
+
+        channel = await guild.create_text_channel(
+            name=channel_name,
+            category=category,
+            overwrites=overwrites,
+            topic=f"{ticket_type} ticket by {user} | ID: {user.id}",
+        )
+
+        cfg = guild_config.get_all(guild.id)
+        title = cfg.get("ticket_msg_title", "🎫 {type} Ticket").replace("{type}", ticket_type)
+        description = cfg.get("ticket_msg_description", "Welcome {user}!\n\nDescribe your issue and our team will help you shortly.\nTo close this ticket, click the button below.").replace("{type}", ticket_type).replace("{user}", user.mention)
+        color = parse_color(cfg.get("ticket_msg_color", "#5865F2"))
+        thumbnail = cfg.get("ticket_msg_thumbnail", "")
+        image = cfg.get("ticket_msg_image", "")
+
+        embed = discord.Embed(title=title, description=description, color=color, timestamp=datetime.utcnow())
+        if thumbnail:
+            embed.set_thumbnail(url=thumbnail)
+        if image:
+            embed.set_image(url=image)
+        embed.set_footer(text=f"Ticket ID: {channel.id}")
+
+        mention = f"{user.mention} {staff_role.mention}" if staff_role else user.mention
+        await channel.send(content=mention, embed=embed, view=TicketManageView())
+        await interaction.response.send_message(
+            f"Your ticket has been opened: {channel.mention}", ephemeral=True
+        )
 
     ticket = discord.SlashCommandGroup("ticket", "Ticket system commands")
 
@@ -189,12 +333,22 @@ class Tickets(commands.Cog):
             await ctx.respond(f"⚠️ Please configure the server first: {tip}", ephemeral=True)
             return
 
+        types = _ticket_types(ctx.guild_id)
+        view = discord.ui.View(timeout=None)
+        for t in types:
+            view.add_item(discord.ui.Button(
+                label=t,
+                style=discord.ButtonStyle.primary,
+                emoji="🎫",
+                custom_id=f"ticket:open:{t.lower()}",
+            ))
+
         embed = discord.Embed(
             title="🎫 Support",
             description=(
                 "Need help? Click the button below.\n\n"
                 "**How it works:**\n"
-                "1. Click **Open Ticket**\n"
+                "1. Click the button for your ticket type\n"
                 "2. A private channel will be created\n"
                 "3. Describe your issue — staff will respond"
             ),
@@ -204,13 +358,52 @@ class Tickets(commands.Cog):
             embed.set_thumbnail(url=ctx.guild.icon.url)
         embed.set_footer(text=ctx.guild.name)
 
-        await ctx.channel.send(embed=embed, view=TicketPanelView())
+        await ctx.channel.send(embed=embed, view=view)
         await ctx.respond("Ticket panel has been set up!", ephemeral=True)
+
+    @ticket.command(name="types", description="Set ticket types shown on the panel (comma-separated)")
+    @commands.has_permissions(administrator=True)
+    async def types(
+        self,
+        ctx: discord.ApplicationContext,
+        types: discord.Option(str, "Types separated by commas, e.g. Support,Subscribe"),
+    ):
+        type_list = [t.strip() for t in types.split(",") if t.strip()]
+        if not type_list:
+            await ctx.respond("❌ Provide at least one type.", ephemeral=True)
+            return
+        guild_config.set_value(ctx.guild_id, "ticket_types", ",".join(type_list))
+        await ctx.respond(f"✅ Ticket types set: **{', '.join(type_list)}**\nRun `/ticket setup` again to update the panel.", ephemeral=True)
+
+    @ticket.command(name="message", description="Set the welcome message shown when a ticket is opened")
+    @commands.has_permissions(administrator=True)
+    async def message(self, ctx: discord.ApplicationContext):
+        current = guild_config.get_all(ctx.guild_id)
+        await ctx.send_modal(TicketMessageModal(ctx.guild_id, current))
+
+    @ticket.command(name="edit_panel", description="Edits the ticket panel embed (by message ID)")
+    @commands.has_permissions(administrator=True)
+    async def edit_panel(
+        self,
+        ctx: discord.ApplicationContext,
+        message_id: discord.Option(str, "Message ID of the ticket panel"),
+    ):
+        try:
+            msg = await ctx.channel.fetch_message(int(message_id))
+        except (discord.NotFound, ValueError):
+            await ctx.respond("❌ Message not found.", ephemeral=True)
+            return
+
+        if not msg.embeds:
+            await ctx.respond("❌ That message has no embed.", ephemeral=True)
+            return
+
+        await ctx.send_modal(TicketPanelEditModal(msg, msg.embeds[0]))
 
     @ticket.command(name="add", description="Adds a user to the ticket channel")
     @commands.has_permissions(manage_channels=True)
     async def add(self, ctx: discord.ApplicationContext, user: discord.Member):
-        if not ctx.channel.name.startswith("ticket-"):
+        if not re.match(r"^[a-z]+-[^-]+-\d+$", ctx.channel.name):
             await ctx.respond("This command only works inside ticket channels!", ephemeral=True)
             return
         await ctx.channel.set_permissions(
@@ -225,7 +418,7 @@ class Tickets(commands.Cog):
     @ticket.command(name="remove", description="Removes a user from the ticket channel")
     @commands.has_permissions(manage_channels=True)
     async def remove(self, ctx: discord.ApplicationContext, user: discord.Member):
-        if not ctx.channel.name.startswith("ticket-"):
+        if not re.match(r"^[a-z]+-[^-]+-\d+$", ctx.channel.name):
             await ctx.respond("This command only works inside ticket channels!", ephemeral=True)
             return
         await ctx.channel.set_permissions(user, overwrite=None)

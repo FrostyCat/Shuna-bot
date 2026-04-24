@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, Text
 from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime, UTC
 
@@ -47,6 +47,17 @@ class Clan(Base):
     id = Column(Integer, primary_key=True)
     tag = Column(String, unique=True)
     name = Column(String)
+
+
+class Transcript(Base):
+    __tablename__ = "transcripts"
+
+    id = Column(Integer, primary_key=True)
+    guild_id = Column(String)
+    channel_name = Column(String)
+    closed_by = Column(String)
+    closed_at = Column(DateTime, default=lambda: datetime.now(UTC))
+    messages = Column(Text)
 
 
 class GuildConfig(Base):
