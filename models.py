@@ -38,8 +38,6 @@ class Attack(Base):
     trophies = Column(Integer)
     is_attack = Column(Boolean)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC))
-    army_share_code = Column(String, nullable=True)
-
     player = relationship("Player", back_populates="attacks")
 
 

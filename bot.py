@@ -23,7 +23,6 @@ COGS = [
     "cogs.tickets",
     "cogs.embeds",
     "cogs.config",
-    "cogs.army",
 ]
 
 
