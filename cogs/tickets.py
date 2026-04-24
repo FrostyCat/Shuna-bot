@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import re
 import discord
 from discord.ext import commands
@@ -241,7 +242,17 @@ class ConfirmCloseView(discord.ui.View):
             log_embed.add_field(name="Channel", value=interaction.channel.name, inline=True)
             log_embed.add_field(name="Closed by", value=str(interaction.user), inline=True)
             log_embed.add_field(name="Transcript ID", value=f"`#{transcript_id}`", inline=True)
-            await log_ch.send(embed=log_embed)
+
+            web_url = os.getenv("WEB_URL")
+            view = discord.ui.View()
+            if web_url:
+                view.add_item(discord.ui.Button(
+                    label="View Transcript",
+                    url=f"{web_url}/transcript/{transcript_id}",
+                    style=discord.ButtonStyle.link,
+                    emoji="📄",
+                ))
+            await log_ch.send(embed=log_embed, view=view)
 
         await asyncio.sleep(3)
         await interaction.channel.delete()
