@@ -9,7 +9,7 @@ from flask import Flask, abort, flash, redirect, render_template, request, sessi
 
 from db import Session as DBSession
 import re
-from models import Transcript, TicketPanel, TicketType, GuildConfig, GuildClan, Player, Attack, WarAttack
+from models import Transcript, TicketPanel, TicketType, GuildConfig, GuildClan, Player, Attack, WarAttack, Clan, DiscordUser
 
 load_dotenv()
 
@@ -103,6 +103,19 @@ def guild_categories(guild_id: str) -> list:
     if not r.ok:
         return []
     return sorted([c for c in r.json() if c["type"] == 4], key=lambda c: c["position"])
+
+
+def guild_members(guild_id: str) -> list:
+    r = requests.get(f"{DISCORD_API}/guilds/{guild_id}/members",
+                     params={"limit": 1000},
+                     headers={"Authorization": f"Bot {BOT_TOKEN}"})
+    if not r.ok:
+        return []
+    return sorted(
+        [{"id": m["user"]["id"], "username": m["nick"] or m["user"]["username"]}
+         for m in r.json() if not m["user"].get("bot")],
+        key=lambda u: u["username"].lower()
+    )
 
 
 def guild_text_channels(guild_id: str) -> list:
@@ -483,6 +496,23 @@ def coc_manager(guild_id):
     return render_template("coc.html", user=session["user"], guild=guild, clans=clans)
 
 
+@app.route("/dashboard/<guild_id>/coc/search")
+def coc_clan_search(guild_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return {"results": []}
+    q = request.args.get("q", "").strip()
+    if len(q) < 2:
+        return {"results": []}
+    data = coc_get(f"/clans?name={requests.utils.quote(q)}&limit=8")
+    if not data:
+        return {"results": []}
+    return {"results": [
+        {"tag": c["tag"], "name": c["name"], "members": c.get("members", 0)}
+        for c in data.get("items", [])
+    ]}
+
+
 @app.route("/dashboard/<guild_id>/coc/add", methods=["POST"])
 def coc_clan_add(guild_id):
     guild, err = require_guild(guild_id)
@@ -505,6 +535,8 @@ def coc_clan_add(guild_id):
         return redirect(url_for("coc_manager", guild_id=guild_id))
 
     db.add(GuildClan(guild_id=guild_id, clan_tag=tag, clan_name=clan_name))
+    if not db.query(Clan).filter_by(tag=tag).first():
+        db.add(Clan(tag=tag, name=clan_name))
     db.commit()
     db.close()
     flash(f"Clan {clan_name} added!", "success")
@@ -525,6 +557,15 @@ def coc_clan(guild_id, gc_id):
 
     clan_data = coc_get(f"/clans/{gc.clan_tag.replace('#', '%23')}/members")
     members_api = clan_data.get("items", []) if clan_data else []
+
+    # Ensure every current clan member exists in the players table
+    new_players = False
+    for m in members_api:
+        if not db.query(Player).filter_by(tag=m["tag"]).first():
+            db.add(Player(tag=m["tag"], name=m["name"]))
+            new_players = True
+    if new_players:
+        db.commit()
 
     now = datetime.now(UTC)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -569,8 +610,63 @@ def coc_clan(guild_id, gc_id):
             "in_db": player is not None,
         })
 
+    # Build discord_id → username map from guild members
+    members_list = guild_members(guild_id)
+    member_map = {m["id"]: m["username"] for m in members_list}
+
+    for s in stats:
+        if s["discord_id"]:
+            s["discord_username"] = member_map.get(s["discord_id"], s["discord_id"])
+        else:
+            s["discord_username"] = None
+
     db.close()
-    return render_template("coc_clan.html", user=session["user"], guild=guild, gc=gc, stats=stats)
+    return render_template("coc_clan.html", user=session["user"], guild=guild, gc=gc,
+                           stats=stats, members=members_list)
+
+
+@app.route("/dashboard/<guild_id>/coc/<int:gc_id>/link", methods=["POST"])
+def coc_link_player(guild_id, gc_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+    player_tag = request.form.get("player_tag", "").strip()
+    discord_id = request.form.get("discord_id", "").strip()
+    if not player_tag or not discord_id:
+        flash("Select a Discord user.", "danger")
+        return redirect(url_for("coc_clan", guild_id=guild_id, gc_id=gc_id))
+    db = DBSession()
+    player = db.query(Player).filter_by(tag=player_tag).first()
+    if not player:
+        flash("Player not found.", "danger")
+        db.close()
+        return redirect(url_for("coc_clan", guild_id=guild_id, gc_id=gc_id))
+    discord_user = db.query(DiscordUser).filter_by(discord_id=discord_id).first()
+    if not discord_user:
+        discord_user = DiscordUser(discord_id=discord_id)
+        db.add(discord_user)
+        db.flush()
+    player.discord_user_id = discord_user.id
+    db.commit()
+    db.close()
+    flash("Player linked!", "success")
+    return redirect(url_for("coc_clan", guild_id=guild_id, gc_id=gc_id))
+
+
+@app.route("/dashboard/<guild_id>/coc/<int:gc_id>/unlink", methods=["POST"])
+def coc_unlink_player(guild_id, gc_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+    player_tag = request.form.get("player_tag", "").strip()
+    db = DBSession()
+    player = db.query(Player).filter_by(tag=player_tag).first()
+    if player:
+        player.discord_user_id = None
+        db.commit()
+        flash("Player unlinked.", "success")
+    db.close()
+    return redirect(url_for("coc_clan", guild_id=guild_id, gc_id=gc_id))
 
 
 @app.route("/dashboard/<guild_id>/coc/<int:gc_id>/remove", methods=["POST"])

@@ -14,6 +14,10 @@
   }
   .back-link:hover { color: #dbdee1; }
 
+  .alert { padding: 12px 16px; border-radius: 6px; font-size: 14px; margin-bottom: 20px; }
+  .alert-success { background: #1a3a2a; color: #3ba55c; border: 1px solid #3ba55c44; }
+  .alert-danger  { background: #3a1a1a; color: #ed4245; border: 1px solid #ed424544; }
+
   .stats-table {
     width: 100%;
     border-collapse: collapse;
@@ -36,7 +40,7 @@
   }
 
   .stats-table td {
-    padding: 12px 16px;
+    padding: 11px 16px;
     color: #dbdee1;
     border-top: 1px solid #3f4046;
     vertical-align: middle;
@@ -47,13 +51,12 @@
   .player-name { font-weight: 600; color: #f2f3f5; }
   .player-tag  { font-size: 12px; color: #949ba4; margin-top: 2px; }
 
-  .not-tracked { color: #6d6f78; font-style: italic; font-size: 13px; }
-
-  .discord-id {
-    font-size: 12px;
-    color: #949ba4;
-    font-family: monospace;
+  .discord-linked {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
+  .discord-name { font-size: 13px; color: #dbdee1; }
 
   .badge {
     display: inline-block;
@@ -66,6 +69,8 @@
   .badge-low  { background: #3a2a1a; color: #faa61a; }
   .badge-ok   { background: #1a3a2a; color: #3ba55c; }
 
+  .not-tracked { color: #6d6f78; font-style: italic; font-size: 13px; }
+
   .th-hint {
     display: block;
     font-size: 10px;
@@ -77,12 +82,139 @@
   }
 
   .empty { color: #6d6f78; font-size: 14px; margin-top: 16px; }
+
+  /* Link button */
+  .btn-link-discord {
+    background: none;
+    border: 1px solid #3f4046;
+    color: #949ba4;
+    border-radius: 5px;
+    font-size: 12px;
+    padding: 3px 9px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .btn-link-discord:hover { border-color: #5865f2; color: #5865f2; }
+
+  .btn-unlink {
+    background: none;
+    border: 1px solid #3f404644;
+    color: #6d6f78;
+    border-radius: 5px;
+    font-size: 11px;
+    padding: 2px 7px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .btn-unlink:hover { border-color: #ed4245; color: #ed4245; }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: #2b2d31;
+    border-radius: 10px;
+    padding: 28px 32px;
+    width: 420px;
+    max-width: 95vw;
+  }
+
+  .modal h3 { margin: 0 0 6px; font-size: 16px; color: #f2f3f5; }
+  .modal .sub { font-size: 13px; color: #949ba4; margin-bottom: 20px; }
+
+  .modal label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    color: #b5bac1;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+
+  .modal select {
+    width: 100%;
+    background: #1e1f22;
+    border: 1px solid #3f4046;
+    border-radius: 6px;
+    color: #dbdee1;
+    font-size: 14px;
+    padding: 10px 12px;
+    font-family: inherit;
+    outline: none;
+    margin-bottom: 20px;
+    box-sizing: border-box;
+  }
+  .modal select:focus { border-color: #5865f2; }
+
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+  /* Autocomplete */
+  .autocomplete-wrap { position: relative; margin-bottom: 4px; }
+
+  .autocomplete-wrap input[type="text"] {
+    width: 100%;
+    background: #1e1f22;
+    border: 1px solid #3f4046;
+    border-radius: 6px;
+    color: #dbdee1;
+    font-size: 14px;
+    padding: 10px 12px;
+    font-family: inherit;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.15s;
+  }
+  .autocomplete-wrap input[type="text"]:focus { border-color: #5865f2; }
+
+  .ac-list {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0; right: 0;
+    background: #1e1f22;
+    border: 1px solid #3f4046;
+    border-radius: 6px;
+    list-style: none;
+    margin: 0; padding: 4px 0;
+    z-index: 200;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+
+  .ac-list li {
+    padding: 9px 14px;
+    font-size: 14px;
+    color: #dbdee1;
+    cursor: pointer;
+    border-radius: 4px;
+    margin: 2px 4px;
+    transition: background 0.1s;
+  }
+  .ac-list li:hover,
+  .ac-list li.ac-active { background: #35373c; color: #fff; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container">
   <a class="back-link" href="/dashboard/{{ guild.id }}/coc">← Back to CoC Manager</a>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
 
   <h1>{{ gc.clan_name or gc.clan_tag }}</h1>
   <p style="color: #949ba4; margin-bottom: 24px;">{{ gc.clan_tag }} · {{ stats | length }} members</p>
@@ -94,18 +226,9 @@
           <tr>
             <th>Account</th>
             <th>Discord</th>
-            <th>
-              War Hits
-              <span class="th-hint">this month</span>
-            </th>
-            <th>
-              War Hits
-              <span class="th-hint">last 90 days</span>
-            </th>
-            <th>
-              Legend Hits
-              <span class="th-hint">this month</span>
-            </th>
+            <th>War Hits <span class="th-hint">this month</span></th>
+            <th>War Hits <span class="th-hint">last 90 days</span></th>
+            <th>Legend Hits <span class="th-hint">this month</span></th>
           </tr>
         </thead>
         <tbody>
@@ -116,15 +239,24 @@
                 <div class="player-tag">{{ s.tag }}</div>
               </td>
               <td>
-                {% if s.discord_id %}
-                  <span class="discord-id">{{ s.discord_id }}</span>
+                {% if s.discord_username %}
+                  <div class="discord-linked">
+                    <span class="discord-name">{{ s.discord_username }}</span>
+                    <form method="post" action="/dashboard/{{ guild.id }}/coc/{{ gc.id }}/unlink" style="margin:0;">
+                      <input type="hidden" name="player_tag" value="{{ s.tag }}">
+                      <button type="submit" class="btn-unlink" title="Unlink">✕</button>
+                    </form>
+                  </div>
                 {% else %}
-                  <span class="not-tracked">—</span>
+                  <button class="btn-link-discord"
+                          onclick="openLinkModal('{{ s.tag }}', '{{ s.name | replace("'", "\\'") }}')">
+                    + Link Discord
+                  </button>
                 {% endif %}
               </td>
               <td>
                 {% if not s.in_db %}
-                  <span class="not-tracked">not tracked</span>
+                  <span class="not-tracked">—</span>
                 {% else %}
                   <span class="badge {% if s.war_month == 0 %}badge-zero{% elif s.war_month < 3 %}badge-low{% else %}badge-ok{% endif %}">
                     {{ s.war_month }}
@@ -133,7 +265,7 @@
               </td>
               <td>
                 {% if not s.in_db %}
-                  <span class="not-tracked">not tracked</span>
+                  <span class="not-tracked">—</span>
                 {% else %}
                   <span class="badge {% if s.war_3mo == 0 %}badge-zero{% elif s.war_3mo < 6 %}badge-low{% else %}badge-ok{% endif %}">
                     {{ s.war_3mo }}
@@ -142,7 +274,7 @@
               </td>
               <td>
                 {% if not s.in_db %}
-                  <span class="not-tracked">not tracked</span>
+                  <span class="not-tracked">—</span>
                 {% else %}
                   <span class="badge {% if s.legend_month == 0 %}badge-zero{% elif s.legend_month < 5 %}badge-low{% else %}badge-ok{% endif %}">
                     {{ s.legend_month }}
@@ -158,4 +290,116 @@
     <p class="empty">Could not load clan members from the Clash of Clans API.</p>
   {% endif %}
 </div>
+
+<!-- Link Modal -->
+<div class="modal-overlay" id="linkModal">
+  <div class="modal">
+    <h3>Link Discord Account</h3>
+    <p class="sub" id="modalSubtitle"></p>
+    <form method="post" id="linkForm">
+      <label>Discord Member</label>
+      <div class="autocomplete-wrap">
+        <input type="text" id="memberSearch" placeholder="Search by name…" autocomplete="off">
+        <ul class="ac-list" id="acList"></ul>
+      </div>
+      <input type="hidden" name="discord_id" id="selectedDiscordId">
+      <input type="hidden" name="player_tag" id="modalPlayerTag">
+      <div class="modal-actions" style="margin-top: 20px;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="linkSubmit" disabled>Link</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const ALL_MEMBERS = {{ members | tojson }};
+  let acActive = -1;
+
+  const searchInput  = document.getElementById("memberSearch");
+  const acList       = document.getElementById("acList");
+  const selectedId   = document.getElementById("selectedDiscordId");
+  const linkSubmit   = document.getElementById("linkSubmit");
+
+  function renderSuggestions(query) {
+    const q = query.toLowerCase();
+    const hits = q
+      ? ALL_MEMBERS.filter(m => m.username.toLowerCase().includes(q)).slice(0, 5)
+      : [];
+    acList.innerHTML = "";
+    acActive = -1;
+    if (!hits.length) { acList.style.display = "none"; return; }
+    hits.forEach((m, i) => {
+      const li = document.createElement("li");
+      li.textContent = m.username;
+      li.dataset.id = m.id;
+      li.addEventListener("mousedown", () => selectMember(m));
+      acList.appendChild(li);
+    });
+    acList.style.display = "block";
+  }
+
+  function selectMember(m) {
+    searchInput.value = m.username;
+    selectedId.value  = m.id;
+    linkSubmit.disabled = false;
+    acList.style.display = "none";
+  }
+
+  searchInput.addEventListener("input", () => {
+    selectedId.value = "";
+    linkSubmit.disabled = true;
+    renderSuggestions(searchInput.value);
+  });
+
+  searchInput.addEventListener("keydown", (e) => {
+    const items = acList.querySelectorAll("li");
+    if (!items.length) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      acActive = Math.min(acActive + 1, items.length - 1);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      acActive = Math.max(acActive - 1, 0);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (acActive >= 0) items[acActive].dispatchEvent(new Event("mousedown"));
+      return;
+    } else if (e.key === "Escape") {
+      closeModal(); return;
+    }
+    items.forEach((li, i) => li.classList.toggle("ac-active", i === acActive));
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".autocomplete-wrap")) {
+      acList.style.display = "none";
+    }
+  });
+
+  function openLinkModal(tag, name) {
+    document.getElementById("modalPlayerTag").value = tag;
+    document.getElementById("modalSubtitle").textContent = name + " (" + tag + ")";
+    document.getElementById("linkForm").action = window.location.pathname + "/link";
+    searchInput.value = "";
+    selectedId.value  = "";
+    linkSubmit.disabled = true;
+    acList.style.display = "none";
+    acList.innerHTML = "";
+    document.getElementById("linkModal").classList.add("open");
+    setTimeout(() => searchInput.focus(), 50);
+  }
+
+  function closeModal() {
+    document.getElementById("linkModal").classList.remove("open");
+  }
+
+  document.getElementById("linkModal").addEventListener("click", function(e) {
+    if (e.target === this) closeModal();
+  });
+
+  document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape") closeModal();
+  });
+</script>
 {% endblock %}
