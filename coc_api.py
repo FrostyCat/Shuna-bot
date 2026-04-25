@@ -44,6 +44,21 @@ async def get_clan_members(tag):
     data = await _get(f"{BASE_URL}/clans/{tag}/members")
     return data["items"] if data else []
 
+async def get_current_war(clan_tag: str) -> dict | None:
+    clan_tag = clan_tag.replace("#", "%23")
+    return await _get(f"{BASE_URL}/clans/{clan_tag}/currentwar")
+
+
+async def get_cwl_group(clan_tag: str) -> dict | None:
+    clan_tag = clan_tag.replace("#", "%23")
+    return await _get(f"{BASE_URL}/clans/{clan_tag}/currentwar/leaguegroup")
+
+
+async def get_cwl_war(war_tag: str) -> dict | None:
+    war_tag = war_tag.replace("#", "%23")
+    return await _get(f"{BASE_URL}/clanwarleagues/wars/{war_tag}")
+
+
 async def verify_player_token(tag: str, token: str) -> bool:
     tag = tag.replace("#", "%23")
     url = f"{BASE_URL}/players/{tag}/verifytoken"

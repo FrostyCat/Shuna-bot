@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, Text
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, Text, UniqueConstraint
 from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime, UTC
 
@@ -47,6 +47,24 @@ class Clan(Base):
     id = Column(Integer, primary_key=True)
     tag = Column(String, unique=True)
     name = Column(String)
+
+
+class WarAttack(Base):
+    __tablename__ = "war_attacks"
+
+    id = Column(Integer, primary_key=True)
+    clan_tag = Column(String)
+    attacker_tag = Column(String)
+    defender_tag = Column(String)
+    stars = Column(Integer)
+    destruction = Column(Integer)
+    war_type = Column(String)  # "war" | "cwl"
+    war_id = Column(String)    # startTime for regular wars, warTag for CWL
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        UniqueConstraint("attacker_tag", "defender_tag", "war_id", name="uq_war_attack"),
+    )
 
 
 class Transcript(Base):

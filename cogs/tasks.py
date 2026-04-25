@@ -7,7 +7,7 @@ from discord.ext import commands, tasks
 from coc_api import get_clan_members, get_player
 from db import Session
 from models import Clan, Player
-from helpers import WARSAW, add_player_to_db, fetch_player_attacks
+from helpers import WARSAW, add_player_to_db, fetch_player_attacks, fetch_war_attacks, fetch_cwl_attacks
 
 
 class TasksCog(discord.Cog):
@@ -16,11 +16,13 @@ class TasksCog(discord.Cog):
         self.refresh_players.start()
         self.refresh_clans.start()
         self.snapshot_ranks.start()
+        self.refresh_wars.start()
 
     def cog_unload(self):
         self.refresh_players.cancel()
         self.refresh_clans.cancel()
         self.snapshot_ranks.cancel()
+        self.refresh_wars.cancel()
 
     @tasks.loop(minutes=10)
     async def refresh_players(self):
@@ -81,6 +83,31 @@ class TasksCog(discord.Cog):
 
     @refresh_clans.before_loop
     async def before_refresh_clans(self):
+        await self.bot.wait_until_ready()
+
+    @tasks.loop(minutes=30)
+    async def refresh_wars(self):
+        session = Session()
+        clans = session.query(Clan).all()
+        clan_tags = [c.tag for c in clans]
+        session.close()
+
+        for tag in clan_tags:
+            session = Session()
+            try:
+                war_count = await fetch_war_attacks(session, tag)
+                cwl_count = await fetch_cwl_attacks(session, tag)
+                if war_count or cwl_count:
+                    print(f"War attacks saved for {tag}: {war_count} war, {cwl_count} CWL")
+            except Exception as e:
+                session.rollback()
+                print(f"War fetch error for {tag}: {e}")
+            finally:
+                session.close()
+            await asyncio.sleep(1.0)
+
+    @refresh_wars.before_loop
+    async def before_refresh_wars(self):
         await self.bot.wait_until_ready()
 
 
