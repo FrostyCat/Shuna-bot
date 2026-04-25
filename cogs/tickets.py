@@ -322,6 +322,8 @@ class Tickets(commands.Cog):
             panel = session.query(TicketPanel).filter_by(message_id=panel_msg_id).first()
             session.close()
 
+        print(f"[TICKET DEBUG] panel_msg_id={panel_msg_id} panel={panel} msg_title={getattr(panel,'msg_title',None)} msg_description={getattr(panel,'msg_description',None)}")
+
         title = (panel.msg_title if panel and panel.msg_title else "🎫 {type} Ticket").replace("{type}", ticket_type)
         description = (panel.msg_description if panel and panel.msg_description else "Welcome {user}!\n\nDescribe your issue and our team will help you shortly.\nTo close this ticket, click the button below.").replace("{type}", ticket_type).replace("{user}", user.mention)
         color = parse_color(panel.msg_color if panel and panel.msg_color else "#5865F2")
