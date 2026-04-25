@@ -273,7 +273,7 @@ def ticket_panel(guild_id, panel_id):
             headers={"Authorization": f"Bot {BOT_TOKEN}", "Content-Type": "application/json"},
             json={"embeds": [new_embed]},
         )
-        flash("Panel zaktualizowany!", "success")
+        flash("Panel updated!", "success")
         return redirect(url_for("ticket_panel", guild_id=guild_id, panel_id=panel_id))
 
     channel_id = panel.channel_id
@@ -305,7 +305,7 @@ def ticket_type_new(guild_id, panel_id):
     if request.method == "POST":
         name = request.form.get("name", "").strip()
         if not name:
-            flash("Nazwa przycisku jest wymagana.", "danger")
+            flash("Button name is required.", "danger")
             db.close()
             return render_template("ticket_type.html", user=session["user"], guild=guild,
                                    panel=panel, tt=None)
@@ -322,7 +322,7 @@ def ticket_type_new(guild_id, panel_id):
         db.commit()
         sync_panel_buttons(panel, db.query(TicketType).filter_by(panel_id=panel.id).all())
         db.close()
-        flash("Przycisk dodany!", "success")
+        flash("Button added!", "success")
         return redirect(url_for("ticket_panel", guild_id=guild_id, panel_id=panel_id))
 
     db.close()
@@ -353,7 +353,7 @@ def ticket_type_edit(guild_id, panel_id, type_id):
         db.commit()
         sync_panel_buttons(panel, db.query(TicketType).filter_by(panel_id=panel.id).all())
         db.close()
-        flash("Przycisk zaktualizowany!", "success")
+        flash("Button updated!", "success")
         return redirect(url_for("ticket_panel", guild_id=guild_id, panel_id=panel_id))
 
     db.close()
@@ -374,7 +374,7 @@ def ticket_type_delete(guild_id, panel_id, type_id):
         db.commit()
         sync_panel_buttons(panel, db.query(TicketType).filter_by(panel_id=panel.id).all())
     db.close()
-    flash("Przycisk usunięty.", "success")
+    flash("Button deleted.", "success")
     return redirect(url_for("ticket_panel", guild_id=guild_id, panel_id=panel_id))
 
 

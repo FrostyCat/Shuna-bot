@@ -112,7 +112,7 @@
 
 {% block content %}
 <div class="container">
-  <a class="back-link" href="/dashboard/{{ guild.id }}/tickets">← Powrót do paneli</a>
+  <a class="back-link" href="/dashboard/{{ guild.id }}/tickets">← Back to panels</a>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% for category, message in messages %}
@@ -127,7 +127,7 @@
 
     <!-- Panel Embed -->
     <div class="form-card">
-      <div class="section-label">Panel Embed (widoczny na Discordzie)</div>
+      <div class="section-label">Panel Embed (visible in Discord)</div>
       <div class="panel-meta">
         Message: {{ panel.message_id }} · Channel: {{ panel.channel_id }}
       </div>
@@ -164,14 +164,14 @@
                  placeholder="https://example.com/banner.png" />
         </div>
         <div class="form-actions">
-          <button type="submit" class="btn btn-primary">Zapisz embed</button>
+          <button type="submit" class="btn btn-primary">Save embed</button>
         </div>
       </form>
     </div>
 
     <!-- Buttons -->
     <div class="form-card">
-      <div class="section-label">Przyciski (maks. 5)</div>
+      <div class="section-label">Buttons (max 5)</div>
 
       {% if ticket_types %}
       <div class="btn-list">
@@ -182,25 +182,25 @@
           <div class="btn-row-actions">
             <a class="btn btn-secondary"
                href="/dashboard/{{ guild.id }}/tickets/{{ panel.id }}/types/{{ tt.id }}"
-               style="padding: 5px 12px; font-size: 13px;">Edytuj</a>
+               style="padding: 5px 12px; font-size: 13px;">Edit</a>
             <form method="post"
                   action="/dashboard/{{ guild.id }}/tickets/{{ panel.id }}/types/{{ tt.id }}/delete"
-                  onsubmit="return confirm('Usunąć ten przycisk?')">
+                  onsubmit="return confirm('Delete this button?')">
               <button type="submit" class="btn btn-danger"
-                      style="padding: 5px 12px; font-size: 13px;">Usuń</button>
+                      style="padding: 5px 12px; font-size: 13px;">Delete</button>
             </form>
           </div>
         </div>
         {% endfor %}
       </div>
       {% else %}
-      <div class="empty-types">Brak przycisków. Dodaj pierwszy poniżej.</div>
+      <div class="empty-types">No buttons yet. Add one below.</div>
       {% endif %}
 
       {% if ticket_types | length < 5 %}
       <a class="btn btn-primary"
          href="/dashboard/{{ guild.id }}/tickets/{{ panel.id }}/types/new"
-         style="width: 100%; justify-content: center; margin-top: 4px;">+ Dodaj przycisk</a>
+         style="width: 100%; justify-content: center; margin-top: 4px;">+ Add Button</a>
       {% endif %}
     </div>
 

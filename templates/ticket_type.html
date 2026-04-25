@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ 'Edytuj' if tt else 'Nowy' }} przycisk — Panel #{{ panel.id }}{% endblock %}
+{% block title %}{{ 'Edit' if tt else 'New' }} Button — Panel #{{ panel.id }}{% endblock %}
 
 {% block head %}
 <style>
@@ -112,7 +112,7 @@
 {% block content %}
 <div class="container">
   <a class="back-link" href="/dashboard/{{ guild.id }}/tickets/{{ panel.id }}">
-    ← Powrót do panelu #{{ panel.id }}
+    ← Back to panel #{{ panel.id }}
   </a>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
@@ -121,64 +121,64 @@
     {% endfor %}
   {% endwith %}
 
-  <h1>{{ 'Edytuj przycisk' if tt else 'Nowy przycisk' }}</h1>
+  <h1>{{ 'Edit Button' if tt else 'New Button' }}</h1>
   <p style="margin-bottom: 24px;">Panel #{{ panel.id }} · {{ guild.name }}</p>
 
   <div class="form-card">
     <form method="post">
 
-      <div class="section-label">Przycisk</div>
+      <div class="section-label">Button</div>
 
       <div class="form-group">
-        <label>Nazwa (wyświetlana na przycisku)</label>
+        <label>Name (displayed on the button)</label>
         <input type="text" name="name" maxlength="80" required
                value="{{ tt.name if tt else '' }}" placeholder="np. Support" />
       </div>
 
       <div class="form-group">
-        <label>Kolor przycisku</label>
+        <label>Button color</label>
         <div class="btn-color-grid">
           {% set cur = tt.button_color if tt and tt.button_color else 1 %}
           <div class="btn-color-opt opt-blurple">
             <input type="radio" name="button_color" id="c1" value="1" {{ 'checked' if cur == 1 }}>
-            <label for="c1">Niebieski</label>
+            <label for="c1">Blue</label>
           </div>
           <div class="btn-color-opt opt-gray">
             <input type="radio" name="button_color" id="c2" value="2" {{ 'checked' if cur == 2 }}>
-            <label for="c2">Szary</label>
+            <label for="c2">Gray</label>
           </div>
           <div class="btn-color-opt opt-green">
             <input type="radio" name="button_color" id="c3" value="3" {{ 'checked' if cur == 3 }}>
-            <label for="c3">Zielony</label>
+            <label for="c3">Green</label>
           </div>
           <div class="btn-color-opt opt-red">
             <input type="radio" name="button_color" id="c4" value="4" {{ 'checked' if cur == 4 }}>
-            <label for="c4">Czerwony</label>
+            <label for="c4">Red</label>
           </div>
         </div>
       </div>
 
-      <div class="section-label">Wiadomość Powitalna w Tickecie</div>
+      <div class="section-label">Ticket Welcome Message</div>
       <div class="hint" style="margin-bottom: 14px;">
-        Pojawia się wewnątrz kanału po kliknięciu tego przycisku.
-        Użyj <code>{type}</code> i <code>{user}</code>.
+        Appears inside the ticket channel when this button is clicked.
+        Use <code>{type}</code> and <code>{user}</code>.
       </div>
 
       <div class="form-group">
-        <label>Tytuł</label>
+        <label>Title</label>
         <input type="text" name="msg_title" maxlength="256"
                value="{{ tt.msg_title or '' if tt else '' }}"
                placeholder="🎫 {type} Ticket" />
       </div>
 
       <div class="form-group">
-        <label>Opis</label>
+        <label>Description</label>
         <textarea name="msg_description" maxlength="4096"
-                  placeholder="Welcome {user}! Opisz swój problem…">{{ tt.msg_description or '' if tt else '' }}</textarea>
+                  placeholder="Welcome {user}! Describe your issue…">{{ tt.msg_description or '' if tt else '' }}</textarea>
       </div>
 
       <div class="form-group">
-        <label>Kolor embeda</label>
+        <label>Embed color</label>
         <div class="color-row">
           {% set mc = tt.msg_color if tt and tt.msg_color else '5865f2' %}
           <input type="color" id="mc-picker" value="#{{ mc }}" oninput="syncHex('mc-hex', this.value)">
@@ -204,9 +204,9 @@
 
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">
-          {{ 'Zapisz zmiany' if tt else 'Dodaj przycisk' }}
+          {{ 'Save changes' if tt else 'Add button' }}
         </button>
-        <a href="/dashboard/{{ guild.id }}/tickets/{{ panel.id }}" class="btn btn-secondary">Anuluj</a>
+        <a href="/dashboard/{{ guild.id }}/tickets/{{ panel.id }}" class="btn btn-secondary">Cancel</a>
       </div>
     </form>
   </div>
