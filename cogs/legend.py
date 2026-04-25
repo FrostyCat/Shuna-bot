@@ -8,7 +8,7 @@ from sqlalchemy import func
 from coc_api import get_clan, get_clan_members, get_player
 from db import Session
 from models import Attack, Clan, Player
-from helpers import WARSAW, add_player_to_db
+from helpers import WARSAW, add_player_to_db, fetch_player_attacks
 
 SEASON_EPOCH = datetime(2026, 4, 20, 7, 0, 0, tzinfo=WARSAW)
 SEASON_DURATION = timedelta(days=28)
@@ -312,6 +312,8 @@ class LegendCog(discord.Cog):
                 session.close()
                 return
             player = session.query(Player).filter_by(tag=result["tag"]).first()
+
+        await fetch_player_attacks(session, player)
 
         player_data = await get_player(player.tag)
         season_trophies = player_data[2] if player_data else None
