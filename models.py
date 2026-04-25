@@ -61,6 +61,20 @@ class Transcript(Base):
     messages = Column(Text)
 
 
+class TicketPanel(Base):
+    __tablename__ = "ticket_panels"
+
+    id = Column(Integer, primary_key=True)
+    guild_id = Column(String)
+    message_id = Column(String, unique=True)
+    channel_id = Column(String)
+    msg_title = Column(String, nullable=True)
+    msg_description = Column(Text, nullable=True)
+    msg_color = Column(String, nullable=True)
+    msg_thumbnail = Column(String, nullable=True)
+    msg_image = Column(String, nullable=True)
+
+
 class GuildConfig(Base):
     __tablename__ = "guild_configs"
 
@@ -68,3 +82,9 @@ class GuildConfig(Base):
     staff_role_id = Column(String, nullable=True)
     ticket_category_id = Column(String, nullable=True)
     log_channel_id = Column(String, nullable=True)
+    ticket_types = Column(String, nullable=True)
+    ticket_msg_title = Column(String, nullable=True)
+    ticket_msg_description = Column(Text, nullable=True)
+    ticket_msg_color = Column(String, nullable=True)
+    ticket_msg_thumbnail = Column(String, nullable=True)
+    ticket_msg_image = Column(String, nullable=True)

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Shuna Dashboard{% endblock %}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #1e1f22;
+      color: #dbdee1;
+      font-family: "gg sans", "Noto Sans", Arial, sans-serif;
+      font-size: 15px;
+      min-height: 100vh;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    .navbar {
+      background: #111214;
+      padding: 0 32px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #2b2d31;
+    }
+
+    .navbar-brand {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .navbar-user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      color: #b5bac1;
+    }
+
+    .navbar-user img {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+    }
+
+    .navbar-user a {
+      color: #b5bac1;
+      font-size: 13px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      background: #2b2d31;
+      transition: background 0.15s;
+    }
+
+    .navbar-user a:hover { background: #3f4046; }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 40px 16px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: filter 0.15s;
+    }
+
+    .btn:hover { filter: brightness(1.1); }
+    .btn-primary { background: #5865f2; color: #fff; }
+    .btn-danger { background: #ed4245; color: #fff; }
+    .btn-secondary { background: #4e5058; color: #fff; }
+
+    h1 { font-size: 24px; font-weight: 700; color: #f2f3f5; margin-bottom: 8px; }
+    h2 { font-size: 18px; font-weight: 600; color: #f2f3f5; margin-bottom: 16px; }
+    p { color: #949ba4; }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="navbar-brand" href="/">Shuna</a>
+  {% if user %}
+  <div class="navbar-user">
+    <img src="https://cdn.discordapp.com/avatars/{{ user.id }}/{{ user.avatar }}.png" alt="" />
+    <span>{{ user.username }}</span>
+    <a href="/logout">Logout</a>
+  </div>
+  {% endif %}
+</nav>
+
+{% block content %}{% endblock %}
+
+</body>
+</html>

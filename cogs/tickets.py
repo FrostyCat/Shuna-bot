@@ -8,7 +8,7 @@ from discord.ext import commands
 from datetime import datetime, UTC
 from utils import guild_config
 from db import Session
-from models import Transcript
+from models import Transcript, TicketPanel
 
 
 def _staff_role(guild: discord.Guild) -> discord.Role | None:
@@ -108,46 +108,50 @@ class TicketPanelEditModal(discord.ui.Modal):
 
 
 class TicketMessageModal(discord.ui.Modal):
-    def __init__(self, guild_id, current: dict):
+    def __init__(self, panel: TicketPanel):
         super().__init__(title="Set Ticket Welcome Message")
-        self.guild_id = guild_id
+        self.panel = panel
 
         self.add_item(discord.ui.InputText(
             label="Title (use {type} for ticket type)",
-            value=current.get("ticket_msg_title", "🎫 {type} Ticket"),
+            value=panel.msg_title or "🎫 {type} Ticket",
             max_length=256,
         ))
         self.add_item(discord.ui.InputText(
             label="Description (use {type}, {user})",
             style=discord.InputTextStyle.long,
-            value=current.get("ticket_msg_description", "Welcome {user}!\n\nDescribe your issue and our team will help you shortly.\nTo close this ticket, click the button below."),
+            value=panel.msg_description or "Welcome {user}!\n\nDescribe your issue and our team will help you shortly.\nTo close this ticket, click the button below.",
             max_length=4000,
         ))
         self.add_item(discord.ui.InputText(
             label="Color (hex, e.g. #5865F2)",
-            value=current.get("ticket_msg_color", "#5865F2"),
+            value=panel.msg_color or "#5865F2",
             max_length=7,
             required=False,
         ))
         self.add_item(discord.ui.InputText(
             label="Thumbnail URL (small image, top-right)",
-            value=current.get("ticket_msg_thumbnail", ""),
+            value=panel.msg_thumbnail or "",
             max_length=500,
             required=False,
         ))
         self.add_item(discord.ui.InputText(
             label="Image URL (large image, bottom)",
-            value=current.get("ticket_msg_image", ""),
+            value=panel.msg_image or "",
             max_length=500,
             required=False,
         ))
 
     async def callback(self, interaction: discord.Interaction):
-        guild_config.set_value(self.guild_id, "ticket_msg_title", self.children[0].value)
-        guild_config.set_value(self.guild_id, "ticket_msg_description", self.children[1].value)
-        guild_config.set_value(self.guild_id, "ticket_msg_color", self.children[2].value.strip() or "#5865F2")
-        guild_config.set_value(self.guild_id, "ticket_msg_thumbnail", self.children[3].value.strip())
-        guild_config.set_value(self.guild_id, "ticket_msg_image", self.children[4].value.strip())
+        session = Session()
+        p = session.get(TicketPanel, self.panel.id)
+        p.msg_title = self.children[0].value
+        p.msg_description = self.children[1].value
+        p.msg_color = self.children[2].value.strip() or "#5865F2"
+        p.msg_thumbnail = self.children[3].value.strip() or None
+        p.msg_image = self.children[4].value.strip() or None
+        session.commit()
+        session.close()
         await interaction.response.send_message("✅ Ticket welcome message saved!", ephemeral=True)
 
 
@@ -311,12 +315,18 @@ class Tickets(commands.Cog):
             topic=f"{ticket_type} ticket by {user} | ID: {user.id}",
         )
 
-        cfg = guild_config.get_all(guild.id)
-        title = cfg.get("ticket_msg_title", "🎫 {type} Ticket").replace("{type}", ticket_type)
-        description = cfg.get("ticket_msg_description", "Welcome {user}!\n\nDescribe your issue and our team will help you shortly.\nTo close this ticket, click the button below.").replace("{type}", ticket_type).replace("{user}", user.mention)
-        color = parse_color(cfg.get("ticket_msg_color", "#5865F2"))
-        thumbnail = cfg.get("ticket_msg_thumbnail", "")
-        image = cfg.get("ticket_msg_image", "")
+        panel_msg_id = str(interaction.message.id) if interaction.message else None
+        panel = None
+        if panel_msg_id:
+            session = Session()
+            panel = session.query(TicketPanel).filter_by(message_id=panel_msg_id).first()
+            session.close()
+
+        title = (panel.msg_title if panel and panel.msg_title else "🎫 {type} Ticket").replace("{type}", ticket_type)
+        description = (panel.msg_description if panel and panel.msg_description else "Welcome {user}!\n\nDescribe your issue and our team will help you shortly.\nTo close this ticket, click the button below.").replace("{type}", ticket_type).replace("{user}", user.mention)
+        color = parse_color(panel.msg_color if panel and panel.msg_color else "#5865F2")
+        thumbnail = panel.msg_thumbnail if panel and panel.msg_thumbnail else None
+        image = panel.msg_image if panel and panel.msg_image else None
 
         embed = discord.Embed(title=title, description=description, color=color, timestamp=datetime.utcnow())
         if thumbnail:
@@ -369,8 +379,20 @@ class Tickets(commands.Cog):
             embed.set_thumbnail(url=ctx.guild.icon.url)
         embed.set_footer(text=ctx.guild.name)
 
-        await ctx.channel.send(embed=embed, view=view)
-        await ctx.respond("Ticket panel has been set up!", ephemeral=True)
+        panel_msg = await ctx.channel.send(embed=embed, view=view)
+
+        session = Session()
+        existing = session.query(TicketPanel).filter_by(message_id=str(panel_msg.id)).first()
+        if not existing:
+            session.add(TicketPanel(
+                guild_id=str(ctx.guild_id),
+                message_id=str(panel_msg.id),
+                channel_id=str(ctx.channel.id),
+            ))
+            session.commit()
+        session.close()
+
+        await ctx.respond(f"✅ Ticket panel set up! ID: `{panel_msg.id}`", ephemeral=True)
 
     @ticket.command(name="types", description="Set ticket types shown on the panel (comma-separated)")
     @commands.has_permissions(administrator=True)
@@ -386,11 +408,24 @@ class Tickets(commands.Cog):
         guild_config.set_value(ctx.guild_id, "ticket_types", ",".join(type_list))
         await ctx.respond(f"✅ Ticket types set: **{', '.join(type_list)}**\nRun `/ticket setup` again to update the panel.", ephemeral=True)
 
-    @ticket.command(name="message", description="Set the welcome message shown when a ticket is opened")
+    @ticket.command(name="message", description="Set the welcome message for a specific ticket panel")
     @commands.has_permissions(administrator=True)
-    async def message(self, ctx: discord.ApplicationContext):
-        current = guild_config.get_all(ctx.guild_id)
-        await ctx.send_modal(TicketMessageModal(ctx.guild_id, current))
+    async def message(
+        self,
+        ctx: discord.ApplicationContext,
+        panel_id: discord.Option(str, "Message ID of the ticket panel"),
+    ):
+        session = Session()
+        panel = session.query(TicketPanel).filter_by(
+            message_id=panel_id, guild_id=str(ctx.guild_id)
+        ).first()
+        session.close()
+
+        if not panel:
+            await ctx.respond("❌ Panel not found. Use `/ticket setup` first.", ephemeral=True)
+            return
+
+        await ctx.send_modal(TicketMessageModal(panel))
 
     @ticket.command(name="edit_panel", description="Edits the ticket panel embed (by message ID)")
     @commands.has_permissions(administrator=True)

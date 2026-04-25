@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}{{ guild.name }} — Shuna{% endblock %}
+
+{% block head %}
+<style>
+  .dashboard-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .dashboard-header img {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+  }
+
+  .dashboard-header .icon-placeholder {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #5865f2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+  }
+
+  .card {
+    background: #2b2d31;
+    border-radius: 10px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: background 0.15s;
+  }
+
+  .card:hover { background: #35373c; }
+
+  .card-icon { font-size: 28px; }
+  .card-title { font-size: 16px; font-weight: 700; color: #f2f3f5; }
+  .card-desc { font-size: 13px; color: #949ba4; flex: 1; }
+
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #949ba4;
+    font-size: 13px;
+    margin-bottom: 24px;
+    transition: color 0.15s;
+  }
+
+  .back-link:hover { color: #dbdee1; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <a class="back-link" href="/guilds">← Back to servers</a>
+
+  <div class="dashboard-header">
+    {% if guild.icon_url %}
+      <img src="{{ guild.icon_url }}" alt="" />
+    {% else %}
+      <div class="icon-placeholder">{{ guild.name[0] }}</div>
+    {% endif %}
+    <div>
+      <h1>{{ guild.name }}</h1>
+      <p>Server Dashboard</p>
+    </div>
+  </div>
+
+  <div class="cards">
+    <a class="card" href="/dashboard/{{ guild.id }}/tickets">
+      <div class="card-icon">🎫</div>
+      <div class="card-title">Tickets</div>
+      <div class="card-desc">Manage ticket panels, types and welcome messages.</div>
+    </a>
+
+    <a class="card" href="/dashboard/{{ guild.id }}/transcripts">
+      <div class="card-icon">📄</div>
+      <div class="card-title">Transcripts</div>
+      <div class="card-desc">Browse closed ticket transcripts.</div>
+    </a>
+
+    <a class="card" href="/dashboard/{{ guild.id }}/settings">
+      <div class="card-icon">⚙️</div>
+      <div class="card-title">Settings</div>
+      <div class="card-desc">Configure staff role, log channel and ticket category.</div>
+    </a>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Select Server — Shuna{% endblock %}
+
+{% block head %}
+<style>
+  .guild-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+  }
+
+  .guild-card {
+    background: #2b2d31;
+    border-radius: 10px;
+    padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+    transition: background 0.15s, transform 0.15s;
+    cursor: pointer;
+  }
+
+  .guild-card:hover {
+    background: #35373c;
+    transform: translateY(-2px);
+  }
+
+  .guild-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .guild-icon-placeholder {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: #5865f2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .guild-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: #f2f3f5;
+    word-break: break-word;
+  }
+
+  .empty {
+    text-align: center;
+    padding: 60px 0;
+    color: #949ba4;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h1>Select a Server</h1>
+  <p>Servers where you have administrator permissions and the bot is present.</p>
+
+  {% if guilds %}
+  <div class="guild-grid">
+    {% for guild in guilds %}
+    <a class="guild-card" href="/dashboard/{{ guild.id }}">
+      {% if guild.icon_url %}
+        <img class="guild-icon" src="{{ guild.icon_url }}" alt="" />
+      {% else %}
+        <div class="guild-icon-placeholder">{{ guild.name[0] }}</div>
+      {% endif %}
+      <span class="guild-name">{{ guild.name }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">
+    <p>No servers found. Make sure the bot is added to your server.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
