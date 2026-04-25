@@ -130,7 +130,7 @@ async def fetch_cwl_attacks(session, clan_tag: str) -> int:
     return await asyncio.get_running_loop().run_in_executor(None, _insert_all)
 
 
-async def add_player_to_db(tag: str, session, commit=True):
+async def add_player_to_db(tag: str, session, commit=True, fetch_attacks=True):
     tag = tag.upper().replace("O", "0")
     if not tag.startswith("#"):
         tag = "#" + tag
@@ -155,9 +155,10 @@ async def add_player_to_db(tag: str, session, commit=True):
 
     player = await asyncio.get_running_loop().run_in_executor(None, _get_or_create)
 
-    added = await fetch_player_attacks(session, player)
-
-    if commit:
-        await asyncio.get_running_loop().run_in_executor(None, session.commit)
+    added = 0
+    if fetch_attacks:
+        added = await fetch_player_attacks(session, player)
+        if commit:
+            await asyncio.get_running_loop().run_in_executor(None, session.commit)
 
     return {"success": True, "name": name, "tag": tag_api, "added_attacks": added}

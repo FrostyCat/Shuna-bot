@@ -90,7 +90,7 @@ class TasksCog(discord.Cog):
                 members = await get_clan_members(clan.tag)
                 for member in members:
                     tag = member if isinstance(member, str) else member["tag"]
-                    await add_player_to_db(tag, session, commit=False)
+                    await add_player_to_db(tag, session, commit=False, fetch_attacks=False)
                     await asyncio.sleep(0.5)
             except Exception as e:
                 await loop.run_in_executor(None, session.rollback)
