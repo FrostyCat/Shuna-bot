@@ -52,6 +52,13 @@ async def on_resumed():
     print("INFO: Bot reconnected to Discord")
 
 
+@bot.event
+async def on_application_command_error(_ctx, error):
+    if isinstance(error, discord.errors.NotFound) and getattr(error, 'code', None) == 10062:
+        return  # interaction expired (autocomplete timeout) — harmless
+    raise error
+
+
 @bot.command()
 async def fetch(ctx):
     session = Session()
