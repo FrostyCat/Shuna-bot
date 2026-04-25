@@ -8,12 +8,13 @@ from flask import Flask, abort, flash, redirect, render_template, request, sessi
 
 from db import Session as DBSession
 import re
-from models import Transcript, TicketPanel, TicketType
+from models import Transcript, TicketPanel, TicketType, GuildConfig
 
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY")
+app.jinja_env.filters["from_json"] = json.loads
 
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID")
 DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET")
@@ -75,6 +76,23 @@ def build_panel_embed(form) -> dict:
     if image:
         embed["image"] = {"url": image}
     return embed
+
+
+def guild_roles(guild_id: str) -> list:
+    r = requests.get(f"{DISCORD_API}/guilds/{guild_id}/roles",
+                     headers={"Authorization": f"Bot {BOT_TOKEN}"})
+    if not r.ok:
+        return []
+    return sorted([ro for ro in r.json() if ro["name"] != "@everyone"],
+                  key=lambda ro: -ro["position"])
+
+
+def guild_categories(guild_id: str) -> list:
+    r = requests.get(f"{DISCORD_API}/guilds/{guild_id}/channels",
+                     headers={"Authorization": f"Bot {BOT_TOKEN}"})
+    if not r.ok:
+        return []
+    return sorted([c for c in r.json() if c["type"] == 4], key=lambda c: c["position"])
 
 
 def guild_text_channels(guild_id: str) -> list:
@@ -398,6 +416,50 @@ def ticket_panel_delete(guild_id, panel_id):
         db.close()
     flash("Panel deleted.", "success")
     return redirect(url_for("tickets", guild_id=guild_id))
+
+
+@app.route("/dashboard/<guild_id>/transcripts")
+def transcripts(guild_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+    db = DBSession()
+    items = (db.query(Transcript)
+               .filter_by(guild_id=guild_id)
+               .order_by(Transcript.closed_at.desc())
+               .all())
+    db.close()
+    return render_template("transcripts.html", user=session["user"], guild=guild, transcripts=items)
+
+
+@app.route("/dashboard/<guild_id>/settings", methods=["GET", "POST"])
+def settings(guild_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+
+    roles = guild_roles(guild_id)
+    channels = guild_text_channels(guild_id)
+    categories = guild_categories(guild_id)
+
+    db = DBSession()
+    config = db.query(GuildConfig).filter_by(guild_id=guild_id).first()
+
+    if request.method == "POST":
+        if not config:
+            config = GuildConfig(guild_id=guild_id)
+            db.add(config)
+        config.staff_role_id = request.form.get("staff_role_id") or None
+        config.log_channel_id = request.form.get("log_channel_id") or None
+        config.ticket_category_id = request.form.get("ticket_category_id") or None
+        db.commit()
+        db.close()
+        flash("Settings saved!", "success")
+        return redirect(url_for("settings", guild_id=guild_id))
+
+    db.close()
+    return render_template("settings.html", user=session["user"], guild=guild,
+                           config=config, roles=roles, channels=channels, categories=categories)
 
 
 @app.route("/logout")

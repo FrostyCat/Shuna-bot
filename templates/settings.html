@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Settings — {{ guild.name }}{% endblock %}
+
+{% block head %}
+<style>
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #949ba4;
+    font-size: 13px;
+    margin-bottom: 24px;
+    transition: color 0.15s;
+  }
+  .back-link:hover { color: #dbdee1; }
+
+  .form-card {
+    background: #2b2d31;
+    border-radius: 10px;
+    padding: 32px;
+    max-width: 560px;
+  }
+
+  .form-group { margin-bottom: 20px; }
+
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #b5bac1;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+
+  select {
+    width: 100%;
+    background: #1e1f22;
+    border: 1px solid #3f4046;
+    border-radius: 6px;
+    color: #dbdee1;
+    font-size: 14px;
+    padding: 10px 12px;
+    font-family: inherit;
+    transition: border-color 0.15s;
+    outline: none;
+    cursor: pointer;
+  }
+  select:focus { border-color: #5865f2; }
+
+  .hint { font-size: 12px; color: #6d6f78; margin-top: 4px; }
+
+  .form-actions { margin-top: 28px; }
+
+  .alert { padding: 12px 16px; border-radius: 6px; font-size: 14px; margin-bottom: 20px; }
+  .alert-success { background: #1a3a2a; color: #3ba55c; border: 1px solid #3ba55c44; }
+  .alert-danger  { background: #3a1a1a; color: #ed4245; border: 1px solid #ed424544; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <a class="back-link" href="/dashboard/{{ guild.id }}">← Back to dashboard</a>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <h1>Settings</h1>
+  <p style="margin-bottom: 24px;">{{ guild.name }}</p>
+
+  <div class="form-card">
+    <form method="post">
+
+      <div class="form-group">
+        <label>Staff Role</label>
+        <select name="staff_role_id">
+          <option value="">— None —</option>
+          {% for role in roles %}
+            <option value="{{ role.id }}"
+              {% if config and config.staff_role_id == role.id %}selected{% endif %}>
+              {{ role.name }}
+            </option>
+          {% endfor %}
+        </select>
+        <div class="hint">Members with this role can see and claim tickets.</div>
+      </div>
+
+      <div class="form-group">
+        <label>Log Channel</label>
+        <select name="log_channel_id">
+          <option value="">— None —</option>
+          {% for ch in channels %}
+            <option value="{{ ch.id }}"
+              {% if config and config.log_channel_id == ch.id %}selected{% endif %}>
+              # {{ ch.name }}
+            </option>
+          {% endfor %}
+        </select>
+        <div class="hint">Closed ticket logs are posted here.</div>
+      </div>
+
+      <div class="form-group">
+        <label>Ticket Category</label>
+        <select name="ticket_category_id">
+          <option value="">— None —</option>
+          {% for cat in categories %}
+            <option value="{{ cat.id }}"
+              {% if config and config.ticket_category_id == cat.id %}selected{% endif %}>
+              {{ cat.name }}
+            </option>
+          {% endfor %}
+        </select>
+        <div class="hint">New ticket channels are created inside this category.</div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save Settings</button>
+      </div>
+
+    </form>
+  </div>
+</div>
+{% endblock %}
