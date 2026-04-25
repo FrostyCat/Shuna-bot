@@ -315,8 +315,10 @@ class LegendCog(discord.Cog):
 
         try:
             await fetch_player_attacks(session, player)
+            await asyncio.get_running_loop().run_in_executor(None, session.commit)
         except Exception as e:
             print(f"[legend_day] fetch failed for {player.tag}: {e}")
+            await asyncio.get_running_loop().run_in_executor(None, session.rollback)
 
         player_data = await get_player(player.tag)
         season_trophies = player_data[2] if player_data else None
