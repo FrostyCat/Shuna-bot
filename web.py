@@ -112,7 +112,9 @@ def guild_members(guild_id: str) -> list:
     if not r.ok:
         return []
     return sorted(
-        [{"id": m["user"]["id"], "username": m["nick"] or m["user"]["username"]}
+        [{"id": m["user"]["id"],
+          "username": m["nick"] or m["user"]["username"],
+          "roles": m.get("roles", [])}
          for m in r.json() if not m["user"].get("bot")],
         key=lambda u: u["username"].lower()
     )
@@ -493,7 +495,102 @@ def coc_manager(guild_id):
     db = DBSession()
     clans = db.query(GuildClan).filter_by(guild_id=guild_id).all()
     db.close()
-    return render_template("coc.html", user=session["user"], guild=guild, clans=clans)
+    roles = guild_roles(guild_id)
+    return render_template("coc.html", user=session["user"], guild=guild, clans=clans, roles=roles)
+
+
+@app.route("/dashboard/<guild_id>/coc/role")
+def coc_role_stats(guild_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+
+    role_id = request.args.get("role_id", "").strip()
+    roles = guild_roles(guild_id)
+    role = next((r for r in roles if r["id"] == role_id), None)
+    if not role_id or not role:
+        return redirect(url_for("coc_manager", guild_id=guild_id))
+
+    all_members = guild_members(guild_id)
+    role_members = [m for m in all_members if role_id in m["roles"]]
+
+    now = datetime.now(UTC)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    three_months_ago = now - timedelta(days=90)
+
+    db = DBSession()
+    stats = []
+
+    for member in role_members:
+        discord_id = member["id"]
+        discord_username = member["username"]
+
+        db_user = db.query(DiscordUser).filter_by(discord_id=discord_id).first()
+        players = db_user.players if db_user else []
+
+        if not players:
+            stats.append({
+                "discord_id": discord_id,
+                "discord_username": discord_username,
+                "tag": None,
+                "name": None,
+                "in_db": False,
+                "war_month": 0, "cwl_month": 0,
+                "war_3mo": 0,   "cwl_3mo": 0,
+                "cwl_league": None, "legend_month": 0,
+            })
+        else:
+            for player in players:
+                war_month = db.query(WarAttack).filter(
+                    WarAttack.attacker_tag == player.tag,
+                    WarAttack.war_type == "war",
+                    WarAttack.created_at >= month_start,
+                ).count()
+                cwl_month = db.query(WarAttack).filter(
+                    WarAttack.attacker_tag == player.tag,
+                    WarAttack.war_type == "cwl",
+                    WarAttack.created_at >= month_start,
+                ).count()
+                war_3mo = db.query(WarAttack).filter(
+                    WarAttack.attacker_tag == player.tag,
+                    WarAttack.war_type == "war",
+                    WarAttack.created_at >= three_months_ago,
+                ).count()
+                cwl_3mo = db.query(WarAttack).filter(
+                    WarAttack.attacker_tag == player.tag,
+                    WarAttack.war_type == "cwl",
+                    WarAttack.created_at >= three_months_ago,
+                ).count()
+                legend_month = db.query(Attack).filter(
+                    Attack.player_id == player.id,
+                    Attack.is_attack == True,
+                    Attack.created_at >= month_start,
+                ).count()
+                cwl_league = (
+                    db.query(WarAttack.league)
+                    .filter(
+                        WarAttack.attacker_tag == player.tag,
+                        WarAttack.war_type == "cwl",
+                        WarAttack.league.isnot(None),
+                    )
+                    .order_by(WarAttack.created_at.desc())
+                    .limit(1)
+                    .scalar()
+                )
+                stats.append({
+                    "discord_id": discord_id,
+                    "discord_username": discord_username,
+                    "tag": player.tag,
+                    "name": player.name,
+                    "in_db": True,
+                    "war_month": war_month, "cwl_month": cwl_month,
+                    "war_3mo": war_3mo,     "cwl_3mo": cwl_3mo,
+                    "cwl_league": cwl_league, "legend_month": legend_month,
+                })
+
+    db.close()
+    return render_template("coc_role.html", user=session["user"], guild=guild,
+                           role=role, stats=stats, roles=roles)
 
 
 @app.route("/dashboard/<guild_id>/coc/search")

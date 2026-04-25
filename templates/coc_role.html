@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}{{ role.name }} — CoC Stats{% endblock %}
+
+{% block head %}
+<style>
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #949ba4;
+    font-size: 13px;
+    margin-bottom: 24px;
+    transition: color 0.15s;
+  }
+  .back-link:hover { color: #dbdee1; }
+
+  .role-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-left: 10px;
+    vertical-align: middle;
+  }
+
+  .role-switcher {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+
+  .role-switcher select {
+    background: #2b2d31;
+    border: 1px solid #3f4046;
+    border-radius: 6px;
+    color: #dbdee1;
+    font-size: 14px;
+    padding: 8px 12px;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .role-switcher select:focus { border-color: #5865f2; }
+
+  .stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    background: #2b2d31;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .stats-table th {
+    background: #1e1f22;
+    color: #b5bac1;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 12px 16px;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .stats-table td {
+    padding: 11px 16px;
+    color: #dbdee1;
+    border-top: 1px solid #3f4046;
+    vertical-align: middle;
+  }
+
+  .stats-table tr:hover td { background: #32353b; }
+
+  .discord-name { font-weight: 600; color: #f2f3f5; font-size: 14px; }
+  .player-name  { font-size: 14px; color: #dbdee1; }
+  .player-tag   { font-size: 12px; color: #949ba4; margin-top: 2px; }
+  .no-account   { font-size: 13px; color: #6d6f78; font-style: italic; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .badge-zero { background: #3a1a1a; color: #6d6f78; }
+  .badge-low  { background: #3a2a1a; color: #faa61a; }
+  .badge-ok   { background: #1a3a2a; color: #3ba55c; }
+
+  .th-hint {
+    display: block;
+    font-size: 10px;
+    font-weight: 400;
+    color: #6d6f78;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-top: 2px;
+  }
+
+  .empty { color: #6d6f78; font-size: 14px; margin-top: 16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <a class="back-link" href="/dashboard/{{ guild.id }}/coc">← Back to CoC Manager</a>
+
+  <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 8px;">
+    <h1 style="margin: 0;">Role Stats</h1>
+    <span class="role-badge"
+          style="background: #{{ '%06x' % (role.color or 0x5865f2) }}22; color: #{{ '%06x' % (role.color or 0x5865f2) }};">
+      {{ role.name }}
+    </span>
+  </div>
+  <p style="color: #949ba4; margin-bottom: 20px;">{{ guild.name }} · {{ stats | length }} member{{ 's' if stats | length != 1 }}</p>
+
+  <form class="role-switcher" method="get" action="/dashboard/{{ guild.id }}/coc/role">
+    <select name="role_id" onchange="this.form.submit()">
+      {% for r in roles %}
+        <option value="{{ r.id }}" {% if r.id == role.id %}selected{% endif %}>{{ r.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+  {% if stats %}
+    <div style="overflow-x: auto;">
+      <table class="stats-table">
+        <thead>
+          <tr>
+            <th>Discord Member</th>
+            <th>CoC Account</th>
+            <th>War Hits <span class="th-hint">this month</span></th>
+            <th>CWL Hits <span class="th-hint">this month</span></th>
+            <th>War Hits <span class="th-hint">last 90 days</span></th>
+            <th>CWL Hits <span class="th-hint">last 90 days</span></th>
+            <th>Legend Hits <span class="th-hint">this month</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in stats %}
+            <tr>
+              <td><span class="discord-name">{{ s.discord_username }}</span></td>
+              <td>
+                {% if s.tag %}
+                  <div class="player-name">{{ s.name }}</div>
+                  <div class="player-tag">{{ s.tag }}</div>
+                {% else %}
+                  <span class="no-account">No account linked</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if not s.in_db %}<span style="color:#6d6f78;">—</span>
+                {% else %}
+                  <span class="badge {% if s.war_month == 0 %}badge-zero{% elif s.war_month < 2 %}badge-low{% else %}badge-ok{% endif %}">
+                    {{ s.war_month }}
+                  </span>
+                {% endif %}
+              </td>
+              <td>
+                {% if not s.in_db %}<span style="color:#6d6f78;">—</span>
+                {% else %}
+                  <span class="badge {% if s.cwl_month == 0 %}badge-zero{% elif s.cwl_month < 5 %}badge-low{% else %}badge-ok{% endif %}">
+                    {{ s.cwl_month }}
+                  </span>
+                  {% if s.cwl_league %}
+                    <div style="font-size: 11px; color: #949ba4; margin-top: 3px;">{{ s.cwl_league }}</div>
+                  {% endif %}
+                {% endif %}
+              </td>
+              <td>
+                {% if not s.in_db %}<span style="color:#6d6f78;">—</span>
+                {% else %}
+                  <span class="badge {% if s.war_3mo == 0 %}badge-zero{% elif s.war_3mo < 4 %}badge-low{% else %}badge-ok{% endif %}">
+                    {{ s.war_3mo }}
+                  </span>
+                {% endif %}
+              </td>
+              <td>
+                {% if not s.in_db %}<span style="color:#6d6f78;">—</span>
+                {% else %}
+                  <span class="badge {% if s.cwl_3mo == 0 %}badge-zero{% elif s.cwl_3mo < 14 %}badge-low{% else %}badge-ok{% endif %}">
+                    {{ s.cwl_3mo }}
+                  </span>
+                {% endif %}
+              </td>
+              <td>
+                {% if not s.in_db %}<span style="color:#6d6f78;">—</span>
+                {% else %}
+                  <span class="badge {% if s.legend_month == 0 %}badge-zero{% elif s.legend_month < 5 %}badge-low{% else %}badge-ok{% endif %}">
+                    {{ s.legend_month }}
+                  </span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="empty">No members with this role found.</p>
+  {% endif %}
+</div>
+{% endblock %}

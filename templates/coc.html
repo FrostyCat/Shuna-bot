@@ -108,6 +108,50 @@
   .clan-tag  { font-size: 12px; color: #949ba4; margin-top: 2px; }
 
   .empty { color: #6d6f78; font-size: 14px; margin-top: 8px; }
+
+  .section-divider {
+    border: none;
+    border-top: 1px solid #3f4046;
+    margin: 36px 0 28px;
+    max-width: 640px;
+  }
+
+  .role-form {
+    background: #2b2d31;
+    border-radius: 10px;
+    padding: 24px;
+    max-width: 480px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+  }
+
+  .role-form .form-group { flex: 1; margin: 0; }
+
+  .role-form label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #b5bac1;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+
+  .role-form select {
+    width: 100%;
+    background: #1e1f22;
+    border: 1px solid #3f4046;
+    border-radius: 6px;
+    color: #dbdee1;
+    font-size: 14px;
+    padding: 10px 12px;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .role-form select:focus { border-color: #5865f2; }
 </style>
 {% endblock %}
 
@@ -136,6 +180,25 @@
     </div>
     <div id="selectedPreview" style="margin-top: 10px; font-size: 13px; color: #3ba55c; display: none;"></div>
   </form>
+
+  <hr class="section-divider">
+  <h2 style="font-size: 16px; margin-bottom: 16px;">View Stats by Role</h2>
+
+  <form class="role-form" method="get" action="/dashboard/{{ guild.id }}/coc/role">
+    <div class="form-group">
+      <label>Server Role</label>
+      <select name="role_id" required>
+        <option value="">— Select a role —</option>
+        {% for role in roles %}
+          <option value="{{ role.id }}">{{ role.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary" style="white-space: nowrap;">View Stats</button>
+  </form>
+
+  <hr class="section-divider">
+  <h2 style="font-size: 16px; margin-bottom: 16px;">Managed Clans</h2>
 
   {% if clans %}
     <div class="clan-list">
