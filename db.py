@@ -10,9 +10,14 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
-    connect_args={"connect_timeout": 10},
-    pool_timeout=10,
-    pool_recycle=300,
+    connect_args={
+        "connect_timeout": 10,
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 5,
+        "keepalives_count": 3,
+        "options": "-c statement_timeout=30000",
+    },
 )
 Session = sessionmaker(bind=engine, autoflush=False)
 

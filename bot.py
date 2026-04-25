@@ -1,4 +1,6 @@
+import asyncio
 import os
+from datetime import datetime
 
 import discord
 from discord.ext import commands
@@ -26,15 +28,24 @@ COGS = [
 ]
 
 
+async def watchdog():
+    while True:
+        print(f"[watchdog] {datetime.now().strftime('%H:%M:%S')} alive", flush=True)
+        await asyncio.sleep(30)
+
+
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
     for guild in bot.guilds:
         print(f"  - {guild.name} ({guild.id})")
+    asyncio.create_task(watchdog())
+
 
 @bot.event
 async def on_disconnect():
     print("WARNING: Bot disconnected from Discord")
+
 
 @bot.event
 async def on_resumed():
