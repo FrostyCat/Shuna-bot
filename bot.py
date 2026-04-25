@@ -32,6 +32,14 @@ async def on_ready():
     for guild in bot.guilds:
         print(f"  - {guild.name} ({guild.id})")
 
+@bot.event
+async def on_disconnect():
+    print("WARNING: Bot disconnected from Discord")
+
+@bot.event
+async def on_resumed():
+    print("INFO: Bot reconnected to Discord")
+
 
 @bot.command()
 async def fetch(ctx):

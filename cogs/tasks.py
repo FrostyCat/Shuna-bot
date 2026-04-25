@@ -48,6 +48,7 @@ class TasksCog(discord.Cog):
     @refresh_players.before_loop
     async def before_refresh_players(self):
         await self.bot.wait_until_ready()
+        await asyncio.sleep(10)
 
     @tasks.loop(time=dt_time(hour=6, minute=50, tzinfo=WARSAW))
     async def snapshot_ranks(self):
@@ -84,6 +85,7 @@ class TasksCog(discord.Cog):
     @refresh_clans.before_loop
     async def before_refresh_clans(self):
         await self.bot.wait_until_ready()
+        await asyncio.sleep(30)
 
     @tasks.loop(minutes=30)
     async def refresh_wars(self):
@@ -109,6 +111,7 @@ class TasksCog(discord.Cog):
     @refresh_wars.before_loop
     async def before_refresh_wars(self):
         await self.bot.wait_until_ready()
+        await asyncio.sleep(60)
 
 
 def setup(bot: discord.Bot):
