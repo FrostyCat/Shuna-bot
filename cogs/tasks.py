@@ -27,11 +27,14 @@ class TasksCog(discord.Cog):
     @tasks.loop(minutes=10)
     async def refresh_players(self):
         session = Session()
-        players = session.query(Player).all()
-        session.close()
+        try:
+            players = session.query(Player).all()
+        except Exception as e:
+            print(f"DB error loading players: {e}")
+            session.close()
+            return
 
         for p in players:
-            session = Session()
             try:
                 await fetch_player_attacks(session, p)
                 data = await get_player(p.tag)
@@ -41,9 +44,9 @@ class TasksCog(discord.Cog):
             except Exception as e:
                 session.rollback()
                 print(f"Error for {p.tag}: {e}")
-            finally:
-                session.close()
             await asyncio.sleep(1.0)
+
+        session.close()
 
     @refresh_players.before_loop
     async def before_refresh_players(self):
