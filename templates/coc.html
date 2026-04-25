@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}CoC Manager — {{ guild.name }}{% endblock %}
+
+{% block head %}
+<style>
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #949ba4;
+    font-size: 13px;
+    margin-bottom: 24px;
+    transition: color 0.15s;
+  }
+  .back-link:hover { color: #dbdee1; }
+
+  .alert { padding: 12px 16px; border-radius: 6px; font-size: 14px; margin-bottom: 20px; }
+  .alert-success { background: #1a3a2a; color: #3ba55c; border: 1px solid #3ba55c44; }
+  .alert-danger  { background: #3a1a1a; color: #ed4245; border: 1px solid #ed424544; }
+
+  .add-form {
+    background: #2b2d31;
+    border-radius: 10px;
+    padding: 24px;
+    max-width: 480px;
+    margin-bottom: 32px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+  }
+
+  .add-form .form-group { flex: 1; margin: 0; }
+
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #b5bac1;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+
+  input[type="text"] {
+    width: 100%;
+    background: #1e1f22;
+    border: 1px solid #3f4046;
+    border-radius: 6px;
+    color: #dbdee1;
+    font-size: 14px;
+    padding: 10px 12px;
+    font-family: inherit;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.15s;
+  }
+  input[type="text"]:focus { border-color: #5865f2; }
+
+  .clan-list { display: flex; flex-direction: column; gap: 10px; max-width: 640px; }
+
+  .clan-row {
+    background: #2b2d31;
+    border-radius: 8px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .clan-info { flex: 1; }
+  .clan-name { font-size: 15px; font-weight: 700; color: #f2f3f5; }
+  .clan-tag  { font-size: 12px; color: #949ba4; margin-top: 2px; }
+
+  .empty { color: #6d6f78; font-size: 14px; margin-top: 8px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <a class="back-link" href="/dashboard/{{ guild.id }}">← Back to dashboard</a>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <h1>Clash of Clans Manager</h1>
+  <p style="margin-bottom: 24px; color: #949ba4;">{{ guild.name }}</p>
+
+  <form class="add-form" method="post" action="/dashboard/{{ guild.id }}/coc/add">
+    <div class="form-group">
+      <label>Clan Tag</label>
+      <input type="text" name="clan_tag" placeholder="#ABC123" required>
+    </div>
+    <button type="submit" class="btn btn-primary" style="white-space: nowrap;">Add Clan</button>
+  </form>
+
+  {% if clans %}
+    <div class="clan-list">
+      {% for gc in clans %}
+        <div class="clan-row">
+          <div class="clan-info">
+            <div class="clan-name">{{ gc.clan_name or gc.clan_tag }}</div>
+            <div class="clan-tag">{{ gc.clan_tag }}</div>
+          </div>
+          <a href="/dashboard/{{ guild.id }}/coc/{{ gc.id }}" class="btn btn-primary btn-sm">View Stats</a>
+          <form method="post" action="/dashboard/{{ guild.id }}/coc/{{ gc.id }}/remove"
+                onsubmit="return confirm('Remove this clan?');" style="margin:0;">
+            <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+          </form>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="empty">No clans added yet. Enter a clan tag above to get started.</p>
+  {% endif %}
+</div>
+{% endblock %}

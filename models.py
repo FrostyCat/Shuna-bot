@@ -49,6 +49,19 @@ class Clan(Base):
     name = Column(String)
 
 
+class GuildClan(Base):
+    __tablename__ = "guild_clans"
+
+    id = Column(Integer, primary_key=True)
+    guild_id = Column(String)
+    clan_tag = Column(String)
+    clan_name = Column(String, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("guild_id", "clan_tag", name="uq_guild_clan"),
+    )
+
+
 class WarAttack(Base):
     __tablename__ = "war_attacks"
 

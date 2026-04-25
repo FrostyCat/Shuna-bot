@@ -1,6 +1,7 @@
 import json
 import os
 import secrets
+from datetime import datetime, timedelta, UTC
 
 import requests
 from dotenv import load_dotenv
@@ -8,7 +9,7 @@ from flask import Flask, abort, flash, redirect, render_template, request, sessi
 
 from db import Session as DBSession
 import re
-from models import Transcript, TicketPanel, TicketType, GuildConfig
+from models import Transcript, TicketPanel, TicketType, GuildConfig, GuildClan, Player, Attack, WarAttack
 
 load_dotenv()
 
@@ -23,6 +24,15 @@ DISCORD_API = "https://discord.com/api/v10"
 BOT_TOKEN = os.getenv("DISCORD_TOKEN")
 
 ADMINISTRATOR = 0x8
+
+COC_API_KEY = os.getenv("COC_API_KEY")
+COC_BASE_URL = "https://api.clashofclans.com/v1"
+
+
+def coc_get(path: str):
+    r = requests.get(f"{COC_BASE_URL}{path}",
+                     headers={"Authorization": f"Bearer {COC_API_KEY}"})
+    return r.json() if r.ok else None
 
 
 def bot_guild_ids() -> set:
@@ -460,6 +470,122 @@ def settings(guild_id):
     db.close()
     return render_template("settings.html", user=session["user"], guild=guild,
                            config=config, roles=roles, channels=channels, categories=categories)
+
+
+@app.route("/dashboard/<guild_id>/coc")
+def coc_manager(guild_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+    db = DBSession()
+    clans = db.query(GuildClan).filter_by(guild_id=guild_id).all()
+    db.close()
+    return render_template("coc.html", user=session["user"], guild=guild, clans=clans)
+
+
+@app.route("/dashboard/<guild_id>/coc/add", methods=["POST"])
+def coc_clan_add(guild_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+    tag = request.form.get("clan_tag", "").strip().upper().replace("O", "0")
+    if not tag.startswith("#"):
+        tag = "#" + tag
+
+    data = coc_get(f"/clans/{tag.replace('#', '%23')}")
+    if not data or "tag" not in data:
+        flash("Clan not found. Check the tag.", "danger")
+        return redirect(url_for("coc_manager", guild_id=guild_id))
+
+    clan_name = data.get("name", "")
+    db = DBSession()
+    if db.query(GuildClan).filter_by(guild_id=guild_id, clan_tag=tag).first():
+        flash("This clan is already added.", "danger")
+        db.close()
+        return redirect(url_for("coc_manager", guild_id=guild_id))
+
+    db.add(GuildClan(guild_id=guild_id, clan_tag=tag, clan_name=clan_name))
+    db.commit()
+    db.close()
+    flash(f"Clan {clan_name} added!", "success")
+    return redirect(url_for("coc_manager", guild_id=guild_id))
+
+
+@app.route("/dashboard/<guild_id>/coc/<int:gc_id>")
+def coc_clan(guild_id, gc_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+
+    db = DBSession()
+    gc = db.query(GuildClan).filter_by(id=gc_id, guild_id=guild_id).first()
+    if not gc:
+        db.close()
+        abort(404)
+
+    clan_data = coc_get(f"/clans/{gc.clan_tag.replace('#', '%23')}/members")
+    members_api = clan_data.get("items", []) if clan_data else []
+
+    now = datetime.now(UTC)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    three_months_ago = now - timedelta(days=90)
+
+    stats = []
+    for m in members_api:
+        member_tag = m.get("tag")
+        member_name = m.get("name")
+
+        player = db.query(Player).filter_by(tag=member_tag).first()
+
+        discord_id = None
+        war_month = 0
+        war_3mo = 0
+        legend_month = 0
+
+        if player:
+            if player.discord_user:
+                discord_id = player.discord_user.discord_id
+            war_month = db.query(WarAttack).filter(
+                WarAttack.attacker_tag == member_tag,
+                WarAttack.created_at >= month_start,
+            ).count()
+            war_3mo = db.query(WarAttack).filter(
+                WarAttack.attacker_tag == member_tag,
+                WarAttack.created_at >= three_months_ago,
+            ).count()
+            legend_month = db.query(Attack).filter(
+                Attack.player_id == player.id,
+                Attack.is_attack == True,
+                Attack.created_at >= month_start,
+            ).count()
+
+        stats.append({
+            "tag": member_tag,
+            "name": member_name,
+            "discord_id": discord_id,
+            "war_month": war_month,
+            "war_3mo": war_3mo,
+            "legend_month": legend_month,
+            "in_db": player is not None,
+        })
+
+    db.close()
+    return render_template("coc_clan.html", user=session["user"], guild=guild, gc=gc, stats=stats)
+
+
+@app.route("/dashboard/<guild_id>/coc/<int:gc_id>/remove", methods=["POST"])
+def coc_clan_remove(guild_id, gc_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+    db = DBSession()
+    gc = db.query(GuildClan).filter_by(id=gc_id, guild_id=guild_id).first()
+    if gc:
+        db.delete(gc)
+        db.commit()
+        flash("Clan removed.", "success")
+    db.close()
+    return redirect(url_for("coc_manager", guild_id=guild_id))
 
 
 @app.route("/logout")

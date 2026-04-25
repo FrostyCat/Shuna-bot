@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}{{ gc.clan_name }} — CoC Manager{% endblock %}
+
+{% block head %}
+<style>
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #949ba4;
+    font-size: 13px;
+    margin-bottom: 24px;
+    transition: color 0.15s;
+  }
+  .back-link:hover { color: #dbdee1; }
+
+  .stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    background: #2b2d31;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .stats-table th {
+    background: #1e1f22;
+    color: #b5bac1;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 12px 16px;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .stats-table td {
+    padding: 12px 16px;
+    color: #dbdee1;
+    border-top: 1px solid #3f4046;
+    vertical-align: middle;
+  }
+
+  .stats-table tr:hover td { background: #32353b; }
+
+  .player-name { font-weight: 600; color: #f2f3f5; }
+  .player-tag  { font-size: 12px; color: #949ba4; margin-top: 2px; }
+
+  .not-tracked { color: #6d6f78; font-style: italic; font-size: 13px; }
+
+  .discord-id {
+    font-size: 12px;
+    color: #949ba4;
+    font-family: monospace;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .badge-zero { background: #3a1a1a; color: #6d6f78; }
+  .badge-low  { background: #3a2a1a; color: #faa61a; }
+  .badge-ok   { background: #1a3a2a; color: #3ba55c; }
+
+  .th-hint {
+    display: block;
+    font-size: 10px;
+    font-weight: 400;
+    color: #6d6f78;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-top: 2px;
+  }
+
+  .empty { color: #6d6f78; font-size: 14px; margin-top: 16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <a class="back-link" href="/dashboard/{{ guild.id }}/coc">← Back to CoC Manager</a>
+
+  <h1>{{ gc.clan_name or gc.clan_tag }}</h1>
+  <p style="color: #949ba4; margin-bottom: 24px;">{{ gc.clan_tag }} · {{ stats | length }} members</p>
+
+  {% if stats %}
+    <div style="overflow-x: auto;">
+      <table class="stats-table">
+        <thead>
+          <tr>
+            <th>Account</th>
+            <th>Discord</th>
+            <th>
+              War Hits
+              <span class="th-hint">this month</span>
+            </th>
+            <th>
+              War Hits
+              <span class="th-hint">last 90 days</span>
+            </th>
+            <th>
+              Legend Hits
+              <span class="th-hint">this month</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in stats %}
+            <tr>
+              <td>
+                <div class="player-name">{{ s.name }}</div>
+                <div class="player-tag">{{ s.tag }}</div>
+              </td>
+              <td>
+                {% if s.discord_id %}
+                  <span class="discord-id">{{ s.discord_id }}</span>
+                {% else %}
+                  <span class="not-tracked">—</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if not s.in_db %}
+                  <span class="not-tracked">not tracked</span>
+                {% else %}
+                  <span class="badge {% if s.war_month == 0 %}badge-zero{% elif s.war_month < 3 %}badge-low{% else %}badge-ok{% endif %}">
+                    {{ s.war_month }}
+                  </span>
+                {% endif %}
+              </td>
+              <td>
+                {% if not s.in_db %}
+                  <span class="not-tracked">not tracked</span>
+                {% else %}
+                  <span class="badge {% if s.war_3mo == 0 %}badge-zero{% elif s.war_3mo < 6 %}badge-low{% else %}badge-ok{% endif %}">
+                    {{ s.war_3mo }}
+                  </span>
+                {% endif %}
+              </td>
+              <td>
+                {% if not s.in_db %}
+                  <span class="not-tracked">not tracked</span>
+                {% else %}
+                  <span class="badge {% if s.legend_month == 0 %}badge-zero{% elif s.legend_month < 5 %}badge-low{% else %}badge-ok{% endif %}">
+                    {{ s.legend_month }}
+                  </span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="empty">Could not load clan members from the Clash of Clans API.</p>
+  {% endif %}
+</div>
+{% endblock %}
