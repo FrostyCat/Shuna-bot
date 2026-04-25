@@ -339,7 +339,6 @@ class Tickets(commands.Cog):
             embed.set_thumbnail(url=thumbnail)
         if image:
             embed.set_image(url=image)
-        embed.set_footer(text=f"Ticket ID: {channel.id}")
 
         mention = f"{user.mention} {staff_role.mention}" if staff_role else user.mention
         await channel.send(content=mention, embed=embed, view=TicketManageView())
