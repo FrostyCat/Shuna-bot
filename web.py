@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
 
 from db import Session as DBSession
-from models import Transcript, TicketPanel
+import re
+from models import Transcript, TicketPanel, TicketType
 
 load_dotenv()
 
@@ -26,6 +27,10 @@ ADMINISTRATOR = 0x8
 def bot_guild_ids() -> set:
     r = requests.get(f"{DISCORD_API}/users/@me/guilds", headers={"Authorization": f"Bot {BOT_TOKEN}"})
     return {g["id"] for g in r.json()} if r.ok else set()
+
+
+def sanitize_type(name: str) -> str:
+    return re.sub(r'[^a-z0-9_]', '', name.strip().lower().replace(' ', '_'))
 
 
 def fetch_discord_message(channel_id: str, message_id: str) -> dict:
@@ -206,24 +211,17 @@ def ticket_panel_new(guild_id):
 
         message_id = r.json()["id"]
 
-        msg_title = request.form.get("msg_title") or None
-        msg_description = request.form.get("msg_description") or None
-        msg_color = request.form.get("msg_color") or None
-        msg_thumbnail = request.form.get("msg_thumbnail") or None
-        msg_image = request.form.get("msg_image") or None
-
         db = DBSession()
-        db.add(TicketPanel(
+        panel = TicketPanel(
             guild_id=guild_id,
             message_id=message_id,
             channel_id=channel_id,
             types=",".join(types),
-            msg_title=msg_title,
-            msg_description=msg_description,
-            msg_color=msg_color,
-            msg_thumbnail=msg_thumbnail,
-            msg_image=msg_image,
-        ))
+        )
+        db.add(panel)
+        db.flush()
+        for t in types:
+            db.add(TicketType(panel_id=panel.id, name=t))
         db.commit()
         db.close()
 
@@ -247,21 +245,57 @@ def ticket_panel(guild_id, panel_id):
         abort(404)
 
     if request.method == "POST":
-        panel.msg_title = request.form.get("msg_title") or None
-        panel.msg_description = request.form.get("msg_description") or None
-        panel.msg_color = request.form.get("msg_color") or None
-        panel.msg_thumbnail = request.form.get("msg_thumbnail") or None
-        panel.msg_image = request.form.get("msg_image") or None
+        types_raw = request.form.get("types", "")
+        types = [t.strip() for t in types_raw.split(",") if t.strip()][:5]
+        if types:
+            panel.types = ",".join(types)
+
+        existing_tts = db.query(TicketType).filter_by(panel_id=panel.id).all()
+        existing_by_name = {tt.name: tt for tt in existing_tts}
+
+        for tt in existing_tts:
+            if tt.name not in types:
+                db.delete(tt)
+
+        for type_name in types:
+            key = sanitize_type(type_name)
+            msg_title = request.form.get(f"type_{key}_msg_title") or None
+            msg_description = request.form.get(f"type_{key}_msg_description") or None
+            msg_color = request.form.get(f"type_{key}_msg_color") or None
+            msg_thumbnail = request.form.get(f"type_{key}_msg_thumbnail") or None
+            msg_image = request.form.get(f"type_{key}_msg_image") or None
+            if type_name in existing_by_name:
+                tt = existing_by_name[type_name]
+                tt.msg_title = msg_title
+                tt.msg_description = msg_description
+                tt.msg_color = msg_color
+                tt.msg_thumbnail = msg_thumbnail
+                tt.msg_image = msg_image
+            else:
+                db.add(TicketType(
+                    panel_id=panel.id, name=type_name,
+                    msg_title=msg_title, msg_description=msg_description,
+                    msg_color=msg_color, msg_thumbnail=msg_thumbnail, msg_image=msg_image,
+                ))
+
         channel_id = panel.channel_id
         message_id = panel.message_id
         db.commit()
         db.close()
 
         new_embed = build_panel_embed(request.form)
+        buttons = [
+            {"type": 2, "label": t, "style": 1,
+             "emoji": {"name": "🎫"}, "custom_id": f"ticket:open:{t.lower()}"}
+            for t in types
+        ]
+        patch_payload = {"embeds": [new_embed]}
+        if buttons:
+            patch_payload["components"] = [{"type": 1, "components": buttons}]
         requests.patch(
             f"{DISCORD_API}/channels/{channel_id}/messages/{message_id}",
             headers={"Authorization": f"Bot {BOT_TOKEN}", "Content-Type": "application/json"},
-            json={"embeds": [new_embed]},
+            json=patch_payload,
         )
 
         flash("Panel updated!", "success")
@@ -269,13 +303,24 @@ def ticket_panel(guild_id, panel_id):
 
     channel_id = panel.channel_id
     message_id = panel.message_id
+    ticket_types = db.query(TicketType).filter_by(panel_id=panel.id).all()
+    types_data = {
+        tt.name: {
+            "msg_title": tt.msg_title or "",
+            "msg_description": tt.msg_description or "",
+            "msg_color": tt.msg_color or "",
+            "msg_thumbnail": tt.msg_thumbnail or "",
+            "msg_image": tt.msg_image or "",
+        }
+        for tt in ticket_types
+    }
     db.close()
 
     discord_msg = fetch_discord_message(channel_id, message_id)
     current_embed = discord_msg.get("embeds", [{}])[0] if discord_msg.get("embeds") else {}
 
     return render_template("ticket_panel.html", user=session["user"], guild=guild,
-                           panel=panel, current_embed=current_embed)
+                           panel=panel, current_embed=current_embed, types_data=types_data)
 
 
 @app.route("/dashboard/<guild_id>/tickets/<int:panel_id>/delete", methods=["POST"])

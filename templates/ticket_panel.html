@@ -132,6 +132,16 @@
 
     <form method="post">
 
+      <div class="section-label">Przyciski</div>
+
+      <div class="form-group">
+        <label for="types">Typy ticketów</label>
+        <input type="text" id="types" name="types"
+               value="{{ panel.types or '' }}"
+               placeholder="Support, Subscribe, Report" />
+        <div class="hint">Oddzielone przecinkami. Każdy typ = jeden przycisk. Maksymalnie 5.</div>
+      </div>
+
       <div class="section-label">Panel Embed (widoczny na Discordzie)</div>
 
       <div class="form-group">
@@ -171,46 +181,10 @@
                placeholder="https://example.com/banner.png" />
       </div>
 
-      <div class="section-label">Wiadomość Powitalna w Tickecie</div>
-      <div class="hint" style="margin-bottom: 14px;">Pojawia się wewnątrz kanału po otwarciu ticketu. Użyj <code>{type}</code> i <code>{user}</code>.</div>
+      <div class="section-label">Wiadomości Powitalne (per typ)</div>
+      <div class="hint" style="margin-bottom: 14px;">Każdy typ przycisku może mieć własną wiadomość. Użyj <code>{type}</code> i <code>{user}</code>.</div>
 
-      <div class="form-group">
-        <label for="msg_title">Tytuł</label>
-        <input type="text" id="msg_title" name="msg_title" maxlength="256"
-               value="{{ panel.msg_title or '' }}" placeholder="🎫 {type} Ticket" />
-      </div>
-
-      <div class="form-group">
-        <label for="msg_description">Opis</label>
-        <textarea id="msg_description" name="msg_description" maxlength="4096"
-                  placeholder="Welcome {user}! Opisz swój problem…">{{ panel.msg_description or '' }}</textarea>
-      </div>
-
-      <div class="form-group">
-        <label for="msg_color">Kolor</label>
-        <div class="color-row">
-          {% set mc = panel.msg_color or '5865f2' %}
-          <input type="color" id="msg-color-picker" value="#{{ mc }}"
-                 oninput="syncHex('msg_color', this.value)">
-          <input type="text" id="msg_color" name="msg_color" maxlength="6"
-                 value="{{ panel.msg_color or '' }}" placeholder="5865f2"
-                 oninput="syncPicker('msg-color-picker', this.value)">
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label for="msg_thumbnail">Thumbnail URL</label>
-        <input type="text" id="msg_thumbnail" name="msg_thumbnail"
-               value="{{ panel.msg_thumbnail or '' }}"
-               placeholder="https://example.com/image.png" />
-      </div>
-
-      <div class="form-group">
-        <label for="msg_image">Image URL</label>
-        <input type="text" id="msg_image" name="msg_image"
-               value="{{ panel.msg_image or '' }}"
-               placeholder="https://example.com/banner.png" />
-      </div>
+      <div id="type-sections"></div>
 
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
@@ -221,6 +195,12 @@
 </div>
 
 <script>
+const TYPES_DATA = {{ types_data | tojson }};
+
+function sanitize(name) {
+  return name.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+}
+
 function syncHex(inputId, pickerValue) {
   document.getElementById(inputId).value = pickerValue.replace('#', '');
 }
@@ -229,5 +209,100 @@ function syncPicker(pickerId, hexValue) {
     document.getElementById(pickerId).value = '#' + hexValue;
   }
 }
+
+function createTypeSection(typeName, data) {
+  const key = sanitize(typeName);
+  const color = data.msg_color || '5865f2';
+  const div = document.createElement('div');
+  div.className = 'type-section';
+  div.dataset.type = typeName;
+  div.innerHTML = `
+    <div class="type-header" onclick="this.parentElement.classList.toggle('open')">
+      <span>🎫 ${typeName}</span>
+      <span class="chevron">▸</span>
+    </div>
+    <div class="type-body">
+      <div class="form-group">
+        <label>Tytuł</label>
+        <input type="text" name="type_${key}_msg_title" maxlength="256"
+               value="${escHtml(data.msg_title || '')}" placeholder="🎫 {type} Ticket" />
+      </div>
+      <div class="form-group">
+        <label>Opis</label>
+        <textarea name="type_${key}_msg_description" maxlength="4096"
+                  placeholder="Welcome {user}! Opisz swój problem…">${escHtml(data.msg_description || '')}</textarea>
+      </div>
+      <div class="form-group">
+        <label>Kolor</label>
+        <div class="color-row">
+          <input type="color" id="cp_${key}" value="#${color}"
+                 oninput="syncHex('ci_${key}', this.value)">
+          <input type="text" id="ci_${key}" name="type_${key}_msg_color" maxlength="6"
+                 value="${escHtml(data.msg_color || '')}" placeholder="5865f2"
+                 oninput="syncPicker('cp_${key}', this.value)">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Thumbnail URL</label>
+        <input type="text" name="type_${key}_msg_thumbnail"
+               value="${escHtml(data.msg_thumbnail || '')}" placeholder="https://example.com/image.png" />
+      </div>
+      <div class="form-group">
+        <label>Image URL</label>
+        <input type="text" name="type_${key}_msg_image"
+               value="${escHtml(data.msg_image || '')}" placeholder="https://example.com/banner.png" />
+      </div>
+    </div>
+  `;
+  return div;
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function updateTypeSections() {
+  const typesVal = document.getElementById('types').value;
+  const types = typesVal.split(',').map(t => t.trim()).filter(t => t).slice(0, 5);
+  const container = document.getElementById('type-sections');
+  const existing = new Map([...container.querySelectorAll('.type-section')].map(s => [s.dataset.type, s]));
+
+  existing.forEach((el, name) => { if (!types.includes(name)) el.remove(); });
+
+  types.forEach(type => {
+    if (!existing.has(type)) {
+      const data = TYPES_DATA[type] || {};
+      container.appendChild(createTypeSection(type, data));
+    }
+  });
+}
+
+document.getElementById('types').addEventListener('change', updateTypeSections);
+document.getElementById('types').addEventListener('blur', updateTypeSections);
+updateTypeSections();
 </script>
+<style>
+  .type-section {
+    background: #1e1f22;
+    border: 1px solid #3f4046;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+  .type-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    cursor: pointer;
+    font-weight: 600;
+    color: #f2f3f5;
+    user-select: none;
+  }
+  .type-header:hover { background: #2b2d31; }
+  .type-body { display: none; padding: 16px; border-top: 1px solid #3f4046; }
+  .type-section.open .type-body { display: block; }
+  .type-section.open .chevron { transform: rotate(90deg); }
+  .chevron { transition: transform 0.15s; display: inline-block; }
+</style>
 {% endblock %}

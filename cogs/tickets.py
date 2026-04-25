@@ -8,7 +8,8 @@ from discord.ext import commands
 from datetime import datetime, UTC
 from utils import guild_config
 from db import Session
-from models import Transcript, TicketPanel
+from sqlalchemy import func
+from models import Transcript, TicketPanel, TicketType
 
 
 def _staff_role(guild: discord.Guild) -> discord.Role | None:
@@ -316,19 +317,22 @@ class Tickets(commands.Cog):
         )
 
         panel_msg_id = str(interaction.message.id) if interaction.message else None
-        panel = None
+        tt = None
         if panel_msg_id:
             session = Session()
             panel = session.query(TicketPanel).filter_by(message_id=panel_msg_id).first()
+            if panel:
+                tt = session.query(TicketType).filter(
+                    TicketType.panel_id == panel.id,
+                    func.lower(TicketType.name) == ticket_type.lower(),
+                ).first()
             session.close()
 
-        print(f"[TICKET DEBUG] panel_msg_id={panel_msg_id} panel={panel} msg_title={getattr(panel,'msg_title',None)} msg_description={getattr(panel,'msg_description',None)}")
-
-        title = (panel.msg_title if panel and panel.msg_title else "🎫 {type} Ticket").replace("{type}", ticket_type)
-        description = (panel.msg_description if panel and panel.msg_description else "Welcome {user}!\n\nDescribe your issue and our team will help you shortly.\nTo close this ticket, click the button below.").replace("{type}", ticket_type).replace("{user}", user.mention)
-        color = parse_color(panel.msg_color if panel and panel.msg_color else "#5865F2")
-        thumbnail = panel.msg_thumbnail if panel and panel.msg_thumbnail else None
-        image = panel.msg_image if panel and panel.msg_image else None
+        title = (tt.msg_title if tt and tt.msg_title else "🎫 {type} Ticket").replace("{type}", ticket_type)
+        description = (tt.msg_description if tt and tt.msg_description else "Welcome {user}!\n\nDescribe your issue and our team will help you shortly.\nTo close this ticket, click the button below.").replace("{type}", ticket_type).replace("{user}", user.mention)
+        color = parse_color(tt.msg_color if tt and tt.msg_color else "#5865F2")
+        thumbnail = tt.msg_thumbnail if tt and tt.msg_thumbnail else None
+        image = tt.msg_image if tt and tt.msg_image else None
 
         embed = discord.Embed(title=title, description=description, color=color, timestamp=datetime.utcnow())
         if thumbnail:

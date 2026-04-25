@@ -76,6 +76,19 @@ class TicketPanel(Base):
     msg_image = Column(String, nullable=True)
 
 
+class TicketType(Base):
+    __tablename__ = "ticket_types"
+
+    id = Column(Integer, primary_key=True)
+    panel_id = Column(Integer, ForeignKey("ticket_panels.id", ondelete="CASCADE"))
+    name = Column(String)
+    msg_title = Column(String, nullable=True)
+    msg_description = Column(Text, nullable=True)
+    msg_color = Column(String, nullable=True)
+    msg_thumbnail = Column(String, nullable=True)
+    msg_image = Column(String, nullable=True)
+
+
 class GuildConfig(Base):
     __tablename__ = "guild_configs"
 
