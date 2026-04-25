@@ -14,11 +14,13 @@
   }
   .back-link:hover { color: #dbdee1; }
 
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
   .form-card {
     background: #2b2d31;
     border-radius: 10px;
-    padding: 32px;
-    max-width: 680px;
+    padding: 28px;
   }
 
   .section-label {
@@ -27,94 +29,90 @@
     color: #5865f2;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    margin: 28px 0 14px;
+    margin-bottom: 16px;
     padding-bottom: 8px;
     border-bottom: 1px solid #3f4046;
   }
-  .section-label:first-child { margin-top: 0; }
 
-  .form-group { margin-bottom: 18px; }
+  .form-group { margin-bottom: 16px; }
 
   label {
     display: block;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     color: #b5bac1;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    margin-bottom: 6px;
+    margin-bottom: 5px;
   }
 
-  input[type="text"],
-  textarea {
+  input[type="text"], textarea {
     width: 100%;
     background: #1e1f22;
     border: 1px solid #3f4046;
     border-radius: 6px;
     color: #dbdee1;
     font-size: 14px;
-    padding: 10px 12px;
+    padding: 9px 11px;
     font-family: inherit;
     transition: border-color 0.15s;
     outline: none;
   }
-  input[type="text"]:focus,
-  textarea:focus { border-color: #5865f2; }
-  textarea { resize: vertical; min-height: 90px; }
+  input[type="text"]:focus, textarea:focus { border-color: #5865f2; }
+  textarea { resize: vertical; min-height: 80px; }
 
-  .hint {
-    font-size: 12px;
-    color: #6d6f78;
-    margin-top: 4px;
-  }
+  .hint { font-size: 12px; color: #6d6f78; margin-top: 4px; }
 
-  .color-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
+  .color-row { display: flex; align-items: center; gap: 10px; }
   input[type="color"] {
-    width: 40px;
-    height: 38px;
-    border: 1px solid #3f4046;
-    border-radius: 6px;
-    background: #1e1f22;
-    cursor: pointer;
-    padding: 2px;
-    flex-shrink: 0;
+    width: 38px; height: 36px;
+    border: 1px solid #3f4046; border-radius: 6px;
+    background: #1e1f22; cursor: pointer; padding: 2px; flex-shrink: 0;
   }
 
   .panel-meta {
-    font-size: 12px;
-    color: #949ba4;
-    font-family: monospace;
-    margin-bottom: 28px;
+    font-size: 12px; color: #949ba4; font-family: monospace;
+    margin-bottom: 20px; background: #1e1f22;
+    padding: 9px 13px; border-radius: 6px; border: 1px solid #3f4046;
+  }
+
+  .form-actions { display: flex; gap: 10px; margin-top: 20px; }
+
+  /* Buttons list */
+  .btn-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+
+  .btn-row {
     background: #1e1f22;
-    padding: 10px 14px;
-    border-radius: 6px;
     border: 1px solid #3f4046;
-  }
-
-  .form-actions {
-    display: flex;
-    gap: 10px;
-    margin-top: 28px;
-  }
-
-  .alert {
+    border-radius: 8px;
     padding: 12px 16px;
-    border-radius: 6px;
-    font-size: 14px;
-    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }
+
+  .btn-row-color {
+    width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+  }
+  .c1 { background: #5865f2; }
+  .c2 { background: #4e5058; }
+  .c3 { background: #2d7d46; }
+  .c4 { background: #c41f3b; }
+
+  .btn-row-name { flex: 1; font-weight: 600; color: #f2f3f5; font-size: 14px; }
+  .btn-row-actions { display: flex; gap: 6px; }
+
+  .alert { padding: 12px 16px; border-radius: 6px; font-size: 14px; margin-bottom: 20px; }
   .alert-success { background: #1a3a2a; color: #3ba55c; border: 1px solid #3ba55c44; }
   .alert-danger  { background: #3a1a1a; color: #ed4245; border: 1px solid #ed424544; }
+
+  .empty-types { color: #949ba4; font-size: 13px; padding: 16px 0; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container">
-  <a class="back-link" href="/dashboard/{{ guild.id }}/tickets">← Back to panels</a>
+  <a class="back-link" href="/dashboard/{{ guild.id }}/tickets">← Powrót do paneli</a>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% for category, message in messages %}
@@ -122,187 +120,95 @@
     {% endfor %}
   {% endwith %}
 
-  <h1>Edit Panel #{{ panel.id }}</h1>
+  <h1 style="margin-bottom: 4px;">Panel #{{ panel.id }}</h1>
   <p style="margin-bottom: 24px;">{{ guild.name }}</p>
 
-  <div class="form-card">
-    <div class="panel-meta">
-      Message ID: {{ panel.message_id }}&nbsp;&nbsp;·&nbsp;&nbsp;Channel ID: {{ panel.channel_id }}
+  <div class="two-col">
+
+    <!-- Panel Embed -->
+    <div class="form-card">
+      <div class="section-label">Panel Embed (widoczny na Discordzie)</div>
+      <div class="panel-meta">
+        Message: {{ panel.message_id }} · Channel: {{ panel.channel_id }}
+      </div>
+
+      <form method="post">
+        <div class="form-group">
+          <label>Tytuł</label>
+          <input type="text" name="panel_title" maxlength="256"
+                 value="{{ current_embed.get('title', '') }}" />
+        </div>
+        <div class="form-group">
+          <label>Opis</label>
+          <textarea name="panel_description" maxlength="4096">{{ current_embed.get('description', '') }}</textarea>
+        </div>
+        <div class="form-group">
+          <label>Kolor</label>
+          <div class="color-row">
+            {% set pc = '%06x' % current_embed.get('color', 0x5865f2) %}
+            <input type="color" id="pc-picker" value="#{{ pc }}" oninput="syncHex('pc-hex', this.value)">
+            <input type="text" id="pc-hex" name="panel_color" maxlength="6" value="{{ pc }}"
+                   oninput="syncPicker('pc-picker', this.value)">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Thumbnail URL</label>
+          <input type="text" name="panel_thumbnail"
+                 value="{{ current_embed.get('thumbnail', {}).get('url', '') }}"
+                 placeholder="https://example.com/image.png" />
+        </div>
+        <div class="form-group">
+          <label>Image URL</label>
+          <input type="text" name="panel_image"
+                 value="{{ current_embed.get('image', {}).get('url', '') }}"
+                 placeholder="https://example.com/banner.png" />
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Zapisz embed</button>
+        </div>
+      </form>
     </div>
 
-    <form method="post">
+    <!-- Buttons -->
+    <div class="form-card">
+      <div class="section-label">Przyciski (maks. 5)</div>
 
-      <div class="section-label">Przyciski</div>
-
-      <div class="form-group">
-        <label for="types">Typy ticketów</label>
-        <input type="text" id="types" name="types"
-               value="{{ panel.types or '' }}"
-               placeholder="Support, Subscribe, Report" />
-        <div class="hint">Oddzielone przecinkami. Każdy typ = jeden przycisk. Maksymalnie 5.</div>
-      </div>
-
-      <div class="section-label">Panel Embed (widoczny na Discordzie)</div>
-
-      <div class="form-group">
-        <label for="panel_title">Tytuł</label>
-        <input type="text" id="panel_title" name="panel_title" maxlength="256"
-               value="{{ current_embed.get('title', '') }}" />
-      </div>
-
-      <div class="form-group">
-        <label for="panel_description">Opis</label>
-        <textarea id="panel_description" name="panel_description" maxlength="4096">{{ current_embed.get('description', '') }}</textarea>
-      </div>
-
-      <div class="form-group">
-        <label for="panel_color">Kolor</label>
-        <div class="color-row">
-          {% set pc = '%06x' % current_embed.get('color', 0x5865f2) %}
-          <input type="color" id="panel-color-picker" value="#{{ pc }}"
-                 oninput="syncHex('panel_color', this.value)">
-          <input type="text" id="panel_color" name="panel_color" maxlength="6"
-                 value="{{ pc }}" placeholder="5865f2"
-                 oninput="syncPicker('panel-color-picker', this.value)">
+      {% if ticket_types %}
+      <div class="btn-list">
+        {% for tt in ticket_types %}
+        <div class="btn-row">
+          <div class="btn-row-color c{{ tt.button_color or 1 }}"></div>
+          <div class="btn-row-name">{{ tt.name }}</div>
+          <div class="btn-row-actions">
+            <a class="btn btn-secondary"
+               href="/dashboard/{{ guild.id }}/tickets/{{ panel.id }}/types/{{ tt.id }}"
+               style="padding: 5px 12px; font-size: 13px;">Edytuj</a>
+            <form method="post"
+                  action="/dashboard/{{ guild.id }}/tickets/{{ panel.id }}/types/{{ tt.id }}/delete"
+                  onsubmit="return confirm('Usunąć ten przycisk?')">
+              <button type="submit" class="btn btn-danger"
+                      style="padding: 5px 12px; font-size: 13px;">Usuń</button>
+            </form>
+          </div>
         </div>
+        {% endfor %}
       </div>
+      {% else %}
+      <div class="empty-types">Brak przycisków. Dodaj pierwszy poniżej.</div>
+      {% endif %}
 
-      <div class="form-group">
-        <label for="panel_thumbnail">Thumbnail URL (mały obrazek, prawy górny róg)</label>
-        <input type="text" id="panel_thumbnail" name="panel_thumbnail"
-               value="{{ current_embed.get('thumbnail', {}).get('url', '') }}"
-               placeholder="https://example.com/image.png" />
-      </div>
+      {% if ticket_types | length < 5 %}
+      <a class="btn btn-primary"
+         href="/dashboard/{{ guild.id }}/tickets/{{ panel.id }}/types/new"
+         style="width: 100%; justify-content: center; margin-top: 4px;">+ Dodaj przycisk</a>
+      {% endif %}
+    </div>
 
-      <div class="form-group">
-        <label for="panel_image">Image URL (duży obrazek na dole)</label>
-        <input type="text" id="panel_image" name="panel_image"
-               value="{{ current_embed.get('image', {}).get('url', '') }}"
-               placeholder="https://example.com/banner.png" />
-      </div>
-
-      <div class="section-label">Wiadomości Powitalne (per typ)</div>
-      <div class="hint" style="margin-bottom: 14px;">Każdy typ przycisku może mieć własną wiadomość. Użyj <code>{type}</code> i <code>{user}</code>.</div>
-
-      <div id="type-sections"></div>
-
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
-        <a href="/dashboard/{{ guild.id }}/tickets" class="btn btn-secondary">Anuluj</a>
-      </div>
-    </form>
   </div>
 </div>
 
 <script>
-const TYPES_DATA = {{ types_data | tojson }};
-
-function sanitize(name) {
-  return name.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-}
-
-function syncHex(inputId, pickerValue) {
-  document.getElementById(inputId).value = pickerValue.replace('#', '');
-}
-function syncPicker(pickerId, hexValue) {
-  if (/^[0-9a-fA-F]{6}$/.test(hexValue)) {
-    document.getElementById(pickerId).value = '#' + hexValue;
-  }
-}
-
-function createTypeSection(typeName, data) {
-  const key = sanitize(typeName);
-  const color = data.msg_color || '5865f2';
-  const div = document.createElement('div');
-  div.className = 'type-section';
-  div.dataset.type = typeName;
-  div.innerHTML = `
-    <div class="type-header" onclick="this.parentElement.classList.toggle('open')">
-      <span>🎫 ${typeName}</span>
-      <span class="chevron">▸</span>
-    </div>
-    <div class="type-body">
-      <div class="form-group">
-        <label>Tytuł</label>
-        <input type="text" name="type_${key}_msg_title" maxlength="256"
-               value="${escHtml(data.msg_title || '')}" placeholder="🎫 {type} Ticket" />
-      </div>
-      <div class="form-group">
-        <label>Opis</label>
-        <textarea name="type_${key}_msg_description" maxlength="4096"
-                  placeholder="Welcome {user}! Opisz swój problem…">${escHtml(data.msg_description || '')}</textarea>
-      </div>
-      <div class="form-group">
-        <label>Kolor</label>
-        <div class="color-row">
-          <input type="color" id="cp_${key}" value="#${color}"
-                 oninput="syncHex('ci_${key}', this.value)">
-          <input type="text" id="ci_${key}" name="type_${key}_msg_color" maxlength="6"
-                 value="${escHtml(data.msg_color || '')}" placeholder="5865f2"
-                 oninput="syncPicker('cp_${key}', this.value)">
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Thumbnail URL</label>
-        <input type="text" name="type_${key}_msg_thumbnail"
-               value="${escHtml(data.msg_thumbnail || '')}" placeholder="https://example.com/image.png" />
-      </div>
-      <div class="form-group">
-        <label>Image URL</label>
-        <input type="text" name="type_${key}_msg_image"
-               value="${escHtml(data.msg_image || '')}" placeholder="https://example.com/banner.png" />
-      </div>
-    </div>
-  `;
-  return div;
-}
-
-function escHtml(str) {
-  return str.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-function updateTypeSections() {
-  const typesVal = document.getElementById('types').value;
-  const types = typesVal.split(',').map(t => t.trim()).filter(t => t).slice(0, 5);
-  const container = document.getElementById('type-sections');
-  const existing = new Map([...container.querySelectorAll('.type-section')].map(s => [s.dataset.type, s]));
-
-  existing.forEach((el, name) => { if (!types.includes(name)) el.remove(); });
-
-  types.forEach(type => {
-    if (!existing.has(type)) {
-      const data = TYPES_DATA[type] || {};
-      container.appendChild(createTypeSection(type, data));
-    }
-  });
-}
-
-document.getElementById('types').addEventListener('change', updateTypeSections);
-document.getElementById('types').addEventListener('blur', updateTypeSections);
-updateTypeSections();
+function syncHex(id, v) { document.getElementById(id).value = v.replace('#',''); }
+function syncPicker(id, v) { if (/^[0-9a-fA-F]{6}$/.test(v)) document.getElementById(id).value = '#'+v; }
 </script>
-<style>
-  .type-section {
-    background: #1e1f22;
-    border: 1px solid #3f4046;
-    border-radius: 8px;
-    margin-bottom: 10px;
-    overflow: hidden;
-  }
-  .type-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 16px;
-    cursor: pointer;
-    font-weight: 600;
-    color: #f2f3f5;
-    user-select: none;
-  }
-  .type-header:hover { background: #2b2d31; }
-  .type-body { display: none; padding: 16px; border-top: 1px solid #3f4046; }
-  .type-section.open .type-body { display: block; }
-  .type-section.open .chevron { transform: rotate(90deg); }
-  .chevron { transition: transform 0.15s; display: inline-block; }
-</style>
 {% endblock %}

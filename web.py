@@ -39,6 +39,24 @@ def fetch_discord_message(channel_id: str, message_id: str) -> dict:
     return r.json() if r.ok else {}
 
 
+def sync_panel_buttons(panel, ticket_types: list):
+    buttons = [
+        {
+            "type": 2,
+            "label": tt.name,
+            "style": tt.button_color or 1,
+            "emoji": {"name": "🎫"},
+            "custom_id": f"ticket:open:{tt.name.lower()}",
+        }
+        for tt in ticket_types[:5]
+    ]
+    requests.patch(
+        f"{DISCORD_API}/channels/{panel.channel_id}/messages/{panel.message_id}",
+        headers={"Authorization": f"Bot {BOT_TOKEN}", "Content-Type": "application/json"},
+        json={"components": [{"type": 1, "components": buttons}] if buttons else []},
+    )
+
+
 def build_panel_embed(form) -> dict:
     color_hex = form.get("panel_color") or "5865f2"
     try:
@@ -245,82 +263,119 @@ def ticket_panel(guild_id, panel_id):
         abort(404)
 
     if request.method == "POST":
-        types_raw = request.form.get("types", "")
-        types = [t.strip() for t in types_raw.split(",") if t.strip()][:5]
-        if types:
-            panel.types = ",".join(types)
-
-        existing_tts = db.query(TicketType).filter_by(panel_id=panel.id).all()
-        existing_by_name = {tt.name: tt for tt in existing_tts}
-
-        for tt in existing_tts:
-            if tt.name not in types:
-                db.delete(tt)
-
-        for type_name in types:
-            key = sanitize_type(type_name)
-            msg_title = request.form.get(f"type_{key}_msg_title") or None
-            msg_description = request.form.get(f"type_{key}_msg_description") or None
-            msg_color = request.form.get(f"type_{key}_msg_color") or None
-            msg_thumbnail = request.form.get(f"type_{key}_msg_thumbnail") or None
-            msg_image = request.form.get(f"type_{key}_msg_image") or None
-            if type_name in existing_by_name:
-                tt = existing_by_name[type_name]
-                tt.msg_title = msg_title
-                tt.msg_description = msg_description
-                tt.msg_color = msg_color
-                tt.msg_thumbnail = msg_thumbnail
-                tt.msg_image = msg_image
-            else:
-                db.add(TicketType(
-                    panel_id=panel.id, name=type_name,
-                    msg_title=msg_title, msg_description=msg_description,
-                    msg_color=msg_color, msg_thumbnail=msg_thumbnail, msg_image=msg_image,
-                ))
-
         channel_id = panel.channel_id
         message_id = panel.message_id
         db.commit()
         db.close()
-
         new_embed = build_panel_embed(request.form)
-        buttons = [
-            {"type": 2, "label": t, "style": 1,
-             "emoji": {"name": "🎫"}, "custom_id": f"ticket:open:{t.lower()}"}
-            for t in types
-        ]
-        patch_payload = {"embeds": [new_embed]}
-        if buttons:
-            patch_payload["components"] = [{"type": 1, "components": buttons}]
         requests.patch(
             f"{DISCORD_API}/channels/{channel_id}/messages/{message_id}",
             headers={"Authorization": f"Bot {BOT_TOKEN}", "Content-Type": "application/json"},
-            json=patch_payload,
+            json={"embeds": [new_embed]},
         )
-
-        flash("Panel updated!", "success")
-        return redirect(url_for("tickets", guild_id=guild_id))
+        flash("Panel zaktualizowany!", "success")
+        return redirect(url_for("ticket_panel", guild_id=guild_id, panel_id=panel_id))
 
     channel_id = panel.channel_id
     message_id = panel.message_id
     ticket_types = db.query(TicketType).filter_by(panel_id=panel.id).all()
-    types_data = {
-        tt.name: {
-            "msg_title": tt.msg_title or "",
-            "msg_description": tt.msg_description or "",
-            "msg_color": tt.msg_color or "",
-            "msg_thumbnail": tt.msg_thumbnail or "",
-            "msg_image": tt.msg_image or "",
-        }
-        for tt in ticket_types
-    }
     db.close()
-
     discord_msg = fetch_discord_message(channel_id, message_id)
     current_embed = discord_msg.get("embeds", [{}])[0] if discord_msg.get("embeds") else {}
-
     return render_template("ticket_panel.html", user=session["user"], guild=guild,
-                           panel=panel, current_embed=current_embed, types_data=types_data)
+                           panel=panel, current_embed=current_embed, ticket_types=ticket_types)
+
+
+def _get_panel_or_404(db, panel_id, guild_id):
+    panel = db.query(TicketPanel).filter_by(id=panel_id, guild_id=guild_id).first()
+    if not panel:
+        db.close()
+        abort(404)
+    return panel
+
+
+@app.route("/dashboard/<guild_id>/tickets/<int:panel_id>/types/new", methods=["GET", "POST"])
+def ticket_type_new(guild_id, panel_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+    db = DBSession()
+    panel = _get_panel_or_404(db, panel_id, guild_id)
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        if not name:
+            flash("Nazwa przycisku jest wymagana.", "danger")
+            db.close()
+            return render_template("ticket_type.html", user=session["user"], guild=guild,
+                                   panel=panel, tt=None)
+        db.add(TicketType(
+            panel_id=panel.id,
+            name=name,
+            button_color=int(request.form.get("button_color", 1)),
+            msg_title=request.form.get("msg_title") or None,
+            msg_description=request.form.get("msg_description") or None,
+            msg_color=request.form.get("msg_color") or None,
+            msg_thumbnail=request.form.get("msg_thumbnail") or None,
+            msg_image=request.form.get("msg_image") or None,
+        ))
+        db.commit()
+        sync_panel_buttons(panel, db.query(TicketType).filter_by(panel_id=panel.id).all())
+        db.close()
+        flash("Przycisk dodany!", "success")
+        return redirect(url_for("ticket_panel", guild_id=guild_id, panel_id=panel_id))
+
+    db.close()
+    return render_template("ticket_type.html", user=session["user"], guild=guild,
+                           panel=panel, tt=None)
+
+
+@app.route("/dashboard/<guild_id>/tickets/<int:panel_id>/types/<int:type_id>", methods=["GET", "POST"])
+def ticket_type_edit(guild_id, panel_id, type_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+    db = DBSession()
+    panel = _get_panel_or_404(db, panel_id, guild_id)
+    tt = db.query(TicketType).filter_by(id=type_id, panel_id=panel.id).first()
+    if not tt:
+        db.close()
+        abort(404)
+
+    if request.method == "POST":
+        tt.name = request.form.get("name", "").strip() or tt.name
+        tt.button_color = int(request.form.get("button_color", 1))
+        tt.msg_title = request.form.get("msg_title") or None
+        tt.msg_description = request.form.get("msg_description") or None
+        tt.msg_color = request.form.get("msg_color") or None
+        tt.msg_thumbnail = request.form.get("msg_thumbnail") or None
+        tt.msg_image = request.form.get("msg_image") or None
+        db.commit()
+        sync_panel_buttons(panel, db.query(TicketType).filter_by(panel_id=panel.id).all())
+        db.close()
+        flash("Przycisk zaktualizowany!", "success")
+        return redirect(url_for("ticket_panel", guild_id=guild_id, panel_id=panel_id))
+
+    db.close()
+    return render_template("ticket_type.html", user=session["user"], guild=guild,
+                           panel=panel, tt=tt)
+
+
+@app.route("/dashboard/<guild_id>/tickets/<int:panel_id>/types/<int:type_id>/delete", methods=["POST"])
+def ticket_type_delete(guild_id, panel_id, type_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+    db = DBSession()
+    panel = _get_panel_or_404(db, panel_id, guild_id)
+    tt = db.query(TicketType).filter_by(id=type_id, panel_id=panel.id).first()
+    if tt:
+        db.delete(tt)
+        db.commit()
+        sync_panel_buttons(panel, db.query(TicketType).filter_by(panel_id=panel.id).all())
+    db.close()
+    flash("Przycisk usunięty.", "success")
+    return redirect(url_for("ticket_panel", guild_id=guild_id, panel_id=panel_id))
 
 
 @app.route("/dashboard/<guild_id>/tickets/<int:panel_id>/delete", methods=["POST"])

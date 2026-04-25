@@ -82,6 +82,7 @@ class TicketType(Base):
     id = Column(Integer, primary_key=True)
     panel_id = Column(Integer, ForeignKey("ticket_panels.id", ondelete="CASCADE"))
     name = Column(String)
+    button_color = Column(Integer, default=1, nullable=True)  # 1=blurple 2=gray 3=green 4=red
     msg_title = Column(String, nullable=True)
     msg_description = Column(Text, nullable=True)
     msg_color = Column(String, nullable=True)
