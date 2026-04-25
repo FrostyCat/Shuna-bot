@@ -75,8 +75,9 @@ def callback():
         return redirect(url_for("index"))
 
     headers = {"Authorization": f"Bearer {access_token}"}
-    session["user"] = requests.get(f"{DISCORD_API}/users/@me", headers=headers).json()
-    session["guilds"] = requests.get(f"{DISCORD_API}/users/@me/guilds", headers=headers).json()
+    user = requests.get(f"{DISCORD_API}/users/@me", headers=headers).json()
+    session["user"] = {"id": user["id"], "username": user["username"], "avatar": user.get("avatar")}
+    session["access_token"] = access_token
 
     return redirect(url_for("guilds"))
 
@@ -86,9 +87,12 @@ def guilds():
     if "user" not in session:
         return redirect(url_for("index"))
 
+    headers = {"Authorization": f"Bearer {session['access_token']}"}
+    user_guilds = requests.get(f"{DISCORD_API}/users/@me/guilds", headers=headers).json()
+
     bot_ids = bot_guild_ids()
     manageable = [
-        g for g in session.get("guilds", [])
+        g for g in user_guilds
         if (int(g["permissions"]) & ADMINISTRATOR) and g["id"] in bot_ids
     ]
     for g in manageable:
@@ -106,8 +110,10 @@ def dashboard(guild_id):
     if guild_id not in bot_ids:
         abort(403)
 
+    headers = {"Authorization": f"Bearer {session['access_token']}"}
+    user_guilds = requests.get(f"{DISCORD_API}/users/@me/guilds", headers=headers).json()
     guild = next((
-        g for g in session.get("guilds", [])
+        g for g in user_guilds
         if g["id"] == guild_id and (int(g["permissions"]) & ADMINISTRATOR)
     ), None)
     if not guild:
