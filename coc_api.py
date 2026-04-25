@@ -39,6 +39,13 @@ async def get_clan(tag):
     data = await _get(f"{BASE_URL}/clans/{tag}")
     return (data["tag"], data["name"]) if data else None
 
+async def get_clan_war_league(tag: str) -> str | None:
+    tag = tag.replace("#", "%23")
+    data = await _get(f"{BASE_URL}/clans/{tag}")
+    if not data:
+        return None
+    return data.get("warLeague", {}).get("name")
+
 async def get_clan_members(tag):
     tag = tag.replace("#", "%23")
     data = await _get(f"{BASE_URL}/clans/{tag}/members")

@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from coc_api import get_battlelog, get_player, get_current_war, get_cwl_group, get_cwl_war
+from coc_api import get_battlelog, get_player, get_current_war, get_cwl_group, get_cwl_war, get_clan_war_league
 from db import Session
 from models import Attack, Player, WarAttack
 
@@ -59,7 +59,7 @@ async def fetch_player_attacks(session, player):
     return total_count
 
 
-def _insert_war_attack(session, clan_tag, attack, war_type, war_id) -> int:
+def _insert_war_attack(session, clan_tag, attack, war_type, war_id, league=None) -> int:
     stmt = pg_insert(WarAttack).values(
         clan_tag=clan_tag,
         attacker_tag=attack["attackerTag"],
@@ -68,6 +68,7 @@ def _insert_war_attack(session, clan_tag, attack, war_type, war_id) -> int:
         destruction=attack["destructionPercentage"],
         war_type=war_type,
         war_id=war_id,
+        league=league,
     ).on_conflict_do_nothing(
         index_elements=["attacker_tag", "defender_tag", "war_id"]
     )
@@ -93,6 +94,8 @@ async def fetch_cwl_attacks(session, clan_tag: str) -> int:
     if not group or "rounds" not in group:
         return 0
 
+    league = await get_clan_war_league(clan_tag)
+
     count = 0
     for round_data in group.get("rounds", []):
         for war_tag in round_data.get("warTags", []):
@@ -102,7 +105,6 @@ async def fetch_cwl_attacks(session, clan_tag: str) -> int:
             if not war or war.get("state") not in ("inWar", "warEnded"):
                 continue
 
-            # Find which side is our clan
             if war.get("clan", {}).get("tag") == clan_tag:
                 our_side = war["clan"]
             elif war.get("opponent", {}).get("tag") == clan_tag:
@@ -112,7 +114,7 @@ async def fetch_cwl_attacks(session, clan_tag: str) -> int:
 
             for member in our_side.get("members", []):
                 for attack in member.get("attacks", []):
-                    count += _insert_war_attack(session, clan_tag, attack, "cwl", war_tag)
+                    count += _insert_war_attack(session, clan_tag, attack, "cwl", war_tag, league=league)
 
     session.commit()
     return count

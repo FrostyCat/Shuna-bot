@@ -227,7 +227,9 @@
             <th>Account</th>
             <th>Discord</th>
             <th>War Hits <span class="th-hint">this month</span></th>
+            <th>CWL Hits <span class="th-hint">this month</span></th>
             <th>War Hits <span class="th-hint">last 90 days</span></th>
+            <th>CWL Hits <span class="th-hint">last 90 days</span></th>
             <th>Legend Hits <span class="th-hint">this month</span></th>
           </tr>
         </thead>
@@ -255,26 +257,42 @@
                 {% endif %}
               </td>
               <td>
-                {% if not s.in_db %}
-                  <span class="not-tracked">—</span>
+                {% if not s.in_db %}<span class="not-tracked">—</span>
                 {% else %}
-                  <span class="badge {% if s.war_month == 0 %}badge-zero{% elif s.war_month < 3 %}badge-low{% else %}badge-ok{% endif %}">
+                  <span class="badge {% if s.war_month == 0 %}badge-zero{% elif s.war_month < 2 %}badge-low{% else %}badge-ok{% endif %}">
                     {{ s.war_month }}
                   </span>
                 {% endif %}
               </td>
               <td>
-                {% if not s.in_db %}
-                  <span class="not-tracked">—</span>
+                {% if not s.in_db %}<span class="not-tracked">—</span>
                 {% else %}
-                  <span class="badge {% if s.war_3mo == 0 %}badge-zero{% elif s.war_3mo < 6 %}badge-low{% else %}badge-ok{% endif %}">
+                  <span class="badge {% if s.cwl_month == 0 %}badge-zero{% elif s.cwl_month < 5 %}badge-low{% else %}badge-ok{% endif %}">
+                    {{ s.cwl_month }}
+                  </span>
+                  {% if s.cwl_league %}
+                    <div style="font-size: 11px; color: #949ba4; margin-top: 3px;">{{ s.cwl_league }}</div>
+                  {% endif %}
+                {% endif %}
+              </td>
+              <td>
+                {% if not s.in_db %}<span class="not-tracked">—</span>
+                {% else %}
+                  <span class="badge {% if s.war_3mo == 0 %}badge-zero{% elif s.war_3mo < 4 %}badge-low{% else %}badge-ok{% endif %}">
                     {{ s.war_3mo }}
                   </span>
                 {% endif %}
               </td>
               <td>
-                {% if not s.in_db %}
-                  <span class="not-tracked">—</span>
+                {% if not s.in_db %}<span class="not-tracked">—</span>
+                {% else %}
+                  <span class="badge {% if s.cwl_3mo == 0 %}badge-zero{% elif s.cwl_3mo < 14 %}badge-low{% else %}badge-ok{% endif %}">
+                    {{ s.cwl_3mo }}
+                  </span>
+                {% endif %}
+              </td>
+              <td>
+                {% if not s.in_db %}<span class="not-tracked">—</span>
                 {% else %}
                   <span class="badge {% if s.legend_month == 0 %}badge-zero{% elif s.legend_month < 5 %}badge-low{% else %}badge-ok{% endif %}">
                     {{ s.legend_month }}

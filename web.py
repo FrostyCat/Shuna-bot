@@ -583,15 +583,30 @@ def coc_clan(guild_id, gc_id):
         war_3mo = 0
         legend_month = 0
 
+        war_month = cwl_month = war_3mo = cwl_3mo = legend_month = 0
+        cwl_league = None
+
         if player:
             if player.discord_user:
                 discord_id = player.discord_user.discord_id
             war_month = db.query(WarAttack).filter(
                 WarAttack.attacker_tag == member_tag,
+                WarAttack.war_type == "war",
+                WarAttack.created_at >= month_start,
+            ).count()
+            cwl_month = db.query(WarAttack).filter(
+                WarAttack.attacker_tag == member_tag,
+                WarAttack.war_type == "cwl",
                 WarAttack.created_at >= month_start,
             ).count()
             war_3mo = db.query(WarAttack).filter(
                 WarAttack.attacker_tag == member_tag,
+                WarAttack.war_type == "war",
+                WarAttack.created_at >= three_months_ago,
+            ).count()
+            cwl_3mo = db.query(WarAttack).filter(
+                WarAttack.attacker_tag == member_tag,
+                WarAttack.war_type == "cwl",
                 WarAttack.created_at >= three_months_ago,
             ).count()
             legend_month = db.query(Attack).filter(
@@ -599,13 +614,27 @@ def coc_clan(guild_id, gc_id):
                 Attack.is_attack == True,
                 Attack.created_at >= month_start,
             ).count()
+            cwl_league = (
+                db.query(WarAttack.league)
+                .filter(
+                    WarAttack.attacker_tag == member_tag,
+                    WarAttack.war_type == "cwl",
+                    WarAttack.league.isnot(None),
+                )
+                .order_by(WarAttack.created_at.desc())
+                .limit(1)
+                .scalar()
+            )
 
         stats.append({
             "tag": member_tag,
             "name": member_name,
             "discord_id": discord_id,
             "war_month": war_month,
+            "cwl_month": cwl_month,
             "war_3mo": war_3mo,
+            "cwl_3mo": cwl_3mo,
+            "cwl_league": cwl_league,
             "legend_month": legend_month,
             "in_db": player is not None,
         })

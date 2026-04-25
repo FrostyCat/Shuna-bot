@@ -73,6 +73,7 @@ class WarAttack(Base):
     destruction = Column(Integer)
     war_type = Column(String)  # "war" | "cwl"
     war_id = Column(String)    # startTime for regular wars, warTag for CWL
+    league = Column(String, nullable=True)  # CWL league name, e.g. "Champion League I"
     created_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
     __table_args__ = (
