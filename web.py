@@ -386,9 +386,16 @@ def ticket_panel_delete(guild_id, panel_id):
     db = DBSession()
     panel = db.query(TicketPanel).filter_by(id=panel_id, guild_id=guild_id).first()
     if panel:
+        channel_id, message_id = panel.channel_id, panel.message_id
         db.delete(panel)
         db.commit()
-    db.close()
+        db.close()
+        requests.delete(
+            f"{DISCORD_API}/channels/{channel_id}/messages/{message_id}",
+            headers={"Authorization": f"Bot {BOT_TOKEN}"},
+        )
+    else:
+        db.close()
     flash("Panel deleted.", "success")
     return redirect(url_for("tickets", guild_id=guild_id))
 
