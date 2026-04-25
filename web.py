@@ -28,6 +28,32 @@ def bot_guild_ids() -> set:
     return {g["id"] for g in r.json()} if r.ok else set()
 
 
+def fetch_discord_message(channel_id: str, message_id: str) -> dict:
+    r = requests.get(f"{DISCORD_API}/channels/{channel_id}/messages/{message_id}",
+                     headers={"Authorization": f"Bot {BOT_TOKEN}"})
+    return r.json() if r.ok else {}
+
+
+def build_panel_embed(form) -> dict:
+    color_hex = form.get("panel_color") or "5865f2"
+    try:
+        color_int = int(color_hex.lstrip("#"), 16)
+    except ValueError:
+        color_int = 0x5865F2
+    embed = {
+        "title": form.get("panel_title") or "🎫 Support",
+        "description": form.get("panel_description") or "",
+        "color": color_int,
+    }
+    thumbnail = form.get("panel_thumbnail") or None
+    image = form.get("panel_image") or None
+    if thumbnail:
+        embed["thumbnail"] = {"url": thumbnail}
+    if image:
+        embed["image"] = {"url": image}
+    return embed
+
+
 def guild_text_channels(guild_id: str) -> list:
     r = requests.get(f"{DISCORD_API}/guilds/{guild_id}/channels",
                      headers={"Authorization": f"Bot {BOT_TOKEN}"})
@@ -49,7 +75,15 @@ def require_guild(guild_id: str):
     if guild_id not in bot_ids:
         return None, abort(403)
     headers = {"Authorization": f"Bearer {session['access_token']}"}
-    user_guilds = requests.get(f"{DISCORD_API}/users/@me/guilds", headers=headers).json()
+    resp = requests.get(f"{DISCORD_API}/users/@me/guilds", headers=headers)
+    if not resp.ok:
+        # Token expired or invalid — force re-login
+        session.clear()
+        return None, redirect(url_for("index"))
+    user_guilds = resp.json()
+    if not isinstance(user_guilds, list):
+        session.clear()
+        return None, redirect(url_for("index"))
     guild = next((g for g in user_guilds if g["id"] == guild_id and (int(g["permissions"]) & ADMINISTRATOR)), None)
     if not guild:
         return None, abort(403)
@@ -146,25 +180,7 @@ def ticket_panel_new(guild_id):
         types_raw = request.form.get("types", "Support")
         types = [t.strip() for t in types_raw.split(",") if t.strip()] or ["Support"]
 
-        panel_title = request.form.get("panel_title") or "🎫 Support"
-        panel_desc = request.form.get("panel_description") or (
-            "Need help? Click the button below.\n\n"
-            "**How it works:**\n"
-            "1. Click the button for your ticket type\n"
-            "2. A private channel will be created\n"
-            "3. Describe your issue — staff will respond"
-        )
-        panel_color_hex = request.form.get("panel_color") or "5865f2"
-        try:
-            panel_color_int = int(panel_color_hex.lstrip("#"), 16)
-        except ValueError:
-            panel_color_int = 0x5865F2
-
-        embed = {
-            "title": panel_title,
-            "description": panel_desc,
-            "color": panel_color_int,
-        }
+        embed = build_panel_embed(request.form)
 
         buttons = [
             {
@@ -231,18 +247,35 @@ def ticket_panel(guild_id, panel_id):
         abort(404)
 
     if request.method == "POST":
-        panel.msg_title = request.form.get("title") or None
-        panel.msg_description = request.form.get("description") or None
-        panel.msg_color = request.form.get("color") or None
-        panel.msg_thumbnail = request.form.get("thumbnail") or None
-        panel.msg_image = request.form.get("image") or None
+        panel.msg_title = request.form.get("msg_title") or None
+        panel.msg_description = request.form.get("msg_description") or None
+        panel.msg_color = request.form.get("msg_color") or None
+        panel.msg_thumbnail = request.form.get("msg_thumbnail") or None
+        panel.msg_image = request.form.get("msg_image") or None
+        channel_id = panel.channel_id
+        message_id = panel.message_id
         db.commit()
         db.close()
+
+        new_embed = build_panel_embed(request.form)
+        requests.patch(
+            f"{DISCORD_API}/channels/{channel_id}/messages/{message_id}",
+            headers={"Authorization": f"Bot {BOT_TOKEN}", "Content-Type": "application/json"},
+            json={"embeds": [new_embed]},
+        )
+
         flash("Panel updated!", "success")
         return redirect(url_for("tickets", guild_id=guild_id))
 
+    channel_id = panel.channel_id
+    message_id = panel.message_id
     db.close()
-    return render_template("ticket_panel.html", user=session["user"], guild=guild, panel=panel)
+
+    discord_msg = fetch_discord_message(channel_id, message_id)
+    current_embed = discord_msg.get("embeds", [{}])[0] if discord_msg.get("embeds") else {}
+
+    return render_template("ticket_panel.html", user=session["user"], guild=guild,
+                           panel=panel, current_embed=current_embed)
 
 
 @app.route("/dashboard/<guild_id>/tickets/<int:panel_id>/delete", methods=["POST"])

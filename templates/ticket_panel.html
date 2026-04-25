@@ -18,12 +18,22 @@
     background: #2b2d31;
     border-radius: 10px;
     padding: 32px;
-    max-width: 640px;
+    max-width: 680px;
   }
 
-  .form-group {
-    margin-bottom: 20px;
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #5865f2;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 28px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #3f4046;
   }
+  .section-label:first-child { margin-top: 0; }
+
+  .form-group { margin-bottom: 18px; }
 
   label {
     display: block;
@@ -48,16 +58,9 @@
     transition: border-color 0.15s;
     outline: none;
   }
-
   input[type="text"]:focus,
-  textarea:focus {
-    border-color: #5865f2;
-  }
-
-  textarea {
-    resize: vertical;
-    min-height: 100px;
-  }
+  textarea:focus { border-color: #5865f2; }
+  textarea { resize: vertical; min-height: 90px; }
 
   .hint {
     font-size: 12px;
@@ -70,7 +73,6 @@
     align-items: center;
     gap: 10px;
   }
-
   input[type="color"] {
     width: 40px;
     height: 38px;
@@ -80,12 +82,6 @@
     cursor: pointer;
     padding: 2px;
     flex-shrink: 0;
-  }
-
-  .form-actions {
-    display: flex;
-    gap: 10px;
-    margin-top: 28px;
   }
 
   .panel-meta {
@@ -99,6 +95,12 @@
     border: 1px solid #3f4046;
   }
 
+  .form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 28px;
+  }
+
   .alert {
     padding: 12px 16px;
     border-radius: 6px;
@@ -106,6 +108,7 @@
     margin-bottom: 20px;
   }
   .alert-success { background: #1a3a2a; color: #3ba55c; border: 1px solid #3ba55c44; }
+  .alert-danger  { background: #3a1a1a; color: #ed4245; border: 1px solid #ed424544; }
 </style>
 {% endblock %}
 
@@ -128,61 +131,102 @@
     </div>
 
     <form method="post">
+
+      <div class="section-label">Panel Embed (widoczny na Discordzie)</div>
+
       <div class="form-group">
-        <label for="title">Embed Title</label>
-        <input type="text" id="title" name="title" maxlength="256"
-               value="{{ panel.msg_title or '' }}" placeholder="e.g. Open a Ticket" />
+        <label for="panel_title">Tytuł</label>
+        <input type="text" id="panel_title" name="panel_title" maxlength="256"
+               value="{{ current_embed.get('title', '') }}" />
       </div>
 
       <div class="form-group">
-        <label for="description">Embed Description</label>
-        <textarea id="description" name="description" maxlength="4096"
-                  placeholder="Welcome message shown when a ticket is opened...">{{ panel.msg_description or '' }}</textarea>
-        <div class="hint">Supports Discord markdown.</div>
+        <label for="panel_description">Opis</label>
+        <textarea id="panel_description" name="panel_description" maxlength="4096">{{ current_embed.get('description', '') }}</textarea>
       </div>
 
       <div class="form-group">
-        <label for="color">Embed Color</label>
+        <label for="panel_color">Kolor</label>
         <div class="color-row">
-          <input type="color" id="color-picker"
-                 value="#{{ panel.msg_color or '5865f2' }}"
-                 oninput="document.getElementById('color').value = this.value.replace('#','')">
-          <input type="text" id="color" name="color" maxlength="6"
-                 value="{{ panel.msg_color or '' }}"
-                 placeholder="5865f2"
-                 oninput="syncColorPicker(this.value)" />
+          {% set pc = '%06x' % current_embed.get('color', 0x5865f2) %}
+          <input type="color" id="panel-color-picker" value="#{{ pc }}"
+                 oninput="syncHex('panel_color', this.value)">
+          <input type="text" id="panel_color" name="panel_color" maxlength="6"
+                 value="{{ pc }}" placeholder="5865f2"
+                 oninput="syncPicker('panel-color-picker', this.value)">
         </div>
-        <div class="hint">6-digit hex without #. Leave blank for default.</div>
       </div>
 
       <div class="form-group">
-        <label for="thumbnail">Thumbnail URL</label>
-        <input type="text" id="thumbnail" name="thumbnail"
+        <label for="panel_thumbnail">Thumbnail URL (mały obrazek, prawy górny róg)</label>
+        <input type="text" id="panel_thumbnail" name="panel_thumbnail"
+               value="{{ current_embed.get('thumbnail', {}).get('url', '') }}"
+               placeholder="https://example.com/image.png" />
+      </div>
+
+      <div class="form-group">
+        <label for="panel_image">Image URL (duży obrazek na dole)</label>
+        <input type="text" id="panel_image" name="panel_image"
+               value="{{ current_embed.get('image', {}).get('url', '') }}"
+               placeholder="https://example.com/banner.png" />
+      </div>
+
+      <div class="section-label">Wiadomość Powitalna w Tickecie</div>
+      <div class="hint" style="margin-bottom: 14px;">Pojawia się wewnątrz kanału po otwarciu ticketu. Użyj <code>{type}</code> i <code>{user}</code>.</div>
+
+      <div class="form-group">
+        <label for="msg_title">Tytuł</label>
+        <input type="text" id="msg_title" name="msg_title" maxlength="256"
+               value="{{ panel.msg_title or '' }}" placeholder="🎫 {type} Ticket" />
+      </div>
+
+      <div class="form-group">
+        <label for="msg_description">Opis</label>
+        <textarea id="msg_description" name="msg_description" maxlength="4096"
+                  placeholder="Welcome {user}! Opisz swój problem…">{{ panel.msg_description or '' }}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="msg_color">Kolor</label>
+        <div class="color-row">
+          {% set mc = panel.msg_color or '5865f2' %}
+          <input type="color" id="msg-color-picker" value="#{{ mc }}"
+                 oninput="syncHex('msg_color', this.value)">
+          <input type="text" id="msg_color" name="msg_color" maxlength="6"
+                 value="{{ panel.msg_color or '' }}" placeholder="5865f2"
+                 oninput="syncPicker('msg-color-picker', this.value)">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="msg_thumbnail">Thumbnail URL</label>
+        <input type="text" id="msg_thumbnail" name="msg_thumbnail"
                value="{{ panel.msg_thumbnail or '' }}"
                placeholder="https://example.com/image.png" />
-        <div class="hint">Small image shown top-right of the embed.</div>
       </div>
 
       <div class="form-group">
-        <label for="image">Image URL</label>
-        <input type="text" id="image" name="image"
+        <label for="msg_image">Image URL</label>
+        <input type="text" id="msg_image" name="msg_image"
                value="{{ panel.msg_image or '' }}"
                placeholder="https://example.com/banner.png" />
-        <div class="hint">Large image shown at the bottom of the embed.</div>
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="btn btn-primary">Save Changes</button>
-        <a href="/dashboard/{{ guild.id }}/tickets" class="btn btn-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
+        <a href="/dashboard/{{ guild.id }}/tickets" class="btn btn-secondary">Anuluj</a>
       </div>
     </form>
   </div>
 </div>
 
 <script>
-function syncColorPicker(val) {
-  if (/^[0-9a-fA-F]{6}$/.test(val)) {
-    document.getElementById('color-picker').value = '#' + val;
+function syncHex(inputId, pickerValue) {
+  document.getElementById(inputId).value = pickerValue.replace('#', '');
+}
+function syncPicker(pickerId, hexValue) {
+  if (/^[0-9a-fA-F]{6}$/.test(hexValue)) {
+    document.getElementById(pickerId).value = '#' + hexValue;
   }
 }
 </script>
