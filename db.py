@@ -16,7 +16,7 @@ engine = create_engine(
         "keepalives_idle": 30,
         "keepalives_interval": 5,
         "keepalives_count": 3,
-        "options": "-c statement_timeout=30000",
+        "options": "-c statement_timeout=60000",
     },
 )
 Session = sessionmaker(bind=engine, autoflush=False)

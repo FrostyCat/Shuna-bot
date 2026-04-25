@@ -313,7 +313,10 @@ class LegendCog(discord.Cog):
                 return
             player = session.query(Player).filter_by(tag=result["tag"]).first()
 
-        await fetch_player_attacks(session, player)
+        try:
+            await fetch_player_attacks(session, player)
+        except Exception as e:
+            print(f"[legend_day] fetch failed for {player.tag}: {e}")
 
         player_data = await get_player(player.tag)
         season_trophies = player_data[2] if player_data else None
