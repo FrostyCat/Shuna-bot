@@ -1,3 +1,4 @@
+import asyncio
 from zoneinfo import ZoneInfo
 from datetime import UTC, datetime
 
@@ -25,38 +26,35 @@ def calculate_trophies(stars, destruction):
 
 
 async def fetch_player_attacks(session, player):
-    total_count = 0
-
     battles = await get_battlelog(player.tag)
 
-    for b in battles:
-        if b.get("battleType") != "legend":
-            continue
+    def _insert_all():
+        count = 0
+        for b in battles:
+            if b.get("battleType") != "legend":
+                continue
+            is_attack = b.get("attack", False)
+            stars = b.get("stars", 0)
+            destruction = b.get("destructionPercentage", 0)
+            trophies = calculate_trophies(stars, destruction)
+            if not is_attack:
+                trophies = -trophies
+            stmt = pg_insert(Attack).values(
+                player_id=player.id,
+                defender=b.get("opponentPlayerTag"),
+                stars=stars,
+                destruction=destruction,
+                trophies=trophies,
+                is_attack=is_attack,
+                created_at=datetime.now(UTC),
+            ).on_conflict_do_nothing(
+                index_elements=["player_id", "defender", "stars", "destruction", "is_attack"]
+            )
+            result = session.execute(stmt)
+            count += result.rowcount
+        return count
 
-        is_attack = b.get("attack", False)
-        stars = b.get("stars", 0)
-        destruction = b.get("destructionPercentage", 0)
-        trophies = calculate_trophies(stars, destruction)
-        if not is_attack:
-            trophies = -trophies
-
-        created_at = datetime.now(UTC)
-
-        stmt = pg_insert(Attack).values(
-            player_id=player.id,
-            defender=b.get("opponentPlayerTag"),
-            stars=stars,
-            destruction=destruction,
-            trophies=trophies,
-            is_attack=is_attack,
-            created_at=created_at,
-        ).on_conflict_do_nothing(
-            index_elements=["player_id", "defender", "stars", "destruction", "is_attack"]
-        )
-        result = session.execute(stmt)
-        total_count += result.rowcount
-
-    return total_count
+    return await asyncio.get_running_loop().run_in_executor(None, _insert_all)
 
 
 def _insert_war_attack(session, clan_tag, attack, war_type, war_id, league=None) -> int:
@@ -81,12 +79,20 @@ async def fetch_war_attacks(session, clan_tag: str) -> int:
         return 0
 
     war_id = data.get("startTime", "unknown")
-    count = 0
-    for member in data.get("clan", {}).get("members", []):
-        for attack in member.get("attacks", []):
+    attacks = [
+        attack
+        for member in data.get("clan", {}).get("members", [])
+        for attack in member.get("attacks", [])
+    ]
+
+    def _insert_all():
+        count = 0
+        for attack in attacks:
             count += _insert_war_attack(session, clan_tag, attack, "war", war_id)
-    session.commit()
-    return count
+        session.commit()
+        return count
+
+    return await asyncio.get_running_loop().run_in_executor(None, _insert_all)
 
 
 async def fetch_cwl_attacks(session, clan_tag: str) -> int:
@@ -96,7 +102,7 @@ async def fetch_cwl_attacks(session, clan_tag: str) -> int:
 
     league = await get_clan_war_league(clan_tag)
 
-    count = 0
+    war_attacks = []
     for round_data in group.get("rounds", []):
         for war_tag in round_data.get("warTags", []):
             if war_tag == "#0":
@@ -104,20 +110,24 @@ async def fetch_cwl_attacks(session, clan_tag: str) -> int:
             war = await get_cwl_war(war_tag)
             if not war or war.get("state") not in ("inWar", "warEnded"):
                 continue
-
             if war.get("clan", {}).get("tag") == clan_tag:
                 our_side = war["clan"]
             elif war.get("opponent", {}).get("tag") == clan_tag:
                 our_side = war["opponent"]
             else:
                 continue
-
             for member in our_side.get("members", []):
                 for attack in member.get("attacks", []):
-                    count += _insert_war_attack(session, clan_tag, attack, "cwl", war_tag, league=league)
+                    war_attacks.append((attack, war_tag))
 
-    session.commit()
-    return count
+    def _insert_all():
+        count = 0
+        for attack, war_tag in war_attacks:
+            count += _insert_war_attack(session, clan_tag, attack, "cwl", war_tag, league=league)
+        session.commit()
+        return count
+
+    return await asyncio.get_running_loop().run_in_executor(None, _insert_all)
 
 
 async def add_player_to_db(tag: str, session, commit=True):
@@ -131,19 +141,23 @@ async def add_player_to_db(tag: str, session, commit=True):
 
     tag_api, name, *_ = data
 
-    player = session.query(Player).filter_by(tag=tag_api).first()
-    if not player:
-        player = Player(tag=tag_api, name=name)
-        session.add(player)
-    else:
-        player.name = name
+    def _get_or_create():
+        p = session.query(Player).filter_by(tag=tag_api).first()
+        if not p:
+            p = Player(tag=tag_api, name=name)
+            session.add(p)
+            session.flush()
+        else:
+            p.name = name
+        if commit:
+            session.commit()
+        return p
 
-    if commit:
-        session.commit()
+    player = await asyncio.get_running_loop().run_in_executor(None, _get_or_create)
 
     added = await fetch_player_attacks(session, player)
 
     if commit:
-        session.commit()
+        await asyncio.get_running_loop().run_in_executor(None, session.commit)
 
     return {"success": True, "name": name, "tag": tag_api, "added_attacks": added}

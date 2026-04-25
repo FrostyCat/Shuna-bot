@@ -26,9 +26,10 @@ class TasksCog(discord.Cog):
 
     @tasks.loop(minutes=10)
     async def refresh_players(self):
+        loop = asyncio.get_running_loop()
         session = Session()
         try:
-            players = session.query(Player).all()
+            players = await loop.run_in_executor(None, lambda: session.query(Player).all())
         except Exception as e:
             print(f"DB error loading players: {e}")
             session.close()
@@ -40,9 +41,9 @@ class TasksCog(discord.Cog):
                 data = await get_player(p.tag)
                 if data:
                     p.current_rank = data[3]
-                session.commit()
+                await loop.run_in_executor(None, session.commit)
             except Exception as e:
-                session.rollback()
+                await loop.run_in_executor(None, session.rollback)
                 print(f"Error for {p.tag}: {e}")
             await asyncio.sleep(1.0)
 
@@ -55,13 +56,18 @@ class TasksCog(discord.Cog):
 
     @tasks.loop(time=dt_time(hour=6, minute=50, tzinfo=WARSAW))
     async def snapshot_ranks(self):
-        session = Session()
-        players = session.query(Player).all()
-        for p in players:
-            if p.current_rank is not None:
-                p.initial_rank = p.current_rank
-        session.commit()
-        session.close()
+        def _do_snapshot():
+            session = Session()
+            try:
+                players = session.query(Player).all()
+                for p in players:
+                    if p.current_rank is not None:
+                        p.initial_rank = p.current_rank
+                session.commit()
+            finally:
+                session.close()
+
+        await asyncio.get_running_loop().run_in_executor(None, _do_snapshot)
         print("Rank snapshot saved.")
 
     @snapshot_ranks.before_loop
@@ -70,8 +76,15 @@ class TasksCog(discord.Cog):
 
     @tasks.loop(hours=12)
     async def refresh_clans(self):
+        loop = asyncio.get_running_loop()
         session = Session()
-        clans = session.query(Clan).all()
+        try:
+            clans = await loop.run_in_executor(None, lambda: session.query(Clan).all())
+        except Exception as e:
+            print(f"DB error loading clans: {e}")
+            session.close()
+            return
+
         for clan in clans:
             try:
                 members = await get_clan_members(clan.tag)
@@ -80,9 +93,10 @@ class TasksCog(discord.Cog):
                     await add_player_to_db(tag, session, commit=False)
                     await asyncio.sleep(0.5)
             except Exception as e:
-                session.rollback()
+                await loop.run_in_executor(None, session.rollback)
                 print(f"Error for clan {clan.tag}: {e}")
-        session.commit()
+
+        await loop.run_in_executor(None, session.commit)
         session.close()
 
     @refresh_clans.before_loop
@@ -92,10 +106,12 @@ class TasksCog(discord.Cog):
 
     @tasks.loop(minutes=30)
     async def refresh_wars(self):
+        loop = asyncio.get_running_loop()
         session = Session()
-        clans = session.query(Clan).all()
-        clan_tags = [c.tag for c in clans]
-        session.close()
+        try:
+            clan_tags = await loop.run_in_executor(None, lambda: [c.tag for c in session.query(Clan).all()])
+        finally:
+            session.close()
 
         for tag in clan_tags:
             session = Session()
@@ -105,7 +121,7 @@ class TasksCog(discord.Cog):
                 if war_count or cwl_count:
                     print(f"War attacks saved for {tag}: {war_count} war, {cwl_count} CWL")
             except Exception as e:
-                session.rollback()
+                await loop.run_in_executor(None, session.rollback)
                 print(f"War fetch error for {tag}: {e}")
             finally:
                 session.close()
