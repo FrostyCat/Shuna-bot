@@ -68,6 +68,7 @@ class TicketPanel(Base):
     guild_id = Column(String)
     message_id = Column(String, unique=True)
     channel_id = Column(String)
+    types = Column(String, nullable=True)
     msg_title = Column(String, nullable=True)
     msg_description = Column(Text, nullable=True)
     msg_color = Column(String, nullable=True)

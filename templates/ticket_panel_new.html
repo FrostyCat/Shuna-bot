@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}New Panel — {{ guild.name }}{% endblock %}
+
+{% block head %}
+<style>
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #949ba4;
+    font-size: 13px;
+    margin-bottom: 24px;
+    transition: color 0.15s;
+  }
+  .back-link:hover { color: #dbdee1; }
+
+  .form-card {
+    background: #2b2d31;
+    border-radius: 10px;
+    padding: 32px;
+    max-width: 680px;
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #5865f2;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 28px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #3f4046;
+  }
+  .section-label:first-child { margin-top: 0; }
+
+  .form-group { margin-bottom: 18px; }
+
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #b5bac1;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+
+  select,
+  input[type="text"],
+  textarea {
+    width: 100%;
+    background: #1e1f22;
+    border: 1px solid #3f4046;
+    border-radius: 6px;
+    color: #dbdee1;
+    font-size: 14px;
+    padding: 10px 12px;
+    font-family: inherit;
+    transition: border-color 0.15s;
+    outline: none;
+  }
+  select { cursor: pointer; }
+  select:focus,
+  input[type="text"]:focus,
+  textarea:focus { border-color: #5865f2; }
+  textarea { resize: vertical; min-height: 90px; }
+
+  .hint {
+    font-size: 12px;
+    color: #6d6f78;
+    margin-top: 4px;
+  }
+
+  .color-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  input[type="color"] {
+    width: 40px;
+    height: 38px;
+    border: 1px solid #3f4046;
+    border-radius: 6px;
+    background: #1e1f22;
+    cursor: pointer;
+    padding: 2px;
+    flex-shrink: 0;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 28px;
+  }
+
+  .alert {
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  .alert-danger { background: #3a1a1a; color: #ed4245; border: 1px solid #ed424544; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <a class="back-link" href="/dashboard/{{ guild.id }}/tickets">← Back to panels</a>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <h1>New Ticket Panel</h1>
+  <p style="margin-bottom: 24px;">{{ guild.name }}</p>
+
+  <div class="form-card">
+    <form method="post">
+
+      <div class="section-label">Panel Setup</div>
+
+      <div class="form-group">
+        <label for="channel_id">Channel</label>
+        <select id="channel_id" name="channel_id" required>
+          <option value="" disabled selected>Select a channel…</option>
+          {% for ch in channels %}
+            <option value="{{ ch.id }}"># {{ ch.name }}</option>
+          {% endfor %}
+        </select>
+        <div class="hint">The bot will post the panel message to this channel.</div>
+      </div>
+
+      <div class="form-group">
+        <label for="types">Ticket Types</label>
+        <input type="text" id="types" name="types" value="Support"
+               placeholder="Support, Subscribe, Report" />
+        <div class="hint">Comma-separated. Each type becomes a button. Max 5.</div>
+      </div>
+
+      <div class="section-label">Panel Embed (visible in Discord)</div>
+
+      <div class="form-group">
+        <label for="panel_title">Title</label>
+        <input type="text" id="panel_title" name="panel_title" maxlength="256"
+               value="🎫 Support" />
+      </div>
+
+      <div class="form-group">
+        <label for="panel_description">Description</label>
+        <textarea id="panel_description" name="panel_description" maxlength="4096">Need help? Click the button below.
+
+**How it works:**
+1. Click the button for your ticket type
+2. A private channel will be created
+3. Describe your issue — staff will respond</textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="panel_color">Color</label>
+        <div class="color-row">
+          <input type="color" id="panel-color-picker" value="#5865f2"
+                 oninput="syncHex('panel_color', this.value)">
+          <input type="text" id="panel_color" name="panel_color" maxlength="6"
+                 value="5865f2" placeholder="5865f2"
+                 oninput="syncPicker('panel-color-picker', this.value)">
+        </div>
+      </div>
+
+      <div class="section-label">Ticket Welcome Message (inside ticket channel)</div>
+
+      <div class="form-group">
+        <label for="msg_title">Title</label>
+        <input type="text" id="msg_title" name="msg_title" maxlength="256"
+               placeholder="🎫 {type} Ticket" />
+        <div class="hint">Use <code>{type}</code> for ticket type.</div>
+      </div>
+
+      <div class="form-group">
+        <label for="msg_description">Description</label>
+        <textarea id="msg_description" name="msg_description" maxlength="4096"
+                  placeholder="Welcome {user}! Describe your issue…"></textarea>
+        <div class="hint">Use <code>{type}</code> and <code>{user}</code>.</div>
+      </div>
+
+      <div class="form-group">
+        <label for="msg_color">Color</label>
+        <div class="color-row">
+          <input type="color" id="msg-color-picker" value="#5865f2"
+                 oninput="syncHex('msg_color', this.value)">
+          <input type="text" id="msg_color" name="msg_color" maxlength="6"
+                 value="" placeholder="5865f2"
+                 oninput="syncPicker('msg-color-picker', this.value)">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="msg_thumbnail">Thumbnail URL</label>
+        <input type="text" id="msg_thumbnail" name="msg_thumbnail"
+               placeholder="https://example.com/image.png" />
+      </div>
+
+      <div class="form-group">
+        <label for="msg_image">Image URL</label>
+        <input type="text" id="msg_image" name="msg_image"
+               placeholder="https://example.com/banner.png" />
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Create Panel</button>
+        <a href="/dashboard/{{ guild.id }}/tickets" class="btn btn-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function syncHex(inputId, pickerValue) {
+  document.getElementById(inputId).value = pickerValue.replace('#', '');
+}
+function syncPicker(pickerId, hexValue) {
+  if (/^[0-9a-fA-F]{6}$/.test(hexValue)) {
+    document.getElementById(pickerId).value = '#' + hexValue;
+  }
+}
+</script>
+{% endblock %}

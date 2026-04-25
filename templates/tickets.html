@@ -54,6 +54,22 @@
     word-break: break-all;
   }
 
+  .type-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .badge {
+    background: #5865f220;
+    color: #949ba4;
+    border: 1px solid #5865f240;
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 2px 8px;
+  }
+
   .panel-actions {
     display: flex;
     gap: 8px;
@@ -67,6 +83,7 @@
     margin-bottom: 20px;
   }
   .alert-success { background: #1a3a2a; color: #3ba55c; border: 1px solid #3ba55c44; }
+  .alert-danger  { background: #3a1a1a; color: #ed4245; border: 1px solid #ed424544; }
 
   .empty {
     text-align: center;
@@ -91,6 +108,7 @@
       <h1>Ticket Panels</h1>
       <p>{{ guild.name }}</p>
     </div>
+    <a class="btn btn-primary" href="/dashboard/{{ guild.id }}/tickets/new">+ New Panel</a>
   </div>
 
   {% if panels %}
@@ -107,6 +125,13 @@
           &nbsp;·&nbsp;
           Channel ID: {{ panel.channel_id }}
         </div>
+        {% if panel.types %}
+        <div class="type-badges">
+          {% for t in panel.types.split(',') %}
+            <span class="badge">{{ t.strip() }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
       </div>
       <div class="panel-actions">
         <a class="btn btn-secondary" href="/dashboard/{{ guild.id }}/tickets/{{ panel.id }}">Edit</a>
@@ -120,7 +145,7 @@
   </div>
   {% else %}
   <div class="empty">
-    <p>No ticket panels found. Use <code>/ticket setup</code> in Discord to create one.</p>
+    <p>No ticket panels yet. Click <strong>+ New Panel</strong> to create one.</p>
   </div>
   {% endif %}
 </div>
