@@ -1,3 +1,4 @@
+import asyncio
 import aiohttp
 import os
 from dotenv import load_dotenv
@@ -12,11 +13,19 @@ headers = {
 }
 
 async def _get(url):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=headers) as response:
-            if response.status == 200:
-                return await response.json()
-            print(f"API error {response.status}: {await response.text()}")
+    timeout = aiohttp.ClientTimeout(total=30)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        try:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    return await response.json()
+                print(f"API error {response.status}: {await response.text()}")
+                return None
+        except asyncio.TimeoutError:
+            print(f"API timeout: {url}")
+            return None
+        except aiohttp.ClientError as e:
+            print(f"API connection error: {e}")
             return None
 
 async def get_battlelog(tag):
@@ -69,9 +78,13 @@ async def get_cwl_war(war_tag: str) -> dict | None:
 async def verify_player_token(tag: str, token: str) -> bool:
     tag = tag.replace("#", "%23")
     url = f"{BASE_URL}/players/{tag}/verifytoken"
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, headers=headers, json={"token": token}) as response:
-            if response.status == 200:
-                data = await response.json()
-                return data.get("status") == "ok"
+    timeout = aiohttp.ClientTimeout(total=30)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        try:
+            async with session.post(url, headers=headers, json={"token": token}) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data.get("status") == "ok"
+                return False
+        except (asyncio.TimeoutError, aiohttp.ClientError):
             return False
