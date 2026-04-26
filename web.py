@@ -586,12 +586,12 @@ def coc_role_stats(guild_id):
                     Attack.stars == 3,
                     Attack.created_at >= month_start,
                 ).count()
-                legend_loot = db.query(Attack).filter(
-                    Attack.player_id == player.id,
-                    Attack.is_attack == True,
-                    Attack.stars == 1,
-                    Attack.destruction < 50,
-                    Attack.created_at >= month_start,
+                war_loot = db.query(WarAttack).filter(
+                    WarAttack.attacker_tag == player.tag,
+                    WarAttack.war_type == "war",
+                    WarAttack.stars == 1,
+                    WarAttack.destruction < 50,
+                    WarAttack.created_at >= month_start,
                 ).count()
                 cwl_league = (
                     db.query(WarAttack.league)
@@ -616,7 +616,7 @@ def coc_role_stats(guild_id):
                     "war_month_3star": war_month_3star,
                     "war_clean_total": war_clean_total,
                     "legend_month_3star": legend_month_3star,
-                    "legend_loot": legend_loot,
+                    "war_loot": war_loot,
                 })
 
     db.close()
@@ -761,12 +761,12 @@ def coc_clan(guild_id, gc_id):
                 Attack.stars == 3,
                 Attack.created_at >= month_start,
             ).count()
-            legend_loot = db.query(Attack).filter(
-                Attack.player_id == player.id,
-                Attack.is_attack == True,
-                Attack.stars == 1,
-                Attack.destruction < 50,
-                Attack.created_at >= month_start,
+            war_loot = db.query(WarAttack).filter(
+                WarAttack.attacker_tag == member_tag,
+                WarAttack.war_type == "war",
+                WarAttack.stars == 1,
+                WarAttack.destruction < 50,
+                WarAttack.created_at >= month_start,
             ).count()
             cwl_league = (
                 db.query(WarAttack.league)
@@ -793,7 +793,7 @@ def coc_clan(guild_id, gc_id):
             "war_month_3star": war_month_3star if player else 0,
             "war_clean_total": war_clean_total if player else 0,
             "legend_month_3star": legend_month_3star if player else 0,
-            "legend_loot": legend_loot if player else 0,
+            "war_loot": war_loot if player else 0,
             "in_db": player is not None,
         })
 

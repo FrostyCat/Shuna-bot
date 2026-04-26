@@ -160,7 +160,7 @@
             {% set war_hr   = (s.war_month_3star / s.war_month * 100)       | round | int if s.war_month > 0       else none %}
             {% set war_hr_c = (s.war_month_3star / s.war_clean_total * 100) | round | int if s.war_clean_total > 0 else none %}
             {% set leg_hr   = (s.legend_month_3star / s.legend_month * 100) | round | int if s.legend_month > 0   else none %}
-            <tr data-loot="{{ s.legend_loot }}">
+            <tr data-loot="{{ s.war_loot }}">
               <td><span class="discord-name">{{ s.discord_username }}</span></td>
               <td>
                 {% if s.tag %}
@@ -222,9 +222,9 @@
               </td>
               <td>
                 {% if not s.in_db %}<span style="color:#6d6f78;">—</span>
-                {% elif s.legend_loot == 0 %}<span style="color:#6d6f78;">0</span>
+                {% elif s.war_loot == 0 %}<span style="color:#6d6f78;">0</span>
                 {% else %}
-                  <span class="badge badge-low">{{ s.legend_loot }}</span>
+                  <span class="badge badge-low">{{ s.war_loot }}</span>
                 {% endif %}
               </td>
             </tr>
