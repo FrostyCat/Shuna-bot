@@ -12,6 +12,7 @@ from datetime import datetime, UTC
 
 from db import Session, init_db
 from models import Clan, WarAttack
+from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 CK_BASE = "https://api.clashk.ing"
@@ -48,7 +49,7 @@ def parse_coc_time(s):
         return datetime.now(UTC)
 
 
-def insert_attack(db, clan_tag, attack, war_id, war_start):
+def insert_attack(db, clan_tag, attack, war_id, war_start, league=None):
     stmt = pg_insert(WarAttack).values(
         clan_tag=clan_tag,
         attacker_tag=attack["attackerTag"],
@@ -57,10 +58,11 @@ def insert_attack(db, clan_tag, attack, war_id, war_start):
         destruction=attack["destructionPercentage"],
         war_type="cwl",
         war_id=war_id,
-        league=None,
+        league=league,
         created_at=war_start,
-    ).on_conflict_do_nothing(
-        index_elements=["attacker_tag", "defender_tag", "war_id"]
+    ).on_conflict_do_update(
+        index_elements=["attacker_tag", "defender_tag", "war_id"],
+        set_={"league": text("COALESCE(war_attacks.league, EXCLUDED.league)")},
     )
     return db.execute(stmt).rowcount
 
@@ -77,6 +79,12 @@ async def backfill_clan(clan_tag, seasons):
                 print(f"  {season}: no data")
                 await asyncio.sleep(0.3)
                 continue
+
+            league = (
+                data.get("league")
+                or data.get("leagueName")
+                or data.get("warLeague", {}).get("name")
+            )
 
             db = Session()
             count = 0
@@ -101,7 +109,7 @@ async def backfill_clan(clan_tag, seasons):
 
                         for member in our_side.get("members", []):
                             for attack in member.get("attacks", []):
-                                count += insert_attack(db, clan_tag, attack, war_id, war_start)
+                                count += insert_attack(db, clan_tag, attack, war_id, war_start, league=league)
 
                 db.commit()
                 clan_total += count

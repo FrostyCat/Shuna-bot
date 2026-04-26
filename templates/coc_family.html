@@ -112,12 +112,18 @@
           <table class="stats-table">
             <thead>
               <tr>
-                <th>Discord</th>
-                <th>Account</th>
+                <th rowspan="2" style="vertical-align:bottom;">Discord</th>
+                <th rowspan="2" style="vertical-align:bottom;">Account</th>
                 {% for label in month_labels %}
-                  <th>{{ label }}</th>
+                  <th colspan="2" style="text-align:center; border-bottom:1px solid #3f4046;">{{ label }}</th>
                 {% endfor %}
-                <th>Legend HR <span class="th-hint">this month</span></th>
+                <th rowspan="2" style="vertical-align:bottom;">Legend HR <span class="th-hint">this month</span></th>
+              </tr>
+              <tr>
+                {% for _ in month_labels %}
+                  <th>CWL</th>
+                  <th>War HR <span class="th-hint">clean</span></th>
+                {% endfor %}
               </tr>
             </thead>
             <tbody>
@@ -134,9 +140,7 @@
                   </td>
                   {% for mo in s.months %}
                     <td>
-                      {% if not s.in_db %}
-                        <span class="no-data">—</span>
-                      {% elif mo.total == 0 %}
+                      {% if not s.in_db or mo.total == 0 %}
                         <span class="no-data">—</span>
                       {% else %}
                         <div class="stars-line">
@@ -149,13 +153,15 @@
                         {% if mo.league %}
                           <div style="font-size:11px; color:#6d6f78; margin-top:2px;">{{ mo.league }}</div>
                         {% endif %}
-                        {% if mo.war_clean > 0 %}
-                          {% set whr = (mo.war_3star / mo.war_clean * 100) | round | int %}
-                          <div style="font-size:11px; color:#949ba4; margin-top:4px; border-top:1px solid #3f404660; padding-top:4px;">
-                            War HR: <strong style="color:{% if whr >= 75 %}#3ba55c{% elif whr >= 50 %}#faa61a{% else %}#ed4245{% endif %};">{{ whr }}%</strong>
-                            <span style="color:#6d6f78;">({{ mo.war_3star }}/{{ mo.war_clean }} clean)</span>
-                          </div>
-                        {% endif %}
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if not s.in_db or mo.war_clean == 0 %}
+                        <span class="no-data">—</span>
+                      {% else %}
+                        {% set whr = (mo.war_3star / mo.war_clean * 100) | round | int %}
+                        <strong style="color:{% if whr >= 75 %}#3ba55c{% elif whr >= 50 %}#faa61a{% else %}#ed4245{% endif %}; font-size:14px;">{{ whr }}%</strong>
+                        <div class="atk-total">{{ mo.war_3star }}/{{ mo.war_clean }} clean</div>
                       {% endif %}
                     </td>
                   {% endfor %}
