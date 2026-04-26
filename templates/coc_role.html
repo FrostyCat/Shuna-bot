@@ -157,10 +157,9 @@
         </thead>
         <tbody>
           {% for s in stats %}
-            {% set war_hr   = (s.war_month_3star / s.war_month * 100)        | round | int if s.war_month > 0        else none %}
-            {% set war_hr_c = (s.war_month_3star / s.war_clean_total * 100)  | round | int if s.war_clean_total > 0  else none %}
-            {% set leg_hr   = (s.legend_month_3star / s.legend_month * 100)  | round | int if s.legend_month > 0     else none %}
-            {% set leg_hr_c = (s.legend_month_3star / s.legend_clean_total * 100) | round | int if s.legend_clean_total > 0 else none %}
+            {% set war_hr   = (s.war_month_3star / s.war_month * 100)       | round | int if s.war_month > 0       else none %}
+            {% set war_hr_c = (s.war_month_3star / s.war_clean_total * 100) | round | int if s.war_clean_total > 0 else none %}
+            {% set leg_hr   = (s.legend_month_3star / s.legend_month * 100) | round | int if s.legend_month > 0   else none %}
             <tr data-loot="{{ s.legend_loot }}">
               <td><span class="discord-name">{{ s.discord_username }}</span></td>
               <td>
