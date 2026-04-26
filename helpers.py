@@ -57,7 +57,16 @@ async def fetch_player_attacks(session, player):
     return await asyncio.get_running_loop().run_in_executor(None, _insert_all)
 
 
-def _insert_war_attack(session, clan_tag, attack, war_type, war_id, league=None) -> int:
+def _parse_coc_time(s):
+    if not s:
+        return datetime.now(UTC)
+    try:
+        return datetime.strptime(s, "%Y%m%dT%H%M%S.%fZ").replace(tzinfo=UTC)
+    except Exception:
+        return datetime.now(UTC)
+
+
+def _insert_war_attack(session, clan_tag, attack, war_type, war_id, league=None, created_at=None) -> int:
     stmt = pg_insert(WarAttack).values(
         clan_tag=clan_tag,
         attacker_tag=attack["attackerTag"],
@@ -67,6 +76,7 @@ def _insert_war_attack(session, clan_tag, attack, war_type, war_id, league=None)
         war_type=war_type,
         war_id=war_id,
         league=league,
+        created_at=created_at or datetime.now(UTC),
     ).on_conflict_do_nothing(
         index_elements=["attacker_tag", "defender_tag", "war_id"]
     )
@@ -79,6 +89,7 @@ async def fetch_war_attacks(session, clan_tag: str) -> int:
         return 0
 
     war_id = data.get("startTime", "unknown")
+    war_date = _parse_coc_time(data.get("endTime") or data.get("startTime"))
     attacks = [
         attack
         for member in data.get("clan", {}).get("members", [])
@@ -88,7 +99,7 @@ async def fetch_war_attacks(session, clan_tag: str) -> int:
     def _insert_all():
         count = 0
         for attack in attacks:
-            count += _insert_war_attack(session, clan_tag, attack, "war", war_id)
+            count += _insert_war_attack(session, clan_tag, attack, "war", war_id, created_at=war_date)
         session.commit()
         return count
 
@@ -116,14 +127,15 @@ async def fetch_cwl_attacks(session, clan_tag: str) -> int:
                 our_side = war["opponent"]
             else:
                 continue
+            war_date = _parse_coc_time(war.get("endTime") or war.get("startTime"))
             for member in our_side.get("members", []):
                 for attack in member.get("attacks", []):
-                    war_attacks.append((attack, war_tag))
+                    war_attacks.append((attack, war_tag, war_date))
 
     def _insert_all():
         count = 0
-        for attack, war_tag in war_attacks:
-            count += _insert_war_attack(session, clan_tag, attack, "cwl", war_tag, league=league)
+        for attack, war_tag, war_date in war_attacks:
+            count += _insert_war_attack(session, clan_tag, attack, "cwl", war_tag, league=league, created_at=war_date)
         session.commit()
         return count
 
