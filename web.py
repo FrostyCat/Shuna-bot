@@ -1,6 +1,8 @@
+import asyncio
 import json
 import os
 import secrets
+import threading
 from datetime import datetime, timedelta, UTC
 
 import requests
@@ -11,6 +13,7 @@ from sqlalchemy import and_, or_, func
 from db import Session as DBSession
 import re
 from models import Transcript, TicketPanel, TicketType, GuildConfig, GuildClan, Player, Attack, WarAttack, Clan, DiscordUser
+from backfill_cwl import backfill_clan, past_seasons
 
 load_dotenv()
 
@@ -859,7 +862,13 @@ def coc_clan_add(guild_id):
         db.add(Clan(tag=tag, name=clan_name))
     db.commit()
     db.close()
-    flash(f"Clan {clan_name} added!", "success")
+
+    def _backfill():
+        asyncio.run(backfill_clan(tag, past_seasons(3)))
+
+    threading.Thread(target=_backfill, daemon=True).start()
+
+    flash(f"Clan {clan_name} added! Fetching last 3 months of CWL data in background.", "success")
     return redirect(url_for("coc_manager", guild_id=guild_id))
 
 

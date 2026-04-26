@@ -62,7 +62,7 @@ def insert_attack(db, clan_tag, attack, war_id, war_start, league=None):
         created_at=war_start,
     ).on_conflict_do_update(
         index_elements=["attacker_tag", "defender_tag", "war_id"],
-        set_={"league": text("COALESCE(war_attacks.league, EXCLUDED.league)")},
+        set_={"league": text("EXCLUDED.league")},
     )
     return db.execute(stmt).rowcount
 
@@ -87,8 +87,13 @@ async def backfill_clan(clan_tag, seasons):
             # Determine league for this season
             league = cwl_history.get(season)
             if not league:
-                past = [s for s in cwl_history if s <= season]
-                league = cwl_history[max(past)] if past else current_league
+                last_tracked = max(cwl_history.keys()) if cwl_history else None
+                if last_tracked is None or season > last_tracked:
+                    # Season is more recent than CK history — use current league
+                    league = current_league
+                else:
+                    # Season is within history range but missing — clan didn't participate
+                    league = None
 
             data = await ck_get(http, f"{CK_BASE}/cwl/{tag_enc}/{season}")
             if not data or "rounds" not in data:
