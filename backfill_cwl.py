@@ -20,7 +20,7 @@ CK_BASE = "https://api.clashk.ing"
 def past_seasons(n):
     now = datetime.now(UTC)
     seasons = []
-    for i in range(1, n + 1):
+    for i in range(0, n):
         month = now.month - i
         year = now.year
         while month <= 0:
