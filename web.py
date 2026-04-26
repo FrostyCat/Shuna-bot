@@ -7,6 +7,7 @@ import requests
 from dotenv import load_dotenv
 from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
 
+from sqlalchemy import and_, or_
 from db import Session as DBSession
 import re
 from models import Transcript, TicketPanel, TicketType, GuildConfig, GuildClan, Player, Attack, WarAttack, Clan, DiscordUser
@@ -566,6 +567,39 @@ def coc_role_stats(guild_id):
                     Attack.is_attack == True,
                     Attack.created_at >= month_start,
                 ).count()
+                war_month_3star = db.query(WarAttack).filter(
+                    WarAttack.attacker_tag == player.tag,
+                    WarAttack.war_type == "war",
+                    WarAttack.stars == 3,
+                    WarAttack.created_at >= month_start,
+                ).count()
+                war_clean_total = db.query(WarAttack).filter(
+                    WarAttack.attacker_tag == player.tag,
+                    WarAttack.war_type == "war",
+                    WarAttack.created_at >= month_start,
+                    or_(WarAttack.stars >= 2,
+                        and_(WarAttack.stars == 1, WarAttack.destruction >= 50)),
+                ).count()
+                legend_month_3star = db.query(Attack).filter(
+                    Attack.player_id == player.id,
+                    Attack.is_attack == True,
+                    Attack.stars == 3,
+                    Attack.created_at >= month_start,
+                ).count()
+                legend_clean_total = db.query(Attack).filter(
+                    Attack.player_id == player.id,
+                    Attack.is_attack == True,
+                    Attack.created_at >= month_start,
+                    or_(Attack.stars >= 2,
+                        and_(Attack.stars == 1, Attack.destruction >= 50)),
+                ).count()
+                legend_loot = db.query(Attack).filter(
+                    Attack.player_id == player.id,
+                    Attack.is_attack == True,
+                    Attack.stars == 1,
+                    Attack.destruction < 50,
+                    Attack.created_at >= month_start,
+                ).count()
                 cwl_league = (
                     db.query(WarAttack.league)
                     .filter(
@@ -586,6 +620,11 @@ def coc_role_stats(guild_id):
                     "war_month": war_month, "cwl_month": cwl_month,
                     "war_3mo": war_3mo,     "cwl_3mo": cwl_3mo,
                     "cwl_league": cwl_league, "legend_month": legend_month,
+                    "war_month_3star": war_month_3star,
+                    "war_clean_total": war_clean_total,
+                    "legend_month_3star": legend_month_3star,
+                    "legend_clean_total": legend_clean_total,
+                    "legend_loot": legend_loot,
                 })
 
     db.close()
@@ -711,6 +750,39 @@ def coc_clan(guild_id, gc_id):
                 Attack.is_attack == True,
                 Attack.created_at >= month_start,
             ).count()
+            war_month_3star = db.query(WarAttack).filter(
+                WarAttack.attacker_tag == member_tag,
+                WarAttack.war_type == "war",
+                WarAttack.stars == 3,
+                WarAttack.created_at >= month_start,
+            ).count()
+            war_clean_total = db.query(WarAttack).filter(
+                WarAttack.attacker_tag == member_tag,
+                WarAttack.war_type == "war",
+                WarAttack.created_at >= month_start,
+                or_(WarAttack.stars >= 2,
+                    and_(WarAttack.stars == 1, WarAttack.destruction >= 50)),
+            ).count()
+            legend_month_3star = db.query(Attack).filter(
+                Attack.player_id == player.id,
+                Attack.is_attack == True,
+                Attack.stars == 3,
+                Attack.created_at >= month_start,
+            ).count()
+            legend_clean_total = db.query(Attack).filter(
+                Attack.player_id == player.id,
+                Attack.is_attack == True,
+                Attack.created_at >= month_start,
+                or_(Attack.stars >= 2,
+                    and_(Attack.stars == 1, Attack.destruction >= 50)),
+            ).count()
+            legend_loot = db.query(Attack).filter(
+                Attack.player_id == player.id,
+                Attack.is_attack == True,
+                Attack.stars == 1,
+                Attack.destruction < 50,
+                Attack.created_at >= month_start,
+            ).count()
             cwl_league = (
                 db.query(WarAttack.league)
                 .filter(
@@ -733,6 +805,11 @@ def coc_clan(guild_id, gc_id):
             "cwl_3mo": cwl_3mo,
             "cwl_league": cwl_league,
             "legend_month": legend_month,
+            "war_month_3star": war_month_3star if player else 0,
+            "war_clean_total": war_clean_total if player else 0,
+            "legend_month_3star": legend_month_3star if player else 0,
+            "legend_clean_total": legend_clean_total if player else 0,
+            "legend_loot": legend_loot if player else 0,
             "in_db": player is not None,
         })
 

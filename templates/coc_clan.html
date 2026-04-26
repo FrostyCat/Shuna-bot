@@ -220,22 +220,41 @@
   <p style="color: #949ba4; margin-bottom: 24px;">{{ gc.clan_tag }} · {{ stats | length }} members</p>
 
   {% if stats %}
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap;">
+      <button id="lootFilterBtn" onclick="toggleLootFilter()" style="
+        background:#3a1a1a; border:1px solid #6d2020; color:#e07070;
+        border-radius:6px; padding:7px 14px; font-size:13px; cursor:pointer;
+        font-family:inherit; transition:all 0.15s;">
+        Show loot hitters only
+      </button>
+      <button id="hrModeBtn" onclick="toggleHrMode()" style="
+        background:#1a2a3a; border:1px solid #2a4a6a; color:#70a0e0;
+        border-radius:6px; padding:7px 14px; font-size:13px; cursor:pointer;
+        font-family:inherit; transition:all 0.15s;">
+        Exclude loot &amp; 0★ from hit rate
+      </button>
+    </div>
     <div style="overflow-x: auto;">
-      <table class="stats-table">
+      <table class="stats-table" id="statsTable">
         <thead>
           <tr>
             <th>Account</th>
             <th>Discord</th>
-            <th>War Hits <span class="th-hint">this month</span></th>
+            <th>War Hits <span class="th-hint">this month · hit rate</span></th>
             <th>CWL Hits <span class="th-hint">this month</span></th>
             <th>War Hits <span class="th-hint">last 90 days</span></th>
             <th>CWL Hits <span class="th-hint">last 90 days</span></th>
-            <th>Legend Hits <span class="th-hint">this month</span></th>
+            <th>Legend Hits <span class="th-hint">this month · hit rate</span></th>
+            <th>Loot Hits <span class="th-hint">this month</span></th>
           </tr>
         </thead>
         <tbody>
           {% for s in stats %}
-            <tr>
+            {% set war_hr     = (s.war_month_3star / s.war_month * 100)        | round | int if s.war_month > 0        else none %}
+            {% set war_hr_c   = (s.war_month_3star / s.war_clean_total * 100)  | round | int if s.war_clean_total > 0  else none %}
+            {% set leg_hr     = (s.legend_month_3star / s.legend_month * 100)  | round | int if s.legend_month > 0     else none %}
+            {% set leg_hr_c   = (s.legend_month_3star / s.legend_clean_total * 100) | round | int if s.legend_clean_total > 0 else none %}
+            <tr data-loot="{{ s.legend_loot }}">
               <td>
                 <div class="player-name">{{ s.name }}</div>
                 <div class="player-tag">{{ s.tag }}</div>
@@ -262,6 +281,9 @@
                   <span class="badge {% if s.war_month == 0 %}badge-zero{% elif s.war_month < 2 %}badge-low{% else %}badge-ok{% endif %}">
                     {{ s.war_month }}
                   </span>
+                  {% if war_hr is not none %}
+                    <div class="hit-rate" data-normal="{{ war_hr }}% 3★" data-clean="{{ war_hr_c }}% 3★" style="font-size:11px; color:#949ba4; margin-top:3px;">{{ war_hr }}% 3★</div>
+                  {% endif %}
                 {% endif %}
               </td>
               <td>
@@ -297,6 +319,16 @@
                   <span class="badge {% if s.legend_month == 0 %}badge-zero{% elif s.legend_month < 5 %}badge-low{% else %}badge-ok{% endif %}">
                     {{ s.legend_month }}
                   </span>
+                  {% if leg_hr is not none %}
+                    <div class="hit-rate" data-normal="{{ leg_hr }}% 3★" data-clean="{{ leg_hr_c }}% 3★" style="font-size:11px; color:#949ba4; margin-top:3px;">{{ leg_hr }}% 3★</div>
+                  {% endif %}
+                {% endif %}
+              </td>
+              <td>
+                {% if not s.in_db %}<span class="not-tracked">—</span>
+                {% elif s.legend_loot == 0 %}<span style="color:#6d6f78;">0</span>
+                {% else %}
+                  <span class="badge badge-low">{{ s.legend_loot }}</span>
                 {% endif %}
               </td>
             </tr>
@@ -419,5 +451,28 @@
   document.addEventListener("keydown", function(e) {
     if (e.key === "Escape") closeModal();
   });
+
+  let lootFilterActive = false;
+  function toggleLootFilter() {
+    lootFilterActive = !lootFilterActive;
+    const btn = document.getElementById("lootFilterBtn");
+    const rows = document.querySelectorAll("#statsTable tbody tr");
+    rows.forEach(row => {
+      row.style.display = (lootFilterActive && row.dataset.loot === "0") ? "none" : "";
+    });
+    btn.style.background = lootFilterActive ? "#6d2020" : "#3a1a1a";
+    btn.textContent = lootFilterActive ? "Show all" : "Show loot hitters only";
+  }
+
+  let cleanHrActive = false;
+  function toggleHrMode() {
+    cleanHrActive = !cleanHrActive;
+    const btn = document.getElementById("hrModeBtn");
+    document.querySelectorAll(".hit-rate").forEach(el => {
+      el.textContent = cleanHrActive ? el.dataset.clean : el.dataset.normal;
+    });
+    btn.style.background = cleanHrActive ? "#2a4a6a" : "#1a2a3a";
+    btn.textContent = cleanHrActive ? "Show all hits in rate" : "Exclude loot & 0★ from hit rate";
+  }
 </script>
 {% endblock %}
