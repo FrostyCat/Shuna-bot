@@ -41,7 +41,14 @@ async def ck_get(session, url):
         return None
 
 
-def insert_attack(db, clan_tag, attack, war_id):
+def parse_coc_time(s):
+    try:
+        return datetime.strptime(s, "%Y%m%dT%H%M%S.%fZ").replace(tzinfo=UTC)
+    except Exception:
+        return datetime.now(UTC)
+
+
+def insert_attack(db, clan_tag, attack, war_id, war_start):
     stmt = pg_insert(WarAttack).values(
         clan_tag=clan_tag,
         attacker_tag=attack["attackerTag"],
@@ -51,6 +58,7 @@ def insert_attack(db, clan_tag, attack, war_id):
         war_type="cwl",
         war_id=war_id,
         league=None,
+        created_at=war_start,
     ).on_conflict_do_nothing(
         index_elements=["attacker_tag", "defender_tag", "war_id"]
     )
@@ -80,7 +88,9 @@ async def backfill_clan(clan_tag, seasons):
                         if war.get("state") not in ("inWar", "warEnded"):
                             continue
 
-                        war_id = war.get("startTime") or f"ck_{season}"
+                        raw_start = war.get("startTime") or ""
+                        war_id = raw_start or f"ck_{season}"
+                        war_start = parse_coc_time(raw_start) if raw_start else datetime.now(UTC)
 
                         if war.get("clan", {}).get("tag") == clan_tag:
                             our_side = war["clan"]
@@ -91,7 +101,7 @@ async def backfill_clan(clan_tag, seasons):
 
                         for member in our_side.get("members", []):
                             for attack in member.get("attacks", []):
-                                count += insert_attack(db, clan_tag, attack, war_id)
+                                count += insert_attack(db, clan_tag, attack, war_id, war_start)
 
                 db.commit()
                 clan_total += count
