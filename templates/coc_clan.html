@@ -317,12 +317,11 @@
               <td>
                 {% if not s.in_db %}<span class="not-tracked">—</span>
                 {% else %}
-                  <span class="hr-count badge {% if s.legend_month == 0 %}badge-zero{% elif s.legend_month < 5 %}badge-low{% else %}badge-ok{% endif %}"
-                        data-normal="{{ s.legend_month }}" data-clean="{{ s.legend_clean_total }}">
+                  <span class="badge {% if s.legend_month == 0 %}badge-zero{% elif s.legend_month < 5 %}badge-low{% else %}badge-ok{% endif %}">
                     {{ s.legend_month }}
                   </span>
                   {% if leg_hr is not none %}
-                    <div class="hit-rate" data-normal="{{ leg_hr }}% 3★" data-clean="{{ leg_hr_c if leg_hr_c is not none else '—' }}% 3★" style="font-size:11px; color:#949ba4; margin-top:3px;">{{ leg_hr }}% 3★</div>
+                    <div style="font-size:11px; color:#949ba4; margin-top:3px;">{{ leg_hr }}% 3★</div>
                   {% endif %}
                 {% endif %}
               </td>

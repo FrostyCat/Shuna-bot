@@ -586,13 +586,6 @@ def coc_role_stats(guild_id):
                     Attack.stars == 3,
                     Attack.created_at >= month_start,
                 ).count()
-                legend_clean_total = db.query(Attack).filter(
-                    Attack.player_id == player.id,
-                    Attack.is_attack == True,
-                    Attack.created_at >= month_start,
-                    or_(Attack.stars >= 2,
-                        and_(Attack.stars == 1, Attack.destruction >= 50)),
-                ).count()
                 legend_loot = db.query(Attack).filter(
                     Attack.player_id == player.id,
                     Attack.is_attack == True,
@@ -623,7 +616,6 @@ def coc_role_stats(guild_id):
                     "war_month_3star": war_month_3star,
                     "war_clean_total": war_clean_total,
                     "legend_month_3star": legend_month_3star,
-                    "legend_clean_total": legend_clean_total,
                     "legend_loot": legend_loot,
                 })
 
@@ -769,13 +761,6 @@ def coc_clan(guild_id, gc_id):
                 Attack.stars == 3,
                 Attack.created_at >= month_start,
             ).count()
-            legend_clean_total = db.query(Attack).filter(
-                Attack.player_id == player.id,
-                Attack.is_attack == True,
-                Attack.created_at >= month_start,
-                or_(Attack.stars >= 2,
-                    and_(Attack.stars == 1, Attack.destruction >= 50)),
-            ).count()
             legend_loot = db.query(Attack).filter(
                 Attack.player_id == player.id,
                 Attack.is_attack == True,
@@ -808,7 +793,6 @@ def coc_clan(guild_id, gc_id):
             "war_month_3star": war_month_3star if player else 0,
             "war_clean_total": war_clean_total if player else 0,
             "legend_month_3star": legend_month_3star if player else 0,
-            "legend_clean_total": legend_clean_total if player else 0,
             "legend_loot": legend_loot if player else 0,
             "in_db": player is not None,
         })
