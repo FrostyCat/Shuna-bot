@@ -6,9 +6,13 @@ Usage: python backfill_cwl.py
 """
 
 import asyncio
+import os
 import sys
 import aiohttp
 from datetime import datetime, UTC
+
+from dotenv import load_dotenv
+load_dotenv()
 
 from db import Session, init_db
 from models import Clan, WarAttack
@@ -16,6 +20,7 @@ from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 CK_BASE = "https://api.clashk.ing"
+COC_BASE = "https://api.clashofclans.com/v1"
 
 
 def past_seasons(n):
@@ -29,6 +34,24 @@ def past_seasons(n):
             year -= 1
         seasons.append(f"{year}-{month:02d}")
     return seasons
+
+
+async def coc_get_war_league(session, clan_tag):
+    api_key = os.getenv("COC_API_KEY")
+    if not api_key:
+        return None
+    tag_enc = clan_tag.replace("#", "%23")
+    try:
+        async with session.get(
+            f"{COC_BASE}/clans/{tag_enc}",
+            headers={"Authorization": f"Bearer {api_key}"},
+        ) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                return data.get("warLeague", {}).get("name")
+    except Exception:
+        pass
+    return None
 
 
 async def ck_get(session, url):
@@ -73,26 +96,35 @@ async def backfill_clan(clan_tag, seasons):
     clan_total = 0
 
     async with aiohttp.ClientSession(timeout=timeout) as http:
-        # Build CWL league history from /clan/{tag}/basic
+        now = datetime.now(UTC)
+        current_season = f"{now.year}-{now.month:02d}"
+
+        # Build CWL league history from CK API
         cwl_history = {}
-        current_league = None
+        ck_current_league = None
         basic = await ck_get(http, f"{CK_BASE}/clan/{tag_enc}/basic")
         if basic:
-            current_league = basic.get("warLeague")
+            ck_current_league = basic.get("warLeague")
             for s, v in basic.get("changes", {}).get("clanWarLeague", {}).items():
                 if "league" in v:
                     cwl_history[s] = v["league"]
+
+        # Fetch actual current league from official CoC API (accurate for current season)
+        coc_current_league = await coc_get_war_league(http, clan_tag)
 
         for season in seasons:
             # Determine league for this season
             league = cwl_history.get(season)
             if not league:
                 last_tracked = max(cwl_history.keys()) if cwl_history else None
-                if last_tracked is None or season > last_tracked:
-                    # Season is more recent than CK history — use current league
-                    league = current_league
+                if season == current_season:
+                    # Current month: use CoC API (most accurate), fall back to CK
+                    league = coc_current_league or ck_current_league
+                elif last_tracked is None or season > last_tracked:
+                    # Recent months outside CK history: best guess is CK's warLeague
+                    league = ck_current_league
                 else:
-                    # Season is within history range but missing — clan didn't participate
+                    # Within history range but no entry: clan didn't participate
                     league = None
 
             data = await ck_get(http, f"{CK_BASE}/cwl/{tag_enc}/{season}")
