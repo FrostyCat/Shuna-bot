@@ -127,6 +127,7 @@ class GuildConfig(Base):
 
     guild_id = Column(String, primary_key=True)
     staff_role_id = Column(String, nullable=True)
+    clan_member_role_id = Column(String, nullable=True)
     ticket_category_id = Column(String, nullable=True)
     log_channel_id = Column(String, nullable=True)
     ticket_types = Column(String, nullable=True)

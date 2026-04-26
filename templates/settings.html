@@ -89,6 +89,20 @@
       </div>
 
       <div class="form-group">
+        <label>Clan Member Role</label>
+        <select name="clan_member_role_id">
+          <option value="">— None —</option>
+          {% for role in roles %}
+            <option value="{{ role.id }}"
+              {% if config and config.clan_member_role_id == role.id %}selected{% endif %}>
+              {{ role.name }}
+            </option>
+          {% endfor %}
+        </select>
+        <div class="hint">Quick link to clan member stats in CoC Manager.</div>
+      </div>
+
+      <div class="form-group">
         <label>Log Channel</label>
         <select name="log_channel_id">
           <option value="">— None —</option>

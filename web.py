@@ -476,6 +476,7 @@ def settings(guild_id):
             config = GuildConfig(guild_id=guild_id)
             db.add(config)
         config.staff_role_id = request.form.get("staff_role_id") or None
+        config.clan_member_role_id = request.form.get("clan_member_role_id") or None
         config.log_channel_id = request.form.get("log_channel_id") or None
         config.ticket_category_id = request.form.get("ticket_category_id") or None
         db.commit()
@@ -495,9 +496,12 @@ def coc_manager(guild_id):
         return err
     db = DBSession()
     clans = db.query(GuildClan).filter_by(guild_id=guild_id).all()
+    config = db.query(GuildConfig).filter_by(guild_id=guild_id).first()
+    clan_member_role_id = config.clan_member_role_id if config else None
     db.close()
     roles = guild_roles(guild_id)
-    return render_template("coc.html", user=session["user"], guild=guild, clans=clans, roles=roles)
+    return render_template("coc.html", user=session["user"], guild=guild, clans=clans,
+                           roles=roles, clan_member_role_id=clan_member_role_id)
 
 
 @app.route("/dashboard/<guild_id>/coc/role")

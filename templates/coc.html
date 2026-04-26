@@ -184,6 +184,13 @@
   <hr class="section-divider">
   <h2 style="font-size: 16px; margin-bottom: 16px;">View Stats by Role</h2>
 
+  {% if clan_member_role_id %}
+    <a href="/dashboard/{{ guild.id }}/coc/role?role_id={{ clan_member_role_id }}"
+       class="btn btn-primary" style="margin-bottom: 16px; display: inline-block;">
+      View stats for clan members
+    </a>
+  {% endif %}
+
   <form class="role-form" method="get" action="/dashboard/{{ guild.id }}/coc/role">
     <div class="form-group">
       <label>Server Role</label>
