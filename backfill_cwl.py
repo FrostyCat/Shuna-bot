@@ -73,18 +73,28 @@ async def backfill_clan(clan_tag, seasons):
     clan_total = 0
 
     async with aiohttp.ClientSession(timeout=timeout) as http:
+        # Build CWL league history from /clan/{tag}/basic
+        cwl_history = {}
+        current_league = None
+        basic = await ck_get(http, f"{CK_BASE}/clan/{tag_enc}/basic")
+        if basic:
+            current_league = basic.get("warLeague")
+            for s, v in basic.get("changes", {}).get("clanWarLeague", {}).items():
+                if "league" in v:
+                    cwl_history[s] = v["league"]
+
         for season in seasons:
+            # Determine league for this season
+            league = cwl_history.get(season)
+            if not league:
+                past = [s for s in cwl_history if s <= season]
+                league = cwl_history[max(past)] if past else current_league
+
             data = await ck_get(http, f"{CK_BASE}/cwl/{tag_enc}/{season}")
             if not data or "rounds" not in data:
                 print(f"  {season}: no data")
                 await asyncio.sleep(0.3)
                 continue
-
-            league = (
-                data.get("league")
-                or data.get("leagueName")
-                or data.get("warLeague", {}).get("name")
-            )
 
             db = Session()
             count = 0
