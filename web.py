@@ -7,7 +7,7 @@ import requests
 from dotenv import load_dotenv
 from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, func
 from db import Session as DBSession
 import re
 from models import Transcript, TicketPanel, TicketType, GuildConfig, GuildClan, Player, Attack, WarAttack, Clan, DiscordUser
@@ -658,8 +658,23 @@ def coc_family_stats(guild_id):
     role_members = [m for m in all_members if role_id in m["roles"]]
 
     now = datetime.now(UTC)
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    three_months_ago = now - timedelta(days=90)
+
+    # Last 3 calendar months including current
+    cwl_months = []
+    for i in range(3):
+        m = now.month - i
+        y = now.year
+        while m <= 0:
+            m += 12
+            y -= 1
+        cwl_months.append((y, m))
+
+    month_labels = [datetime(y, m, 1).strftime("%b %Y") for y, m in cwl_months]
+    oldest = datetime(cwl_months[-1][0], cwl_months[-1][1], 1, tzinfo=UTC)
+    current_month_start = datetime(cwl_months[0][0], cwl_months[0][1], 1, tzinfo=UTC)
+
+    yr_expr = func.extract('year', WarAttack.created_at)
+    mo_expr = func.extract('month', WarAttack.created_at)
 
     stats = []
     for member in role_members:
@@ -674,65 +689,94 @@ def coc_family_stats(guild_id):
                 "discord_id": discord_id,
                 "discord_username": discord_username,
                 "tag": None, "name": None, "in_db": False,
-                "war_month": 0, "cwl_month": 0,
-                "war_3mo": 0, "cwl_3mo": 0,
-                "cwl_league": None, "legend_month": 0,
-                "war_month_3star": 0, "war_clean_total": 0,
-                "legend_month_3star": 0, "war_loot": 0,
+                "cwl_league": None,
+                "legend_total": 0, "legend_3star": 0,
+                "months": [{"stars_3": 0, "stars_2": 0, "stars_1": 0, "stars_0": 0,
+                            "total": 0, "league": None, "war_3star": 0, "war_clean": 0}
+                           for _ in cwl_months],
             })
         else:
             for player in players:
-                war_month = db.query(WarAttack).filter(
+                cwl_rows = db.query(
+                    yr_expr.label('yr'),
+                    mo_expr.label('mo'),
+                    WarAttack.stars,
+                    func.count().label('cnt'),
+                ).filter(
                     WarAttack.attacker_tag == player.tag,
-                    WarAttack.war_type == "war",
-                    WarAttack.created_at >= month_start,
-                ).count()
-                cwl_month = db.query(WarAttack).filter(
+                    WarAttack.war_type == 'cwl',
+                    WarAttack.created_at >= oldest,
+                ).group_by(yr_expr, mo_expr, WarAttack.stars).all()
+
+                league_rows = db.query(
+                    yr_expr.label('yr'),
+                    mo_expr.label('mo'),
+                    func.max(WarAttack.league).label('league'),
+                ).filter(
                     WarAttack.attacker_tag == player.tag,
-                    WarAttack.war_type == "cwl",
-                    WarAttack.created_at >= month_start,
-                ).count()
-                war_3mo = db.query(WarAttack).filter(
+                    WarAttack.war_type == 'cwl',
+                    WarAttack.created_at >= oldest,
+                    WarAttack.league.isnot(None),
+                ).group_by(yr_expr, mo_expr).all()
+
+                war_3star_rows = db.query(
+                    yr_expr.label('yr'),
+                    mo_expr.label('mo'),
+                    func.count().label('cnt'),
+                ).filter(
                     WarAttack.attacker_tag == player.tag,
-                    WarAttack.war_type == "war",
-                    WarAttack.created_at >= three_months_ago,
-                ).count()
-                cwl_3mo = db.query(WarAttack).filter(
-                    WarAttack.attacker_tag == player.tag,
-                    WarAttack.war_type == "cwl",
-                    WarAttack.created_at >= three_months_ago,
-                ).count()
-                legend_month = db.query(Attack).filter(
-                    Attack.player_id == player.id,
-                    Attack.is_attack == True,
-                    Attack.created_at >= month_start,
-                ).count()
-                war_month_3star = db.query(WarAttack).filter(
-                    WarAttack.attacker_tag == player.tag,
-                    WarAttack.war_type == "war",
+                    WarAttack.war_type == 'war',
                     WarAttack.stars == 3,
-                    WarAttack.created_at >= month_start,
-                ).count()
-                war_clean_total = db.query(WarAttack).filter(
+                    WarAttack.created_at >= oldest,
+                ).group_by(yr_expr, mo_expr).all()
+
+                war_clean_rows = db.query(
+                    yr_expr.label('yr'),
+                    mo_expr.label('mo'),
+                    func.count().label('cnt'),
+                ).filter(
                     WarAttack.attacker_tag == player.tag,
-                    WarAttack.war_type == "war",
-                    WarAttack.created_at >= month_start,
+                    WarAttack.war_type == 'war',
+                    WarAttack.created_at >= oldest,
                     or_(WarAttack.stars >= 2,
                         and_(WarAttack.stars == 1, WarAttack.destruction >= 50)),
+                ).group_by(yr_expr, mo_expr).all()
+
+                legend_total = db.query(Attack).filter(
+                    Attack.player_id == player.id,
+                    Attack.is_attack == True,
+                    Attack.created_at >= current_month_start,
                 ).count()
-                legend_month_3star = db.query(Attack).filter(
+                legend_3star = db.query(Attack).filter(
                     Attack.player_id == player.id,
                     Attack.is_attack == True,
                     Attack.stars == 3,
-                    Attack.created_at >= month_start,
+                    Attack.created_at >= current_month_start,
                 ).count()
-                war_loot = db.query(WarAttack).filter(
-                    WarAttack.attacker_tag == player.tag,
-                    WarAttack.war_type == "war",
-                    WarAttack.stars == 1,
-                    WarAttack.destruction < 50,
-                    WarAttack.created_at >= month_start,
-                ).count()
+
+                month_map = {}
+                for row in cwl_rows:
+                    key = (int(row.yr), int(row.mo))
+                    month_map.setdefault(key, {0: 0, 1: 0, 2: 0, 3: 0})[row.stars] = row.cnt
+
+                league_by_month = {(int(r.yr), int(r.mo)): r.league for r in league_rows}
+                war_3star_map = {(int(r.yr), int(r.mo)): r.cnt for r in war_3star_rows}
+                war_clean_map = {(int(r.yr), int(r.mo)): r.cnt for r in war_clean_rows}
+
+                months = []
+                for y, m in cwl_months:
+                    d = month_map.get((y, m), {})
+                    months.append({
+                        "stars_3": d.get(3, 0),
+                        "stars_2": d.get(2, 0),
+                        "stars_1": d.get(1, 0),
+                        "stars_0": d.get(0, 0),
+                        "total": sum(d.values()),
+                        "league": league_by_month.get((y, m)),
+                        "war_3star": war_3star_map.get((y, m), 0),
+                        "war_clean": war_clean_map.get((y, m), 0),
+                    })
+
                 cwl_league = (
                     db.query(WarAttack.league)
                     .filter(
@@ -750,13 +794,10 @@ def coc_family_stats(guild_id):
                     "tag": player.tag,
                     "name": player.name,
                     "in_db": True,
-                    "war_month": war_month, "cwl_month": cwl_month,
-                    "war_3mo": war_3mo, "cwl_3mo": cwl_3mo,
-                    "cwl_league": cwl_league, "legend_month": legend_month,
-                    "war_month_3star": war_month_3star,
-                    "war_clean_total": war_clean_total,
-                    "legend_month_3star": legend_month_3star,
-                    "war_loot": war_loot,
+                    "cwl_league": cwl_league,
+                    "legend_total": legend_total,
+                    "legend_3star": legend_3star,
+                    "months": months,
                 })
 
     db.close()
@@ -772,7 +813,7 @@ def coc_family_stats(guild_id):
     )
 
     return render_template("coc_family.html", user=session["user"], guild=guild,
-                           role=role, leagues=sorted_leagues)
+                           role=role, leagues=sorted_leagues, month_labels=month_labels)
 
 
 @app.route("/dashboard/<guild_id>/coc/search")
