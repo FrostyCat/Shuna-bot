@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% block title %}Family Clan Summary — {{ guild.name }}{% endblock %}
+
+{% block head %}
+<style>
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #949ba4;
+    font-size: 13px;
+    margin-bottom: 24px;
+    transition: color 0.15s;
+  }
+  .back-link:hover { color: #dbdee1; }
+
+  .league-section { margin-bottom: 40px; }
+
+  .league-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .league-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #f2f3f5;
+  }
+
+  .league-count {
+    font-size: 12px;
+    color: #6d6f78;
+    background: #2b2d31;
+    border-radius: 10px;
+    padding: 2px 8px;
+  }
+
+  .stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    background: #2b2d31;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .stats-table th {
+    background: #1e1f22;
+    color: #b5bac1;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 12px 16px;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .stats-table td {
+    padding: 11px 16px;
+    color: #dbdee1;
+    border-top: 1px solid #3f4046;
+    vertical-align: middle;
+  }
+
+  .stats-table tr:hover td { background: #32353b; }
+
+  .discord-name { font-weight: 600; color: #f2f3f5; font-size: 14px; }
+  .player-name  { font-size: 14px; color: #dbdee1; }
+  .player-tag   { font-size: 12px; color: #949ba4; margin-top: 2px; }
+  .no-account   { font-size: 13px; color: #6d6f78; font-style: italic; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .badge-zero { background: #3a1a1a; color: #6d6f78; }
+  .badge-low  { background: #3a2a1a; color: #faa61a; }
+  .badge-ok   { background: #1a3a2a; color: #3ba55c; }
+
+  .th-hint {
+    display: block;
+    font-size: 10px;
+    font-weight: 400;
+    color: #6d6f78;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-top: 2px;
+  }
+
+  .empty { color: #6d6f78; font-size: 14px; margin-top: 16px; }
+
+  .filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <a class="back-link" href="/dashboard/{{ guild.id }}/coc">← Back to CoC Manager</a>
+
+  <h1>Family Clan Summary</h1>
+  <p style="color: #949ba4; margin-bottom: 20px;">{{ guild.name }}{% if role %} · {{ role.name }}{% endif %}</p>
+
+  {% if leagues %}
+    <div class="filter-bar">
+      <button id="lootFilterBtn" onclick="toggleLootFilter()" style="
+        background:#3a1a1a; border:1px solid #6d2020; color:#e07070;
+        border-radius:6px; padding:7px 14px; font-size:13px; cursor:pointer;
+        font-family:inherit; transition:all 0.15s;">
+        Show loot hitters only
+      </button>
+      <button id="hrModeBtn" onclick="toggleHrMode()" style="
+        background:#1a2a3a; border:1px solid #2a4a6a; color:#70a0e0;
+        border-radius:6px; padding:7px 14px; font-size:13px; cursor:pointer;
+        font-family:inherit; transition:all 0.15s;">
+        Exclude loot &amp; 0★ from hit rate
+      </button>
+    </div>
+
+    {% for league_name, members in leagues %}
+      <div class="league-section">
+        <div class="league-header">
+          <span class="league-title">{{ league_name }}</span>
+          <span class="league-count">{{ members | length }} member{{ 's' if members | length != 1 }}</span>
+        </div>
+        <div style="overflow-x: auto;">
+          <table class="stats-table">
+            <thead>
+              <tr>
+                <th>Discord Member</th>
+                <th>CoC Account</th>
+                <th>CWL Hits <span class="th-hint">this month</span></th>
+                <th>CWL Hits <span class="th-hint">last 90 days</span></th>
+                <th>War Hits <span class="th-hint">this month · hit rate</span></th>
+                <th>War Hits <span class="th-hint">last 90 days</span></th>
+                <th>Legend Hits <span class="th-hint">this month · hit rate</span></th>
+                <th>Loot Hits <span class="th-hint">this month</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in members %}
+                {% set war_hr   = (s.war_month_3star / s.war_month * 100)       | round | int if s.war_month > 0       else none %}
+                {% set war_hr_c = (s.war_month_3star / s.war_clean_total * 100) | round | int if s.war_clean_total > 0 else none %}
+                {% set leg_hr   = (s.legend_month_3star / s.legend_month * 100) | round | int if s.legend_month > 0   else none %}
+                <tr data-loot="{{ s.war_loot }}">
+                  <td><span class="discord-name">{{ s.discord_username }}</span></td>
+                  <td>
+                    {% if s.tag %}
+                      <div class="player-name">{{ s.name }}</div>
+                      <div class="player-tag">{{ s.tag }}</div>
+                    {% else %}
+                      <span class="no-account">No account linked</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if not s.in_db %}<span style="color:#6d6f78;">—</span>
+                    {% else %}
+                      <span class="badge {% if s.cwl_month == 0 %}badge-zero{% elif s.cwl_month < 5 %}badge-low{% else %}badge-ok{% endif %}">
+                        {{ s.cwl_month }}
+                      </span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if not s.in_db %}<span style="color:#6d6f78;">—</span>
+                    {% else %}
+                      <span class="badge {% if s.cwl_3mo == 0 %}badge-zero{% elif s.cwl_3mo < 14 %}badge-low{% else %}badge-ok{% endif %}">
+                        {{ s.cwl_3mo }}
+                      </span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if not s.in_db %}<span style="color:#6d6f78;">—</span>
+                    {% else %}
+                      <span class="hr-count badge {% if s.war_month == 0 %}badge-zero{% elif s.war_month < 2 %}badge-low{% else %}badge-ok{% endif %}"
+                            data-normal="{{ s.war_month }}" data-clean="{{ s.war_clean_total }}">
+                        {{ s.war_month }}
+                      </span>
+                      {% if war_hr is not none %}
+                        <div class="hit-rate" data-normal="{{ war_hr }}% 3★" data-clean="{{ war_hr_c if war_hr_c is not none else '—' }}% 3★" style="font-size:11px; color:#949ba4; margin-top:3px;">{{ war_hr }}% 3★</div>
+                      {% endif %}
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if not s.in_db %}<span style="color:#6d6f78;">—</span>
+                    {% else %}
+                      <span class="badge {% if s.war_3mo == 0 %}badge-zero{% elif s.war_3mo < 4 %}badge-low{% else %}badge-ok{% endif %}">
+                        {{ s.war_3mo }}
+                      </span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if not s.in_db %}<span style="color:#6d6f78;">—</span>
+                    {% else %}
+                      <span class="badge {% if s.legend_month == 0 %}badge-zero{% elif s.legend_month < 5 %}badge-low{% else %}badge-ok{% endif %}">
+                        {{ s.legend_month }}
+                      </span>
+                      {% if leg_hr is not none %}
+                        <div class="hit-rate" data-normal="{{ leg_hr }}% 3★" data-clean="{{ leg_hr }}% 3★" style="font-size:11px; color:#949ba4; margin-top:3px;">{{ leg_hr }}% 3★</div>
+                      {% endif %}
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if not s.in_db %}<span style="color:#6d6f78;">—</span>
+                    {% elif s.war_loot == 0 %}<span style="color:#6d6f78;">0</span>
+                    {% else %}
+                      <span class="badge badge-low">{{ s.war_loot }}</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <p class="empty">No members found. Make sure the Clan Member Role is set in Settings.</p>
+  {% endif %}
+</div>
+
+<script>
+  let lootFilterActive = false;
+  function toggleLootFilter() {
+    lootFilterActive = !lootFilterActive;
+    const btn = document.getElementById("lootFilterBtn");
+    document.querySelectorAll("tbody tr").forEach(row => {
+      row.style.display = (lootFilterActive && row.dataset.loot === "0") ? "none" : "";
+    });
+    btn.style.background = lootFilterActive ? "#6d2020" : "#3a1a1a";
+    btn.textContent = lootFilterActive ? "Show all" : "Show loot hitters only";
+  }
+
+  let cleanHrActive = false;
+  function toggleHrMode() {
+    cleanHrActive = !cleanHrActive;
+    const btn = document.getElementById("hrModeBtn");
+    document.querySelectorAll(".hit-rate").forEach(el => {
+      el.textContent = cleanHrActive ? el.dataset.clean : el.dataset.normal;
+    });
+    document.querySelectorAll(".hr-count").forEach(el => {
+      el.textContent = cleanHrActive ? el.dataset.clean : el.dataset.normal;
+    });
+    btn.style.background = cleanHrActive ? "#2a4a6a" : "#1a2a3a";
+    btn.textContent = cleanHrActive ? "Show all hits in rate" : "Exclude loot & 0★ from hit rate";
+  }
+</script>
+{% endblock %}

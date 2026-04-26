@@ -183,10 +183,16 @@
 
   {% if clan_member_role_id %}
   <hr class="section-divider">
-    <a href="/dashboard/{{ guild.id }}/coc/role?role_id={{ clan_member_role_id }}"
-       class="btn btn-primary" style="margin-bottom: 24px; display: inline-block;">
-      View stats for clan members
-    </a>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 24px;">
+      <a href="/dashboard/{{ guild.id }}/coc/role?role_id={{ clan_member_role_id }}"
+         class="btn btn-primary">
+        View stats for clan members
+      </a>
+      <a href="/dashboard/{{ guild.id }}/coc/family"
+         class="btn btn-secondary">
+        Summary for family clan
+      </a>
+    </div>
   {% endif %}
 
   <hr class="section-divider">

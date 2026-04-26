@@ -27,6 +27,15 @@ BOT_TOKEN = os.getenv("DISCORD_TOKEN")
 ADMINISTRATOR = 0x8
 
 COC_API_KEY = os.getenv("COC_API_KEY")
+
+LEAGUE_ORDER = {
+    "Bronze League III": 1, "Bronze League II": 2, "Bronze League I": 3,
+    "Silver League III": 4, "Silver League II": 5, "Silver League I": 6,
+    "Gold League III": 7, "Gold League II": 8, "Gold League I": 9,
+    "Crystal League III": 10, "Crystal League II": 11, "Crystal League I": 12,
+    "Master League III": 13, "Master League II": 14, "Master League I": 15,
+    "Champion League III": 16, "Champion League II": 17, "Champion League I": 18,
+}
 COC_BASE_URL = "https://api.clashofclans.com/v1"
 
 
@@ -627,6 +636,143 @@ def coc_role_stats(guild_id):
     db.close()
     return render_template("coc_role.html", user=session["user"], guild=guild,
                            role=role, stats=stats, roles=roles)
+
+
+@app.route("/dashboard/<guild_id>/coc/family")
+def coc_family_stats(guild_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+
+    db = DBSession()
+    config = db.query(GuildConfig).filter_by(guild_id=guild_id).first()
+    role_id = config.clan_member_role_id if config else None
+    if not role_id:
+        db.close()
+        return redirect(url_for("coc_manager", guild_id=guild_id))
+
+    roles = guild_roles(guild_id)
+    role = next((r for r in roles if r["id"] == role_id), None)
+
+    all_members = guild_members(guild_id)
+    role_members = [m for m in all_members if role_id in m["roles"]]
+
+    now = datetime.now(UTC)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    three_months_ago = now - timedelta(days=90)
+
+    stats = []
+    for member in role_members:
+        discord_id = member["id"]
+        discord_username = member["username"]
+
+        db_user = db.query(DiscordUser).filter_by(discord_id=discord_id).first()
+        players = db_user.players if db_user else []
+
+        if not players:
+            stats.append({
+                "discord_id": discord_id,
+                "discord_username": discord_username,
+                "tag": None, "name": None, "in_db": False,
+                "war_month": 0, "cwl_month": 0,
+                "war_3mo": 0, "cwl_3mo": 0,
+                "cwl_league": None, "legend_month": 0,
+                "war_month_3star": 0, "war_clean_total": 0,
+                "legend_month_3star": 0, "war_loot": 0,
+            })
+        else:
+            for player in players:
+                war_month = db.query(WarAttack).filter(
+                    WarAttack.attacker_tag == player.tag,
+                    WarAttack.war_type == "war",
+                    WarAttack.created_at >= month_start,
+                ).count()
+                cwl_month = db.query(WarAttack).filter(
+                    WarAttack.attacker_tag == player.tag,
+                    WarAttack.war_type == "cwl",
+                    WarAttack.created_at >= month_start,
+                ).count()
+                war_3mo = db.query(WarAttack).filter(
+                    WarAttack.attacker_tag == player.tag,
+                    WarAttack.war_type == "war",
+                    WarAttack.created_at >= three_months_ago,
+                ).count()
+                cwl_3mo = db.query(WarAttack).filter(
+                    WarAttack.attacker_tag == player.tag,
+                    WarAttack.war_type == "cwl",
+                    WarAttack.created_at >= three_months_ago,
+                ).count()
+                legend_month = db.query(Attack).filter(
+                    Attack.player_id == player.id,
+                    Attack.is_attack == True,
+                    Attack.created_at >= month_start,
+                ).count()
+                war_month_3star = db.query(WarAttack).filter(
+                    WarAttack.attacker_tag == player.tag,
+                    WarAttack.war_type == "war",
+                    WarAttack.stars == 3,
+                    WarAttack.created_at >= month_start,
+                ).count()
+                war_clean_total = db.query(WarAttack).filter(
+                    WarAttack.attacker_tag == player.tag,
+                    WarAttack.war_type == "war",
+                    WarAttack.created_at >= month_start,
+                    or_(WarAttack.stars >= 2,
+                        and_(WarAttack.stars == 1, WarAttack.destruction >= 50)),
+                ).count()
+                legend_month_3star = db.query(Attack).filter(
+                    Attack.player_id == player.id,
+                    Attack.is_attack == True,
+                    Attack.stars == 3,
+                    Attack.created_at >= month_start,
+                ).count()
+                war_loot = db.query(WarAttack).filter(
+                    WarAttack.attacker_tag == player.tag,
+                    WarAttack.war_type == "war",
+                    WarAttack.stars == 1,
+                    WarAttack.destruction < 50,
+                    WarAttack.created_at >= month_start,
+                ).count()
+                cwl_league = (
+                    db.query(WarAttack.league)
+                    .filter(
+                        WarAttack.attacker_tag == player.tag,
+                        WarAttack.war_type == "cwl",
+                        WarAttack.league.isnot(None),
+                    )
+                    .order_by(WarAttack.created_at.desc())
+                    .limit(1)
+                    .scalar()
+                )
+                stats.append({
+                    "discord_id": discord_id,
+                    "discord_username": discord_username,
+                    "tag": player.tag,
+                    "name": player.name,
+                    "in_db": True,
+                    "war_month": war_month, "cwl_month": cwl_month,
+                    "war_3mo": war_3mo, "cwl_3mo": cwl_3mo,
+                    "cwl_league": cwl_league, "legend_month": legend_month,
+                    "war_month_3star": war_month_3star,
+                    "war_clean_total": war_clean_total,
+                    "legend_month_3star": legend_month_3star,
+                    "war_loot": war_loot,
+                })
+
+    db.close()
+
+    leagues = {}
+    for s in stats:
+        key = s["cwl_league"] or "Unknown"
+        leagues.setdefault(key, []).append(s)
+
+    sorted_leagues = sorted(
+        leagues.items(),
+        key=lambda x: -LEAGUE_ORDER.get(x[0], 0)
+    )
+
+    return render_template("coc_family.html", user=session["user"], guild=guild,
+                           role=role, leagues=sorted_leagues)
 
 
 @app.route("/dashboard/<guild_id>/coc/search")
