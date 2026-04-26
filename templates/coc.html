@@ -181,28 +181,13 @@
     <div id="selectedPreview" style="margin-top: 10px; font-size: 13px; color: #3ba55c; display: none;"></div>
   </form>
 
-  <hr class="section-divider">
-  <h2 style="font-size: 16px; margin-bottom: 16px;">View Stats by Role</h2>
-
   {% if clan_member_role_id %}
+  <hr class="section-divider">
     <a href="/dashboard/{{ guild.id }}/coc/role?role_id={{ clan_member_role_id }}"
-       class="btn btn-primary" style="margin-bottom: 16px; display: inline-block;">
+       class="btn btn-primary" style="margin-bottom: 24px; display: inline-block;">
       View stats for clan members
     </a>
   {% endif %}
-
-  <form class="role-form" method="get" action="/dashboard/{{ guild.id }}/coc/role">
-    <div class="form-group">
-      <label>Server Role</label>
-      <select name="role_id" required>
-        <option value="">— Select a role —</option>
-        {% for role in roles %}
-          <option value="{{ role.id }}">{{ role.name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <button type="submit" class="btn btn-primary" style="white-space: nowrap;">View Stats</button>
-  </form>
 
   <hr class="section-divider">
   <h2 style="font-size: 16px; margin-bottom: 16px;">Managed Clans</h2>

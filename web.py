@@ -499,9 +499,8 @@ def coc_manager(guild_id):
     config = db.query(GuildConfig).filter_by(guild_id=guild_id).first()
     clan_member_role_id = config.clan_member_role_id if config else None
     db.close()
-    roles = guild_roles(guild_id)
     return render_template("coc.html", user=session["user"], guild=guild, clans=clans,
-                           roles=roles, clan_member_role_id=clan_member_role_id)
+                           clan_member_role_id=clan_member_role_id)
 
 
 @app.route("/dashboard/<guild_id>/coc/role")
@@ -543,6 +542,8 @@ def coc_role_stats(guild_id):
                 "war_month": 0, "cwl_month": 0,
                 "war_3mo": 0,   "cwl_3mo": 0,
                 "cwl_league": None, "legend_month": 0,
+                "war_month_3star": 0, "war_clean_total": 0,
+                "legend_month_3star": 0, "war_loot": 0,
             })
         else:
             for player in players:
