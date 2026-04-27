@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import time
 import secrets
 import threading
 from datetime import datetime, timedelta, UTC
@@ -50,9 +51,19 @@ def coc_get(path: str):
     return r.json() if r.ok else None
 
 
+_bot_guild_cache: tuple[set, float] = (set(), 0.0)
+
 def bot_guild_ids() -> set:
+    global _bot_guild_cache
+    cached_ids, ts = _bot_guild_cache
+    if time.time() - ts < 60 and cached_ids:
+        return cached_ids
     r = requests.get(f"{DISCORD_API}/users/@me/guilds", headers={"Authorization": f"Bot {BOT_TOKEN}"})
-    return {g["id"] for g in r.json()} if r.ok else set()
+    if r.ok:
+        ids = {g["id"] for g in r.json()}
+        _bot_guild_cache = (ids, time.time())
+        return ids
+    return cached_ids or set()
 
 
 def sanitize_type(name: str) -> str:
