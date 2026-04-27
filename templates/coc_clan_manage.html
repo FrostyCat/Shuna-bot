@@ -186,6 +186,22 @@
 
   .empty-note { font-size: 13px; color: #4a2e4a; padding: 16px 0; }
 
+  .inline-select {
+    background: #0d0910;
+    border: 1px solid rgba(244,114,182,0.18);
+    border-radius: 6px;
+    color: #f0e6f0;
+    font-size: 13px;
+    padding: 5px 10px;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+    max-width: 200px;
+  }
+  .inline-select:focus { border-color: #f472b6; }
+
+  .role-chip.elder { background: rgba(88,101,242,0.12); color: #8fa4f8; border-color: rgba(88,101,242,0.25); }
+
   /* ── Unassigned section ── */
   .unassigned-row {
     background: rgba(244,114,182,0.03);
@@ -232,6 +248,10 @@
     </div>
   </div>
 
+  {# Map CoC API role keys to in-game display names #}
+  {% set ROLE_NAMES = {"leader": "Leader", "coLeader": "Co-Leader", "admin": "Elder", "member": "Member"} %}
+  {% set ROLE_CSS   = {"leader": "leader", "coLeader": "coLeader", "admin": "elder", "member": ""} %}
+
   <!-- Roster -->
   <div class="section-header">
     <div class="section-title">Assigned Roster ({{ roster | length }})</div>
@@ -241,11 +261,7 @@
     <div class="member-list">
       {% for m in roster %}
         <div class="member-row {% if not m.in_clan %}left{% endif %}">
-          {% if m.th %}
-            <div class="th-badge">TH{{ m.th }}</div>
-          {% else %}
-            <div class="th-badge">?</div>
-          {% endif %}
+          <div class="th-badge">{% if m.th %}TH{{ m.th }}{% else %}?{% endif %}</div>
 
           <div class="member-info">
             <div class="member-name">{{ m.name }}</div>
@@ -257,13 +273,33 @@
             {% endif %}
           </div>
 
-          {% if m.role and m.in_clan %}
-            <span class="role-chip {{ m.role }}">{{ m.role | replace('coLeader','Co-Leader') }}</span>
+          {% if m.in_clan and m.role in ROLE_NAMES %}
+            <span class="role-chip {{ ROLE_CSS[m.role] }}">{{ ROLE_NAMES[m.role] }}</span>
           {% endif %}
 
           <span class="status-chip {% if m.in_clan %}status-in{% else %}status-left{% endif %}">
             {% if m.in_clan %}✓ In clan{% else %}⚠ Left clan{% endif %}
           </span>
+
+          <!-- Discord link/unlink inline -->
+          {% if m.discord_username %}
+            <form method="post" action="/dashboard/{{ guild.id }}/coc/{{ gc.id }}/unlink" style="margin:0;">
+              <input type="hidden" name="player_tag" value="{{ m.tag }}">
+              <button type="submit" class="btn btn-secondary btn-sm" title="Unlink Discord">✕ Unlink</button>
+            </form>
+          {% else %}
+            <form method="post" action="/dashboard/{{ guild.id }}/coc/{{ gc.id }}/link"
+                  style="margin:0;display:flex;gap:6px;align-items:center;">
+              <input type="hidden" name="player_tag" value="{{ m.tag }}">
+              <select name="discord_id" class="inline-select">
+                <option value="">Link Discord…</option>
+                {% for gm in all_guild_members %}
+                  <option value="{{ gm.id }}">{{ gm.username }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="btn btn-primary btn-sm">Link</button>
+            </form>
+          {% endif %}
 
           <form method="post"
                 action="/dashboard/{{ guild.id }}/coc/{{ gc.id }}/manage/remove"
@@ -319,7 +355,9 @@
               <div class="member-discord">@ {{ m.discord_username }}</div>
             {% endif %}
           </div>
-          <span class="role-chip {{ m.role }}">{{ m.role | replace('coLeader','Co-Leader') }}</span>
+          {% if m.role in ROLE_NAMES %}
+            <span class="role-chip {{ ROLE_CSS[m.role] }}">{{ ROLE_NAMES[m.role] }}</span>
+          {% endif %}
           <form method="post"
                 action="/dashboard/{{ guild.id }}/coc/{{ gc.id }}/manage/add"
                 style="margin:0;">

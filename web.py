@@ -1070,6 +1070,11 @@ def coc_clan_manage(guild_id, gc_id):
                 "th": m.get("townHallLevel", 0),
             }
 
+    # Fetch guild members once
+    all_guild_members = guild_members(guild_id)
+    member_id_to_name = {m["id"]: m["username"] for m in all_guild_members}
+    guild_discord_ids = [m["id"] for m in all_guild_members]
+
     # Assigned roster from DB
     assigned = db.query(ClanMember).filter_by(guild_clan_id=gc_id).all()
     assigned_tags = {cm.player_tag for cm in assigned}
@@ -1077,17 +1082,18 @@ def coc_clan_manage(guild_id, gc_id):
     roster = []
     for cm in assigned:
         player = db.query(Player).filter_by(tag=cm.player_tag).first()
+        linked_discord_id = None
         discord_username = None
         if player and player.discord_user:
-            members_list = guild_members(guild_id)
-            member_map = {m["id"]: m["username"] for m in members_list}
-            discord_username = member_map.get(player.discord_user.discord_id)
+            linked_discord_id = player.discord_user.discord_id
+            discord_username = member_id_to_name.get(linked_discord_id, linked_discord_id)
 
         in_clan = cm.player_tag in api_member_tags
         api_info = api_members_map.get(cm.player_tag, {})
         roster.append({
             "tag": cm.player_tag,
             "name": player.name if player else cm.player_tag,
+            "discord_id": linked_discord_id,
             "discord_username": discord_username,
             "in_clan": in_clan,
             "role": api_info.get("role", "—"),
@@ -1099,24 +1105,22 @@ def coc_clan_manage(guild_id, gc_id):
     for tag, info in api_members_map.items():
         if tag not in assigned_tags:
             player = db.query(Player).filter_by(tag=tag).first()
+            linked_discord_id = None
             discord_username = None
             if player and player.discord_user:
-                members_list = guild_members(guild_id)
-                member_map = {m["id"]: m["username"] for m in members_list}
-                discord_username = member_map.get(player.discord_user.discord_id)
+                linked_discord_id = player.discord_user.discord_id
+                discord_username = member_id_to_name.get(linked_discord_id, linked_discord_id)
             unassigned_api.append({
                 "tag": tag,
                 "name": info["name"],
                 "role": info["role"],
                 "th": info["th"],
+                "discord_id": linked_discord_id,
                 "discord_username": discord_username,
             })
 
     # Guild Discord members with linked CoC accounts (for the add dropdown)
-    all_guild_members = guild_members(guild_id)
-    discord_ids = [m["id"] for m in all_guild_members]
-    discord_users = db.query(DiscordUser).filter(DiscordUser.discord_id.in_(discord_ids)).all()
-    member_id_to_name = {m["id"]: m["username"] for m in all_guild_members}
+    discord_users = db.query(DiscordUser).filter(DiscordUser.discord_id.in_(guild_discord_ids)).all()
 
     addable = []
     for du in discord_users:
@@ -1131,7 +1135,8 @@ def coc_clan_manage(guild_id, gc_id):
     db.close()
     return render_template("coc_clan_manage.html", user=session["user"], guild=guild, gc=gc,
                            roster=roster, unassigned_api=unassigned_api, addable=addable,
-                           clan_capacity=clan_capacity, clan_member_count=clan_member_count)
+                           clan_capacity=clan_capacity, clan_member_count=clan_member_count,
+                           all_guild_members=all_guild_members)
 
 
 @app.route("/dashboard/<guild_id>/coc/<int:gc_id>/manage/add", methods=["POST"])
