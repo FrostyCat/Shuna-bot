@@ -835,6 +835,17 @@ def coc_family_stats(guild_id):
                            role=role, leagues=sorted_leagues, month_labels=month_labels)
 
 
+@app.route("/dashboard/<guild_id>/coc/clans")
+def coc_clans(guild_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+    db = DBSession()
+    clans = db.query(GuildClan).filter_by(guild_id=guild_id).all()
+    db.close()
+    return render_template("coc_clans.html", user=session["user"], guild=guild, clans=clans)
+
+
 @app.route("/dashboard/<guild_id>/coc/search")
 def coc_clan_search(guild_id):
     guild, err = require_guild(guild_id)
@@ -864,14 +875,14 @@ def coc_clan_add(guild_id):
     data = coc_get(f"/clans/{tag.replace('#', '%23')}")
     if not data or "tag" not in data:
         flash("Clan not found. Check the tag.", "danger")
-        return redirect(url_for("coc_manager", guild_id=guild_id))
+        return redirect(url_for("coc_clans", guild_id=guild_id))
 
     clan_name = data.get("name", "")
     db = DBSession()
     if db.query(GuildClan).filter_by(guild_id=guild_id, clan_tag=tag).first():
         flash("This clan is already added.", "danger")
         db.close()
-        return redirect(url_for("coc_manager", guild_id=guild_id))
+        return redirect(url_for("coc_clans", guild_id=guild_id))
 
     db.add(GuildClan(guild_id=guild_id, clan_tag=tag, clan_name=clan_name))
     if not db.query(Clan).filter_by(tag=tag).first():
@@ -885,7 +896,7 @@ def coc_clan_add(guild_id):
     threading.Thread(target=_backfill, daemon=True).start()
 
     flash(f"Clan {clan_name} added! Fetching last 3 months of CWL data in background.", "success")
-    return redirect(url_for("coc_manager", guild_id=guild_id))
+    return redirect(url_for("coc_clans", guild_id=guild_id))
 
 
 @app.route("/dashboard/<guild_id>/coc/<int:gc_id>")
@@ -1085,7 +1096,7 @@ def coc_clan_remove(guild_id, gc_id):
         db.commit()
         flash("Clan removed.", "success")
     db.close()
-    return redirect(url_for("coc_manager", guild_id=guild_id))
+    return redirect(url_for("coc_clans", guild_id=guild_id))
 
 
 @app.route("/logout")

@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% block title %}Managed Clans — {{ guild.name }}{% endblock %}
+
+{% block head %}
+<style>
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #b07aaa;
+    font-size: 13px;
+    margin-bottom: 24px;
+    transition: color 0.15s;
+  }
+  .back-link:hover { color: #f0e6f0; }
+
+  .alert { padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 20px; }
+  .alert-success { background: rgba(59,165,92,0.12); color: #3ba55c; border: 1px solid rgba(59,165,92,0.3); }
+  .alert-danger  { background: rgba(225,29,72,0.12); color: #f87171; border: 1px solid rgba(225,29,72,0.25); }
+
+  .page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+  }
+
+  /* ── Add form ── */
+  .add-form {
+    background: #1e1220;
+    border: 1px solid rgba(244,114,182,0.13);
+    border-radius: 12px;
+    padding: 22px;
+    max-width: 520px;
+    margin-bottom: 28px;
+  }
+
+  .add-form label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: #b07aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+
+  .add-form-row { display: flex; gap: 10px; align-items: flex-start; }
+  .add-form-row .ac-wrap { flex: 1; }
+
+  .ac-wrap { position: relative; }
+
+  .ac-wrap input[type="text"] {
+    width: 100%;
+    background: #0d0910;
+    border: 1px solid rgba(244,114,182,0.15);
+    border-radius: 7px;
+    color: #f0e6f0;
+    font-size: 14px;
+    padding: 10px 12px;
+    font-family: inherit;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .ac-wrap input[type="text"]:focus {
+    border-color: #f472b6;
+    box-shadow: 0 0 0 3px rgba(244,114,182,0.12);
+  }
+
+  .ac-list {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0; right: 0;
+    background: #150c18;
+    border: 1px solid rgba(244,114,182,0.2);
+    border-radius: 8px;
+    list-style: none;
+    margin: 0; padding: 4px 0;
+    z-index: 100;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.55);
+  }
+
+  .ac-list li {
+    padding: 9px 14px;
+    cursor: pointer;
+    border-radius: 4px;
+    margin: 2px 4px;
+    transition: background 0.1s;
+  }
+  .ac-list li:hover,
+  .ac-list li.ac-active { background: rgba(244,114,182,0.09); }
+
+  .ac-clan-name { font-size: 14px; font-weight: 600; color: #fff; }
+  .ac-clan-meta { font-size: 12px; color: #b07aaa; margin-top: 1px; }
+  .ac-status    { padding: 9px 14px; font-size: 13px; color: #7a5278; font-style: italic; }
+
+  #selectedPreview { margin-top: 10px; font-size: 13px; color: #3ba55c; display: none; }
+
+  /* ── Clan list ── */
+  .clan-list { display: flex; flex-direction: column; gap: 10px; }
+
+  .clan-row {
+    background: #1e1220;
+    border: 1px solid rgba(244,114,182,0.13);
+    border-radius: 10px;
+    padding: 18px 22px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .clan-row:hover { border-color: rgba(244,114,182,0.3); background: rgba(244,114,182,0.03); }
+
+  .clan-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background: rgba(244,114,182,0.1);
+    border: 1px solid rgba(244,114,182,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  .clan-info { flex: 1; min-width: 0; }
+  .clan-name { font-size: 15px; font-weight: 700; color: #fff; }
+  .clan-tag  { font-size: 12px; color: #b07aaa; margin-top: 2px; font-family: monospace; }
+
+  .clan-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: #7a5278;
+  }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+  .empty p { font-size: 14px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <a class="back-link" href="/dashboard/{{ guild.id }}/coc">← Back to CoC Manager</a>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <div class="page-header">
+    <div>
+      <h1>Managed Clans</h1>
+      <p style="color:#b07aaa;">{{ guild.name }} · {{ clans | length }} clan{{ 's' if clans | length != 1 }}</p>
+    </div>
+  </div>
+
+  <!-- Add clan -->
+  <form class="add-form" method="post" action="/dashboard/{{ guild.id }}/coc/add" id="addClanForm">
+    <label>Add Clan</label>
+    <div class="add-form-row">
+      <div class="ac-wrap">
+        <input type="text" id="clanSearch" placeholder="Search by clan name…" autocomplete="off">
+        <ul class="ac-list" id="clanAcList"></ul>
+      </div>
+      <input type="hidden" name="clan_tag" id="selectedClanTag">
+      <button type="submit" class="btn btn-primary" id="addBtn" disabled>Add</button>
+    </div>
+    <div id="selectedPreview"></div>
+  </form>
+
+  <!-- Clan list -->
+  {% if clans %}
+    <div class="clan-list">
+      {% for gc in clans %}
+        <div class="clan-row">
+          <div class="clan-icon">🏰</div>
+          <div class="clan-info">
+            <div class="clan-name">{{ gc.clan_name or gc.clan_tag }}</div>
+            <div class="clan-tag">{{ gc.clan_tag }}</div>
+          </div>
+          <div class="clan-actions">
+            <a href="/dashboard/{{ guild.id }}/coc/{{ gc.id }}" class="btn btn-secondary btn-sm">View Stats</a>
+            <form method="post" action="/dashboard/{{ guild.id }}/coc/{{ gc.id }}/remove"
+                  onsubmit="return confirm('Remove {{ gc.clan_name or gc.clan_tag }}?');" style="margin:0;">
+              <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty">
+      <div class="empty-icon">🏰</div>
+      <p>No clans added yet. Search above to get started.</p>
+    </div>
+  {% endif %}
+</div>
+
+<script>
+  const SEARCH_URL = "/dashboard/{{ guild.id }}/coc/search";
+
+  const clanSearch  = document.getElementById("clanSearch");
+  const acList      = document.getElementById("clanAcList");
+  const selectedTag = document.getElementById("selectedClanTag");
+  const addBtn      = document.getElementById("addBtn");
+  const preview     = document.getElementById("selectedPreview");
+  let debounceTimer = null;
+  let acActive      = -1;
+  let lastResults   = [];
+
+  function renderResults(items, status) {
+    acList.innerHTML = "";
+    acActive = -1;
+    if (status) {
+      const li = document.createElement("li");
+      li.className = "ac-status";
+      li.textContent = status;
+      acList.appendChild(li);
+      acList.style.display = "block";
+      return;
+    }
+    if (!items.length) { acList.style.display = "none"; return; }
+    items.forEach((c) => {
+      const li = document.createElement("li");
+      li.innerHTML = `<div class="ac-clan-name">${c.name}</div>
+                      <div class="ac-clan-meta">${c.tag} · ${c.members} members</div>`;
+      li.addEventListener("mousedown", () => selectClan(c));
+      acList.appendChild(li);
+    });
+    acList.style.display = "block";
+  }
+
+  function selectClan(c) {
+    clanSearch.value      = c.name;
+    selectedTag.value     = c.tag;
+    addBtn.disabled       = false;
+    acList.style.display  = "none";
+    preview.textContent   = `✓ ${c.name}  ${c.tag}`;
+    preview.style.display = "block";
+  }
+
+  clanSearch.addEventListener("input", () => {
+    selectedTag.value = "";
+    addBtn.disabled   = true;
+    preview.style.display = "none";
+    const q = clanSearch.value.trim();
+    clearTimeout(debounceTimer);
+    if (q.length < 2) { acList.style.display = "none"; return; }
+    renderResults([], "Searching…");
+    debounceTimer = setTimeout(async () => {
+      try {
+        const res  = await fetch(`${SEARCH_URL}?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        lastResults = data.results || [];
+        renderResults(lastResults.length ? lastResults : [], lastResults.length ? null : "No clans found.");
+      } catch { renderResults([], "Search failed."); }
+    }, 300);
+  });
+
+  clanSearch.addEventListener("keydown", (e) => {
+    const items = acList.querySelectorAll("li:not(.ac-status)");
+    if (!items.length) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); acActive = Math.min(acActive + 1, items.length - 1); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); acActive = Math.max(acActive - 1, 0); }
+    else if (e.key === "Enter") {
+      e.preventDefault();
+      if (acActive >= 0 && lastResults[acActive]) selectClan(lastResults[acActive]);
+      return;
+    }
+    items.forEach((li, i) => li.classList.toggle("ac-active", i === acActive));
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".ac-wrap")) acList.style.display = "none";
+  });
+</script>
+{% endblock %}
