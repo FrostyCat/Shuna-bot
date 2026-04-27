@@ -244,8 +244,13 @@ def tickets(guild_id):
         return err
     db = DBSession()
     panels = db.query(TicketPanel).filter_by(guild_id=guild_id).all()
+    transcript_items = (db.query(Transcript)
+                        .filter_by(guild_id=guild_id)
+                        .order_by(Transcript.closed_at.desc())
+                        .all())
     db.close()
-    return render_template("tickets.html", user=session["user"], guild=guild, panels=panels)
+    return render_template("tickets.html", user=session["user"], guild=guild,
+                           panels=panels, transcripts=transcript_items)
 
 
 @app.route("/dashboard/<guild_id>/tickets/new", methods=["GET", "POST"])
@@ -460,16 +465,7 @@ def ticket_panel_delete(guild_id, panel_id):
 
 @app.route("/dashboard/<guild_id>/transcripts")
 def transcripts(guild_id):
-    guild, err = require_guild(guild_id)
-    if err:
-        return err
-    db = DBSession()
-    items = (db.query(Transcript)
-               .filter_by(guild_id=guild_id)
-               .order_by(Transcript.closed_at.desc())
-               .all())
-    db.close()
-    return render_template("transcripts.html", user=session["user"], guild=guild, transcripts=items)
+    return redirect(url_for("tickets", guild_id=guild_id))
 
 
 @app.route("/dashboard/<guild_id>/settings", methods=["GET", "POST"])
@@ -513,8 +509,26 @@ def coc_manager(guild_id):
     config = db.query(GuildConfig).filter_by(guild_id=guild_id).first()
     clan_member_role_id = config.clan_member_role_id if config else None
     db.close()
+    roles = guild_roles(guild_id)
     return render_template("coc.html", user=session["user"], guild=guild, clans=clans,
-                           clan_member_role_id=clan_member_role_id)
+                           clan_member_role_id=clan_member_role_id, roles=roles)
+
+
+@app.route("/dashboard/<guild_id>/coc/set-role", methods=["POST"])
+def coc_set_role(guild_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+    db = DBSession()
+    config = db.query(GuildConfig).filter_by(guild_id=guild_id).first()
+    if not config:
+        config = GuildConfig(guild_id=guild_id)
+        db.add(config)
+    config.clan_member_role_id = request.form.get("role_id") or None
+    db.commit()
+    db.close()
+    flash("Clan member role saved!", "success")
+    return redirect(url_for("coc_manager", guild_id=guild_id))
 
 
 @app.route("/dashboard/<guild_id>/coc/role")

@@ -14,16 +14,85 @@
   }
   .back-link:hover { color: #f0e6f0; }
 
-  .alert { padding: 12px 16px; border-radius: 6px; font-size: 14px; margin-bottom: 20px; }
-  .alert-success { background: rgba(59,165,92,0.12); color: #3ba55c; border: 1px solid #3ba55c44; }
-  .alert-danger  { background: #3a1a1a; color: #ed4245; border: 1px solid #ed424544; }
+  .alert { padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 20px; }
+  .alert-success { background: rgba(59,165,92,0.12); color: #3ba55c; border: 1px solid rgba(59,165,92,0.3); }
+  .alert-danger  { background: rgba(225,29,72,0.12); color: #f87171; border: 1px solid rgba(225,29,72,0.25); }
 
+  /* ── Navigation cards ── */
+  .nav-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 36px;
+  }
+
+  .nav-card {
+    background: #1e1220;
+    border: 1px solid rgba(244,114,182,0.13);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-decoration: none;
+    transition: border-color 0.2s, background 0.2s, transform 0.15s;
+  }
+  .nav-card:hover {
+    border-color: rgba(244,114,182,0.4);
+    background: rgba(244,114,182,0.06);
+    transform: translateY(-2px);
+  }
+  .nav-card.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  .nav-card-icon  { font-size: 26px; line-height: 1; }
+  .nav-card-title { font-size: 14px; font-weight: 700; color: #fff; }
+  .nav-card-desc  { font-size: 12px; color: #b07aaa; line-height: 1.4; }
+
+  .nav-card-badge {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 99px;
+    background: rgba(244,114,182,0.1);
+    color: #f472b6;
+    border: 1px solid rgba(244,114,182,0.2);
+    width: fit-content;
+  }
+  .nav-card-badge.green {
+    background: rgba(59,165,92,0.12);
+    color: #3ba55c;
+    border-color: rgba(59,165,92,0.3);
+  }
+
+  /* ── Section ── */
+  .section-divider {
+    border: none;
+    border-top: 1px solid rgba(244,114,182,0.13);
+    margin: 32px 0 24px;
+  }
+
+  .section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #7a5278;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    margin-bottom: 16px;
+  }
+
+  /* ── Add form ── */
   .add-form {
     background: #1e1220;
-    border-radius: 10px;
-    padding: 24px;
-    max-width: 480px;
-    margin-bottom: 32px;
+    border: 1px solid rgba(244,114,182,0.13);
+    border-radius: 12px;
+    padding: 22px;
+    max-width: 500px;
+    margin-bottom: 24px;
   }
 
   .add-form label {
@@ -39,36 +108,38 @@
   .add-form-row { display: flex; gap: 10px; align-items: flex-start; margin-top: 4px; }
   .add-form-row .ac-wrap { flex: 1; }
 
-  /* Autocomplete */
   .ac-wrap { position: relative; }
 
   .ac-wrap input[type="text"] {
     width: 100%;
     background: #0d0910;
     border: 1px solid rgba(244,114,182,0.15);
-    border-radius: 6px;
+    border-radius: 7px;
     color: #f0e6f0;
     font-size: 14px;
     padding: 10px 12px;
     font-family: inherit;
     outline: none;
     box-sizing: border-box;
-    transition: border-color 0.15s;
+    transition: border-color 0.15s, box-shadow 0.15s;
   }
-  .ac-wrap input[type="text"]:focus { border-color: #5865f2; }
+  .ac-wrap input[type="text"]:focus {
+    border-color: #f472b6;
+    box-shadow: 0 0 0 3px rgba(244,114,182,0.12);
+  }
 
   .ac-list {
     display: none;
     position: absolute;
     top: calc(100% + 4px);
     left: 0; right: 0;
-    background: #0d0910;
-    border: 1px solid rgba(244,114,182,0.15);
-    border-radius: 6px;
+    background: #150c18;
+    border: 1px solid rgba(244,114,182,0.18);
+    border-radius: 8px;
     list-style: none;
     margin: 0; padding: 4px 0;
     z-index: 100;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
   }
 
   .ac-list li {
@@ -79,29 +150,26 @@
     transition: background 0.1s;
   }
   .ac-list li:hover,
-  .ac-list li.ac-active { background: #261629; }
+  .ac-list li.ac-active { background: rgba(244,114,182,0.08); }
 
   .ac-clan-name { font-size: 14px; font-weight: 600; color: #fff; }
   .ac-clan-meta { font-size: 12px; color: #b07aaa; margin-top: 1px; }
+  .ac-status    { padding: 9px 14px; font-size: 13px; color: #7a5278; font-style: italic; }
 
-  .ac-status {
-    padding: 9px 14px;
-    font-size: 13px;
-    color: #7a5278;
-    font-style: italic;
-  }
-
-  /* Clan list */
+  /* ── Clan list ── */
   .clan-list { display: flex; flex-direction: column; gap: 10px; max-width: 640px; }
 
   .clan-row {
     background: #1e1220;
-    border-radius: 8px;
+    border: 1px solid rgba(244,114,182,0.13);
+    border-radius: 10px;
     padding: 16px 20px;
     display: flex;
     align-items: center;
     gap: 16px;
+    transition: border-color 0.15s;
   }
+  .clan-row:hover { border-color: rgba(244,114,182,0.3); }
 
   .clan-info { flex: 1; }
   .clan-name { font-size: 15px; font-weight: 700; color: #fff; }
@@ -109,18 +177,13 @@
 
   .empty { color: #7a5278; font-size: 14px; margin-top: 8px; }
 
-  .section-divider {
-    border: none;
-    border-top: 1px solid rgba(244,114,182,0.15);
-    margin: 36px 0 28px;
-    max-width: 640px;
-  }
-
+  /* ── Role form ── */
   .role-form {
     background: #1e1220;
-    border-radius: 10px;
-    padding: 24px;
-    max-width: 480px;
+    border: 1px solid rgba(244,114,182,0.13);
+    border-radius: 12px;
+    padding: 22px;
+    max-width: 500px;
     display: flex;
     gap: 10px;
     align-items: flex-end;
@@ -142,16 +205,21 @@
     width: 100%;
     background: #0d0910;
     border: 1px solid rgba(244,114,182,0.15);
-    border-radius: 6px;
+    border-radius: 7px;
     color: #f0e6f0;
     font-size: 14px;
     padding: 10px 12px;
     font-family: inherit;
     outline: none;
     cursor: pointer;
-    transition: border-color 0.15s;
+    transition: border-color 0.15s, box-shadow 0.15s;
   }
-  .role-form select:focus { border-color: #5865f2; }
+  .role-form select:focus {
+    border-color: #f472b6;
+    box-shadow: 0 0 0 3px rgba(244,114,182,0.12);
+  }
+
+  .role-hint { font-size: 12px; color: #7a5278; margin-top: 10px; }
 </style>
 {% endblock %}
 
@@ -165,38 +233,76 @@
     {% endfor %}
   {% endwith %}
 
-  <h1>Clash of Clans Manager</h1>
-  <p style="margin-bottom: 24px; color: #b07aaa;">{{ guild.name }}</p>
+  <h1>Clash of Clans</h1>
+  <p style="margin-bottom: 28px; color: #b07aaa;">{{ guild.name }}</p>
+
+  <!-- Navigation hub -->
+  <div class="nav-grid">
+
+    <a class="nav-card {% if not clan_member_role_id %}disabled{% endif %}"
+       href="/dashboard/{{ guild.id }}/coc/role?role_id={{ clan_member_role_id }}">
+      <div class="nav-card-icon">👥</div>
+      <div class="nav-card-title">Members</div>
+      <div class="nav-card-desc">War, legend & loot hit rates for all clan members.</div>
+      {% if clan_member_role_id %}
+        <span class="nav-card-badge green">Active</span>
+      {% else %}
+        <span class="nav-card-badge">Set role first</span>
+      {% endif %}
+    </a>
+
+    <a class="nav-card {% if not clan_member_role_id %}disabled{% endif %}"
+       href="/dashboard/{{ guild.id }}/coc/family">
+      <div class="nav-card-icon">🏆</div>
+      <div class="nav-card-title">CWL Manager</div>
+      <div class="nav-card-desc">Monthly CWL star breakdown per player, grouped by league.</div>
+      {% if clan_member_role_id %}
+        <span class="nav-card-badge green">Active</span>
+      {% else %}
+        <span class="nav-card-badge">Set role first</span>
+      {% endif %}
+    </a>
+
+    <a class="nav-card" href="#clans-section"
+       onclick="document.getElementById('clans-section').scrollIntoView({behavior:'smooth'});return false;">
+      <div class="nav-card-icon">🏰</div>
+      <div class="nav-card-title">Clans</div>
+      <div class="nav-card-desc">Register and manage clans tracked by the bot.</div>
+      <span class="nav-card-badge {% if clans %}green{% endif %}">
+        {{ clans | length }} clan{{ 's' if clans | length != 1 }}
+      </span>
+    </a>
+
+    <a class="nav-card" href="#settings-section"
+       onclick="document.getElementById('settings-section').scrollIntoView({behavior:'smooth'});return false;">
+      <div class="nav-card-icon">⚙️</div>
+      <div class="nav-card-title">Settings</div>
+      <div class="nav-card-desc">Configure the clan member role used for stats views.</div>
+      {% if clan_member_role_id %}
+        <span class="nav-card-badge green">Configured</span>
+      {% else %}
+        <span class="nav-card-badge">Not set</span>
+      {% endif %}
+    </a>
+
+  </div>
+
+  <!-- Clans -->
+  <hr class="section-divider" id="clans-section">
+  <div class="section-title">Managed Clans</div>
 
   <form class="add-form" method="post" action="/dashboard/{{ guild.id }}/coc/add" id="addClanForm">
-    <label>Search Clan</label>
+    <label>Search & Add Clan</label>
     <div class="add-form-row">
       <div class="ac-wrap">
         <input type="text" id="clanSearch" placeholder="Type clan name…" autocomplete="off">
         <ul class="ac-list" id="clanAcList"></ul>
       </div>
       <input type="hidden" name="clan_tag" id="selectedClanTag">
-      <button type="submit" class="btn btn-primary" id="addBtn" disabled style="white-space: nowrap;">Add Clan</button>
+      <button type="submit" class="btn btn-primary" id="addBtn" disabled>Add</button>
     </div>
-    <div id="selectedPreview" style="margin-top: 10px; font-size: 13px; color: #3ba55c; display: none;"></div>
+    <div id="selectedPreview" style="margin-top:10px;font-size:13px;color:#3ba55c;display:none;"></div>
   </form>
-
-  {% if clan_member_role_id %}
-  <hr class="section-divider">
-    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 24px;">
-      <a href="/dashboard/{{ guild.id }}/coc/role?role_id={{ clan_member_role_id }}"
-         class="btn btn-primary">
-        View stats for clan members
-      </a>
-      <a href="/dashboard/{{ guild.id }}/coc/family"
-         class="btn btn-secondary">
-        Summary for family clan
-      </a>
-    </div>
-  {% endif %}
-
-  <hr class="section-divider">
-  <h2 style="font-size: 16px; margin-bottom: 16px;">Managed Clans</h2>
 
   {% if clans %}
     <div class="clan-list">
@@ -206,7 +312,7 @@
             <div class="clan-name">{{ gc.clan_name or gc.clan_tag }}</div>
             <div class="clan-tag">{{ gc.clan_tag }}</div>
           </div>
-          <a href="/dashboard/{{ guild.id }}/coc/{{ gc.id }}" class="btn btn-primary btn-sm">View Stats</a>
+          <a href="/dashboard/{{ guild.id }}/coc/{{ gc.id }}" class="btn btn-secondary btn-sm">View Stats</a>
           <form method="post" action="/dashboard/{{ guild.id }}/coc/{{ gc.id }}/remove"
                 onsubmit="return confirm('Remove this clan?');" style="margin:0;">
             <button type="submit" class="btn btn-danger btn-sm">Remove</button>
@@ -215,26 +321,47 @@
       {% endfor %}
     </div>
   {% else %}
-    <p class="empty">No clans added yet. Search for a clan above to get started.</p>
+    <p class="empty">No clans yet. Search above to add one.</p>
   {% endif %}
+
+  <!-- Settings -->
+  <hr class="section-divider" id="settings-section">
+  <div class="section-title">Settings</div>
+
+  <form class="role-form" method="post" action="/dashboard/{{ guild.id }}/coc/set-role">
+    <div class="form-group">
+      <label>Clan Member Role</label>
+      <select name="role_id">
+        <option value="">— None —</option>
+        {% for role in roles %}
+          <option value="{{ role.id }}"
+            {% if clan_member_role_id == role.id %}selected{% endif %}>
+            {{ role.name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Save</button>
+  </form>
+  <p class="role-hint">Members and CWL views use this role to determine which Discord users to include.</p>
+
 </div>
 
 <script>
   const SEARCH_URL = "/dashboard/{{ guild.id }}/coc/search";
 
-  const clanSearch   = document.getElementById("clanSearch");
-  const acList       = document.getElementById("clanAcList");
-  const selectedTag  = document.getElementById("selectedClanTag");
-  const addBtn       = document.getElementById("addBtn");
-  const preview      = document.getElementById("selectedPreview");
-  let debounceTimer  = null;
-  let acActive       = -1;
-  let lastResults    = [];
+  const clanSearch  = document.getElementById("clanSearch");
+  const acList      = document.getElementById("clanAcList");
+  const selectedTag = document.getElementById("selectedClanTag");
+  const addBtn      = document.getElementById("addBtn");
+  const preview     = document.getElementById("selectedPreview");
+  let debounceTimer = null;
+  let acActive      = -1;
+  let lastResults   = [];
 
   function renderResults(items, status) {
     acList.innerHTML = "";
     acActive = -1;
-
     if (status) {
       const li = document.createElement("li");
       li.className = "ac-status";
@@ -243,18 +370,11 @@
       acList.style.display = "block";
       return;
     }
-
-    if (!items.length) {
-      acList.style.display = "none";
-      return;
-    }
-
-    items.forEach((c, i) => {
+    if (!items.length) { acList.style.display = "none"; return; }
+    items.forEach((c) => {
       const li = document.createElement("li");
       li.innerHTML = `<div class="ac-clan-name">${c.name}</div>
                       <div class="ac-clan-meta">${c.tag} · ${c.members} members</div>`;
-      li.dataset.tag  = c.tag;
-      li.dataset.name = c.name;
       li.addEventListener("mousedown", () => selectClan(c));
       acList.appendChild(li);
     });
@@ -262,11 +382,11 @@
   }
 
   function selectClan(c) {
-    clanSearch.value    = c.name;
-    selectedTag.value   = c.tag;
-    addBtn.disabled     = false;
-    acList.style.display = "none";
-    preview.textContent = `✓ ${c.name}  ${c.tag}`;
+    clanSearch.value      = c.name;
+    selectedTag.value     = c.tag;
+    addBtn.disabled       = false;
+    acList.style.display  = "none";
+    preview.textContent   = `✓ ${c.name}  ${c.tag}`;
     preview.style.display = "block";
   }
 
@@ -274,47 +394,26 @@
     selectedTag.value = "";
     addBtn.disabled   = true;
     preview.style.display = "none";
-
     const q = clanSearch.value.trim();
     clearTimeout(debounceTimer);
-
-    if (q.length < 2) {
-      acList.style.display = "none";
-      return;
-    }
-
+    if (q.length < 2) { acList.style.display = "none"; return; }
     renderResults([], "Searching…");
-
     debounceTimer = setTimeout(async () => {
       try {
         const res  = await fetch(`${SEARCH_URL}?q=${encodeURIComponent(q)}`);
         const data = await res.json();
         lastResults = data.results || [];
-        if (!lastResults.length) {
-          renderResults([], "No clans found.");
-        } else {
-          renderResults(lastResults, null);
-        }
-      } catch {
-        renderResults([], "Search failed.");
-      }
+        renderResults(lastResults.length ? lastResults : [], lastResults.length ? null : "No clans found.");
+      } catch { renderResults([], "Search failed."); }
     }, 300);
   });
 
   clanSearch.addEventListener("keydown", (e) => {
     const items = acList.querySelectorAll("li:not(.ac-status)");
     if (!items.length) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      acActive = Math.min(acActive + 1, items.length - 1);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      acActive = Math.max(acActive - 1, 0);
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      if (acActive >= 0 && lastResults[acActive]) selectClan(lastResults[acActive]);
-      return;
-    }
+    if (e.key === "ArrowDown") { e.preventDefault(); acActive = Math.min(acActive + 1, items.length - 1); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); acActive = Math.max(acActive - 1, 0); }
+    else if (e.key === "Enter") { e.preventDefault(); if (acActive >= 0 && lastResults[acActive]) selectClan(lastResults[acActive]); return; }
     items.forEach((li, i) => li.classList.toggle("ac-active", i === acActive));
   });
 
