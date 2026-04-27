@@ -32,12 +32,14 @@ ADMINISTRATOR = 0x8
 COC_API_KEY = os.getenv("COC_API_KEY")
 
 LEAGUE_ORDER = {
-    "Bronze League III": 1, "Bronze League II": 2, "Bronze League I": 3,
-    "Silver League III": 4, "Silver League II": 5, "Silver League I": 6,
-    "Gold League III": 7, "Gold League II": 8, "Gold League I": 9,
+    "Bronze League III": 1,  "Bronze League II": 2,  "Bronze League I": 3,
+    "Silver League III": 4,  "Silver League II": 5,  "Silver League I": 6,
+    "Gold League III": 7,    "Gold League II": 8,    "Gold League I": 9,
     "Crystal League III": 10, "Crystal League II": 11, "Crystal League I": 12,
     "Master League III": 13, "Master League II": 14, "Master League I": 15,
     "Champion League III": 16, "Champion League II": 17, "Champion League I": 18,
+    "Titan League III": 19,  "Titan League II": 20,  "Titan League I": 21,
+    "Legend League": 22,
 }
 COC_BASE_URL = "https://api.clashofclans.com/v1"
 
