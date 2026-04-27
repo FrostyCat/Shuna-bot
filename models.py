@@ -122,6 +122,18 @@ class TicketType(Base):
     msg_image = Column(String, nullable=True)
 
 
+class ClanMember(Base):
+    __tablename__ = "clan_members"
+
+    id = Column(Integer, primary_key=True)
+    guild_clan_id = Column(Integer, ForeignKey("guild_clans.id", ondelete="CASCADE"))
+    player_tag = Column(String)
+
+    __table_args__ = (
+        UniqueConstraint("guild_clan_id", "player_tag", name="uq_clan_member"),
+    )
+
+
 class GuildConfig(Base):
     __tablename__ = "guild_configs"
 

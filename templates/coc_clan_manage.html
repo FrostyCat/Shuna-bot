@@ -1,0 +1,335 @@
+{% extends "base.html" %}
+{% block title %}{{ gc.clan_name }} — Manage{% endblock %}
+
+{% block head %}
+<style>
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #b07aaa;
+    font-size: 13px;
+    margin-bottom: 24px;
+    transition: color 0.15s;
+  }
+  .back-link:hover { color: #f0e6f0; }
+
+  .alert { padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 20px; }
+  .alert-success { background: rgba(59,165,92,0.12); color: #3ba55c; border: 1px solid rgba(59,165,92,0.3); }
+  .alert-danger  { background: rgba(225,29,72,0.12); color: #f87171; border: 1px solid rgba(225,29,72,0.25); }
+
+  /* ── Clan header ── */
+  .clan-header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: #1e1220;
+    border: 1px solid rgba(244,114,182,0.13);
+    border-radius: 14px;
+    padding: 22px 28px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+  }
+
+  .clan-header-info { flex: 1; min-width: 0; }
+  .clan-header-name { font-size: 20px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+  .clan-header-tag  { font-size: 13px; color: #b07aaa; font-family: monospace; }
+
+  .capacity-bar-wrap { display: flex; flex-direction: column; gap: 6px; min-width: 180px; }
+  .capacity-label { font-size: 12px; color: #b07aaa; display: flex; justify-content: space-between; }
+  .capacity-bar {
+    height: 8px;
+    background: rgba(244,114,182,0.1);
+    border-radius: 99px;
+    overflow: hidden;
+    border: 1px solid rgba(244,114,182,0.15);
+  }
+  .capacity-fill {
+    height: 100%;
+    border-radius: 99px;
+    background: linear-gradient(90deg, #db2777, #f472b6);
+    transition: width 0.4s;
+  }
+  .capacity-count { font-size: 22px; font-weight: 800; color: #fff; text-align: right; }
+  .capacity-sub   { font-size: 12px; color: #7a5278; text-align: right; }
+
+  /* ── Section ── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #7a5278;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+  }
+
+  hr.divider {
+    border: none;
+    border-top: 1px solid rgba(244,114,182,0.1);
+    margin: 32px 0 24px;
+  }
+
+  /* ── Member rows ── */
+  .member-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+
+  .member-row {
+    background: #1e1220;
+    border: 1px solid rgba(244,114,182,0.12);
+    border-radius: 10px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    transition: border-color 0.15s;
+  }
+  .member-row:hover { border-color: rgba(244,114,182,0.28); }
+  .member-row.left  { border-color: rgba(225,29,72,0.25); background: rgba(225,29,72,0.04); }
+
+  .th-badge {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: rgba(244,114,182,0.1);
+    border: 1px solid rgba(244,114,182,0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #f472b6;
+    flex-shrink: 0;
+  }
+
+  .member-info { flex: 1; min-width: 0; }
+  .member-name { font-size: 14px; font-weight: 700; color: #fff; }
+  .member-tag  { font-size: 12px; color: #7a5278; font-family: monospace; }
+  .member-discord { font-size: 12px; color: #b07aaa; margin-top: 2px; }
+
+  .role-chip {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(244,114,182,0.1);
+    color: #f472b6;
+    border: 1px solid rgba(244,114,182,0.2);
+    text-transform: capitalize;
+    white-space: nowrap;
+  }
+  .role-chip.leader    { background: rgba(250,166,26,0.1); color: #faa61a; border-color: rgba(250,166,26,0.25); }
+  .role-chip.coLeader  { background: rgba(244,114,182,0.15); color: #f472b6; }
+  .role-chip.admin     { background: rgba(244,114,182,0.15); color: #f472b6; }
+
+  .status-chip {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .status-in   { background: rgba(59,165,92,0.12); color: #3ba55c; border: 1px solid rgba(59,165,92,0.25); }
+  .status-left { background: rgba(225,29,72,0.12); color: #f87171; border: 1px solid rgba(225,29,72,0.25); }
+
+  .no-discord { font-size: 12px; color: #4a2e4a; font-style: italic; }
+
+  /* ── Add form ── */
+  .add-form {
+    background: #1e1220;
+    border: 1px solid rgba(244,114,182,0.13);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    max-width: 620px;
+  }
+
+  .add-form .form-group { flex: 1; min-width: 200px; margin: 0; }
+
+  .add-form label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    color: #b07aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+
+  .add-form select {
+    width: 100%;
+    background: #0d0910;
+    border: 1px solid rgba(244,114,182,0.15);
+    border-radius: 7px;
+    color: #f0e6f0;
+    font-size: 14px;
+    padding: 9px 12px;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .add-form select:focus {
+    border-color: #f472b6;
+    box-shadow: 0 0 0 3px rgba(244,114,182,0.12);
+  }
+
+  .empty-note { font-size: 13px; color: #4a2e4a; padding: 16px 0; }
+
+  /* ── Unassigned section ── */
+  .unassigned-row {
+    background: rgba(244,114,182,0.03);
+    border: 1px dashed rgba(244,114,182,0.15);
+    border-radius: 10px;
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <a class="back-link" href="/dashboard/{{ guild.id }}/coc/clans">← Back to Clans</a>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <!-- Clan header -->
+  <div class="clan-header">
+    <div class="clan-header-info">
+      <div class="clan-header-name">{{ gc.clan_name or gc.clan_tag }}</div>
+      <div class="clan-header-tag">{{ gc.clan_tag }}</div>
+    </div>
+    <div class="capacity-bar-wrap">
+      <div class="capacity-label">
+        <span>Capacity</span>
+        <span>{{ clan_member_count }}/{{ clan_capacity }}</span>
+      </div>
+      <div class="capacity-bar">
+        <div class="capacity-fill"
+             style="width: {{ ((clan_member_count / clan_capacity) * 100) | round | int }}%"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;">
+        <span style="font-size:12px;color:#7a5278;">{{ clan_capacity - clan_member_count }} spot{{ 's' if clan_capacity - clan_member_count != 1 }} free</span>
+        <span style="font-size:12px;color:#b07aaa;">{{ roster | length }} assigned</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Roster -->
+  <div class="section-header">
+    <div class="section-title">Assigned Roster ({{ roster | length }})</div>
+  </div>
+
+  {% if roster %}
+    <div class="member-list">
+      {% for m in roster %}
+        <div class="member-row {% if not m.in_clan %}left{% endif %}">
+          {% if m.th %}
+            <div class="th-badge">TH{{ m.th }}</div>
+          {% else %}
+            <div class="th-badge">?</div>
+          {% endif %}
+
+          <div class="member-info">
+            <div class="member-name">{{ m.name }}</div>
+            <div class="member-tag">{{ m.tag }}</div>
+            {% if m.discord_username %}
+              <div class="member-discord">@ {{ m.discord_username }}</div>
+            {% else %}
+              <div class="member-discord no-discord">No Discord linked</div>
+            {% endif %}
+          </div>
+
+          {% if m.role and m.in_clan %}
+            <span class="role-chip {{ m.role }}">{{ m.role | replace('coLeader','Co-Leader') }}</span>
+          {% endif %}
+
+          <span class="status-chip {% if m.in_clan %}status-in{% else %}status-left{% endif %}">
+            {% if m.in_clan %}✓ In clan{% else %}⚠ Left clan{% endif %}
+          </span>
+
+          <form method="post"
+                action="/dashboard/{{ guild.id }}/coc/{{ gc.id }}/manage/remove"
+                onsubmit="return confirm('Remove from roster?');"
+                style="margin:0;">
+            <input type="hidden" name="player_tag" value="{{ m.tag }}">
+            <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+          </form>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="empty-note">No members assigned yet. Add them below.</p>
+  {% endif %}
+
+  <!-- Add from linked accounts -->
+  <hr class="divider">
+  <div class="section-header">
+    <div class="section-title">Add to Roster</div>
+  </div>
+
+  {% if addable %}
+    <form class="add-form" method="post"
+          action="/dashboard/{{ guild.id }}/coc/{{ gc.id }}/manage/add">
+      <div class="form-group">
+        <label>Linked Account</label>
+        <select name="player_tag">
+          {% for a in addable | sort(attribute='discord_username') %}
+            <option value="{{ a.tag }}">{{ a.discord_username }} — {{ a.name }} ({{ a.tag }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">Add</button>
+    </form>
+  {% else %}
+    <p class="empty-note">All linked accounts are already assigned, or no Discord members have linked CoC accounts.</p>
+  {% endif %}
+
+  <!-- In-clan but unassigned -->
+  {% if unassigned_api %}
+    <hr class="divider">
+    <div class="section-title" style="margin-bottom:14px;">
+      In Clan · Not Assigned ({{ unassigned_api | length }})
+    </div>
+    <div class="member-list">
+      {% for m in unassigned_api %}
+        <div class="unassigned-row">
+          <div class="th-badge">TH{{ m.th }}</div>
+          <div class="member-info">
+            <div class="member-name">{{ m.name }}</div>
+            <div class="member-tag">{{ m.tag }}</div>
+            {% if m.discord_username %}
+              <div class="member-discord">@ {{ m.discord_username }}</div>
+            {% endif %}
+          </div>
+          <span class="role-chip {{ m.role }}">{{ m.role | replace('coLeader','Co-Leader') }}</span>
+          <form method="post"
+                action="/dashboard/{{ guild.id }}/coc/{{ gc.id }}/manage/add"
+                style="margin:0;">
+            <input type="hidden" name="player_tag" value="{{ m.tag }}">
+            <button type="submit" class="btn btn-secondary btn-sm">+ Assign</button>
+          </form>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

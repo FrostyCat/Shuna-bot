@@ -186,7 +186,7 @@
             <div class="clan-tag">{{ gc.clan_tag }}</div>
           </div>
           <div class="clan-actions">
-            <a href="/dashboard/{{ guild.id }}/coc/{{ gc.id }}" class="btn btn-secondary btn-sm">View Stats</a>
+            <a href="/dashboard/{{ guild.id }}/coc/{{ gc.id }}/manage" class="btn btn-secondary btn-sm">Manage</a>
             <form method="post" action="/dashboard/{{ guild.id }}/coc/{{ gc.id }}/remove"
                   onsubmit="return confirm('Remove {{ gc.clan_name or gc.clan_tag }}?');" style="margin:0;">
               <button type="submit" class="btn btn-danger btn-sm">Remove</button>

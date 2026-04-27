@@ -272,8 +272,7 @@
       </span>
     </a>
 
-    <a class="nav-card" href="#settings-section"
-       onclick="event.preventDefault();document.getElementById('settings-section').scrollIntoView({behavior:'smooth'})">
+    <a class="nav-card" href="/dashboard/{{ guild.id }}/settings">
       <div class="nav-card-icon">⚙️</div>
       <div class="nav-card-title">Settings</div>
       <div class="nav-card-desc">Configure the clan member role used for stats views.</div>
@@ -286,26 +285,6 @@
 
   </div>
 
-  <!-- Settings -->
-  <hr class="section-divider" id="settings-section">
-  <div class="section-title">Settings</div>
-
-  <form class="role-form" method="post" action="/dashboard/{{ guild.id }}/coc/set-role">
-    <div class="form-group">
-      <label>Clan Member Role</label>
-      <select name="role_id">
-        <option value="">— None —</option>
-        {% for role in roles %}
-          <option value="{{ role.id }}"
-            {% if clan_member_role_id == role.id %}selected{% endif %}>
-            {{ role.name }}
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-    <button type="submit" class="btn btn-primary">Save</button>
-  </form>
-  <p class="role-hint">Members and CWL views use this role to determine which Discord users to include.</p>
 
 </div>
 

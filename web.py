@@ -12,7 +12,7 @@ from flask import Flask, abort, flash, redirect, render_template, request, sessi
 from sqlalchemy import and_, or_, func
 from db import Session as DBSession
 import re
-from models import Transcript, TicketPanel, TicketType, GuildConfig, GuildClan, Player, Attack, WarAttack, Clan, DiscordUser
+from models import Transcript, TicketPanel, TicketType, GuildConfig, GuildClan, Player, Attack, WarAttack, Clan, DiscordUser, ClanMember
 from backfill_cwl import backfill_clan, past_seasons
 
 load_dotenv()
@@ -1038,6 +1038,143 @@ def coc_clan(guild_id, gc_id):
     db.close()
     return render_template("coc_clan.html", user=session["user"], guild=guild, gc=gc,
                            stats=stats, members=members_list)
+
+
+@app.route("/dashboard/<guild_id>/coc/<int:gc_id>/manage")
+def coc_clan_manage(guild_id, gc_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+
+    db = DBSession()
+    gc = db.query(GuildClan).filter_by(id=gc_id, guild_id=guild_id).first()
+    if not gc:
+        db.close()
+        abort(404)
+
+    # Live clan data from CoC API
+    clan_data = coc_get(f"/clans/{gc.clan_tag.replace('#', '%23')}")
+    api_member_tags = set()
+    api_members_map = {}  # tag -> {name, role, townhall_level}
+    clan_capacity = 50
+    clan_member_count = 0
+    if clan_data:
+        clan_capacity = clan_data.get("memberLimit", 50)
+        clan_member_count = clan_data.get("members", 0)
+        for m in clan_data.get("memberList", []):
+            tag = m.get("tag")
+            api_member_tags.add(tag)
+            api_members_map[tag] = {
+                "name": m.get("name"),
+                "role": m.get("role", "member"),
+                "th": m.get("townHallLevel", 0),
+            }
+
+    # Assigned roster from DB
+    assigned = db.query(ClanMember).filter_by(guild_clan_id=gc_id).all()
+    assigned_tags = {cm.player_tag for cm in assigned}
+
+    roster = []
+    for cm in assigned:
+        player = db.query(Player).filter_by(tag=cm.player_tag).first()
+        discord_username = None
+        if player and player.discord_user:
+            members_list = guild_members(guild_id)
+            member_map = {m["id"]: m["username"] for m in members_list}
+            discord_username = member_map.get(player.discord_user.discord_id)
+
+        in_clan = cm.player_tag in api_member_tags
+        api_info = api_members_map.get(cm.player_tag, {})
+        roster.append({
+            "tag": cm.player_tag,
+            "name": player.name if player else cm.player_tag,
+            "discord_username": discord_username,
+            "in_clan": in_clan,
+            "role": api_info.get("role", "—"),
+            "th": api_info.get("th", 0),
+        })
+
+    # API members not in roster (unassigned, currently in clan)
+    unassigned_api = []
+    for tag, info in api_members_map.items():
+        if tag not in assigned_tags:
+            player = db.query(Player).filter_by(tag=tag).first()
+            discord_username = None
+            if player and player.discord_user:
+                members_list = guild_members(guild_id)
+                member_map = {m["id"]: m["username"] for m in members_list}
+                discord_username = member_map.get(player.discord_user.discord_id)
+            unassigned_api.append({
+                "tag": tag,
+                "name": info["name"],
+                "role": info["role"],
+                "th": info["th"],
+                "discord_username": discord_username,
+            })
+
+    # Guild Discord members with linked CoC accounts (for the add dropdown)
+    all_guild_members = guild_members(guild_id)
+    discord_ids = [m["id"] for m in all_guild_members]
+    discord_users = db.query(DiscordUser).filter(DiscordUser.discord_id.in_(discord_ids)).all()
+    member_id_to_name = {m["id"]: m["username"] for m in all_guild_members}
+
+    addable = []
+    for du in discord_users:
+        for player in db.query(Player).filter_by(discord_user_id=du.id).all():
+            if player.tag not in assigned_tags:
+                addable.append({
+                    "tag": player.tag,
+                    "name": player.name,
+                    "discord_username": member_id_to_name.get(du.discord_id, du.discord_id),
+                })
+
+    db.close()
+    return render_template("coc_clan_manage.html", user=session["user"], guild=guild, gc=gc,
+                           roster=roster, unassigned_api=unassigned_api, addable=addable,
+                           clan_capacity=clan_capacity, clan_member_count=clan_member_count)
+
+
+@app.route("/dashboard/<guild_id>/coc/<int:gc_id>/manage/add", methods=["POST"])
+def coc_clan_manage_add(guild_id, gc_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+    player_tag = request.form.get("player_tag", "").strip()
+    if not player_tag:
+        flash("No player selected.", "danger")
+        return redirect(url_for("coc_clan_manage", guild_id=guild_id, gc_id=gc_id))
+    db = DBSession()
+    gc = db.query(GuildClan).filter_by(id=gc_id, guild_id=guild_id).first()
+    if not gc:
+        db.close()
+        abort(404)
+    if not db.query(ClanMember).filter_by(guild_clan_id=gc_id, player_tag=player_tag).first():
+        # Ensure player exists
+        if not db.query(Player).filter_by(tag=player_tag).first():
+            db.add(Player(tag=player_tag, name=player_tag))
+        db.add(ClanMember(guild_clan_id=gc_id, player_tag=player_tag))
+        db.commit()
+        flash("Member added to roster.", "success")
+    else:
+        flash("Already in roster.", "danger")
+    db.close()
+    return redirect(url_for("coc_clan_manage", guild_id=guild_id, gc_id=gc_id))
+
+
+@app.route("/dashboard/<guild_id>/coc/<int:gc_id>/manage/remove", methods=["POST"])
+def coc_clan_manage_remove(guild_id, gc_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+    player_tag = request.form.get("player_tag", "").strip()
+    db = DBSession()
+    cm = db.query(ClanMember).filter_by(guild_clan_id=gc_id, player_tag=player_tag).first()
+    if cm:
+        db.delete(cm)
+        db.commit()
+        flash("Member removed from roster.", "success")
+    db.close()
+    return redirect(url_for("coc_clan_manage", guild_id=guild_id, gc_id=gc_id))
 
 
 @app.route("/dashboard/<guild_id>/coc/<int:gc_id>/link", methods=["POST"])
