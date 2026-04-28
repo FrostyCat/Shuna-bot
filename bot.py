@@ -25,6 +25,7 @@ COGS = [
     "cogs.tickets",
     "cogs.embeds",
     "cogs.config",
+    "cogs.cwl_signup",
 ]
 
 

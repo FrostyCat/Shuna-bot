@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% block title %}CWL Sign Up — {{ guild.name }}{% endblock %}
+
+{% block head %}
+<style>
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #b07aaa;
+    font-size: 13px;
+    margin-bottom: 24px;
+    transition: color 0.15s;
+  }
+  .back-link:hover { color: #f0e6f0; }
+
+  .alert { padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 20px; }
+  .alert-success { background: rgba(59,165,92,0.12); color: #3ba55c; border: 1px solid rgba(59,165,92,0.3); }
+  .alert-danger  { background: rgba(225,29,72,0.12); color: #f87171; border: 1px solid rgba(225,29,72,0.25); }
+
+  .page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+  }
+  .page-title { font-size: 20px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+  .page-sub   { font-size: 13px; color: #b07aaa; }
+
+  .section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #7a5278;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    margin-bottom: 14px;
+  }
+
+  /* Send form */
+  .send-card {
+    background: #1e1220;
+    border: 1px solid rgba(244,114,182,0.13);
+    border-radius: 12px;
+    padding: 22px;
+    max-width: 500px;
+    margin-bottom: 32px;
+  }
+  .send-card label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #b07aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+  .send-card select {
+    width: 100%;
+    background: #0d0910;
+    border: 1px solid rgba(244,114,182,0.15);
+    border-radius: 7px;
+    color: #f0e6f0;
+    font-size: 14px;
+    padding: 10px 12px;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+    margin-bottom: 14px;
+    transition: border-color 0.15s;
+  }
+  .send-card select:focus { border-color: #f472b6; }
+
+  .panel-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(59,165,92,0.07);
+    border: 1px solid rgba(59,165,92,0.2);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #3ba55c;
+    margin-bottom: 32px;
+    max-width: 500px;
+  }
+
+  /* Signups table */
+  .stats-table-wrap {
+    background: #1e1220;
+    border: 1px solid rgba(244,114,182,0.13);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 28px;
+  }
+  .stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .stats-table thead tr { background: rgba(244,114,182,0.06); }
+  .stats-table th {
+    font-size: 11px;
+    font-weight: 700;
+    color: #7a5278;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 12px 14px;
+    text-align: left;
+    border-bottom: 1px solid rgba(244,114,182,0.12);
+    white-space: nowrap;
+  }
+  .stats-table td {
+    padding: 11px 14px;
+    border-bottom: 1px solid rgba(244,114,182,0.07);
+    vertical-align: middle;
+    color: #f0e6f0;
+  }
+  .stats-table tr:last-child td { border-bottom: none; }
+  .stats-table tbody tr:hover td { background: rgba(244,114,182,0.03); }
+
+  .th-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px; height: 24px;
+    border-radius: 5px;
+    background: rgba(244,114,182,0.1);
+    border: 1px solid rgba(244,114,182,0.18);
+    font-size: 11px;
+    font-weight: 700;
+    color: #f472b6;
+  }
+
+  .btn-remove {
+    background: rgba(225,29,72,0.1);
+    border: 1px solid rgba(225,29,72,0.25);
+    border-radius: 6px;
+    color: #f87171;
+    font-size: 12px;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-family: inherit;
+  }
+  .btn-remove:hover { background: rgba(225,29,72,0.2); }
+
+  .empty { text-align: center; padding: 40px 20px; color: #7a5278; font-size: 14px; }
+
+  .btn-primary {
+    background: rgba(244,114,182,0.15);
+    border: 1px solid rgba(244,114,182,0.3);
+    border-radius: 7px;
+    color: #f472b6;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 9px 18px;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-family: inherit;
+  }
+  .btn-primary:hover { background: rgba(244,114,182,0.25); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <a class="back-link" href="/dashboard/{{ guild.id }}/coc/family">← Back to CWL Manager</a>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <div class="page-header">
+    <div>
+      <div class="page-title">Roster Sign Up</div>
+      <div class="page-sub">{{ guild.name }} · {{ season_label }}</div>
+    </div>
+  </div>
+
+  <!-- Send embed section -->
+  <div class="section-title">Discord Sign-Up Post</div>
+
+  {% if panel %}
+    <div class="panel-info">
+      ✅ Aktywny post istnieje na tym sezonie ({{ signups | length }} zapisanych). Wyślij nowy aby go zastąpić.
+    </div>
+  {% endif %}
+
+  <div class="send-card">
+    <form method="POST" action="/dashboard/{{ guild.id }}/coc/family/signup/send">
+      <label>Kanał Discord</label>
+      <select name="channel_id" required>
+        <option value="">— wybierz kanał —</option>
+        {% for ch in channels %}
+          <option value="{{ ch.id }}"># {{ ch.name }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn-primary">📤 Wyślij embed Sign Up</button>
+    </form>
+  </div>
+
+  <!-- Signups list -->
+  <div class="section-title">Zapisani ({{ signups | length }})</div>
+
+  {% if signups %}
+  <div class="stats-table-wrap">
+    <table class="stats-table">
+      <thead>
+        <tr>
+          <th>Discord</th>
+          <th>CoC Account</th>
+          <th style="text-align:center;">TH</th>
+          <th>Czas zapisu</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in signups %}
+          <tr>
+            <td style="font-weight:600;">@ {{ s.discord_username }}</td>
+            <td>
+              <div style="font-weight:600;color:#fff;">{{ s.player_name }}</div>
+              <div style="font-size:11px;color:#7a5278;font-family:monospace;">{{ s.player_tag }}</div>
+            </td>
+            <td style="text-align:center;">
+              {% if s.th %}
+                <span class="th-badge">{{ s.th }}</span>
+              {% else %}
+                <span style="color:#4a2e4a;">?</span>
+              {% endif %}
+            </td>
+            <td style="font-size:12px;color:#7a5278;">
+              {{ s.signed_up_at.strftime('%d %b %H:%M') if s.signed_up_at else '—' }}
+            </td>
+            <td>
+              <button class="btn-remove" onclick="removeSignup({{ s.id }}, this)">Usuń</button>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="empty">Brak zapisanych na ten sezon. Wyślij post na Discord.</div>
+  {% endif %}
+
+</div>
+
+<script>
+  const GUILD_ID = "{{ guild.id }}";
+
+  async function removeSignup(signupId, btn) {
+    btn.disabled = true;
+    const res = await fetch(`/dashboard/${GUILD_ID}/coc/family/signup/remove`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ signup_id: signupId }),
+    });
+    if (res.ok) {
+      btn.closest("tr").remove();
+    } else {
+      btn.disabled = false;
+    }
+  }
+</script>
+{% endblock %}

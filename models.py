@@ -138,6 +138,45 @@ class ClanMember(Base):
     )
 
 
+class CwlSignup(Base):
+    __tablename__ = "cwl_signups"
+
+    id = Column(Integer, primary_key=True)
+    guild_id = Column(String, nullable=False)
+    season = Column(String, nullable=False)
+    discord_id = Column(String, nullable=False)
+    player_tag = Column(String, nullable=False)
+    signed_up_at = Column(DateTime, default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        UniqueConstraint("guild_id", "season", "discord_id", name="uq_cwl_signup"),
+    )
+
+
+class CwlSignupPanel(Base):
+    __tablename__ = "cwl_signup_panels"
+
+    id = Column(Integer, primary_key=True)
+    guild_id = Column(String)
+    season = Column(String)
+    message_id = Column(String, unique=True)
+    channel_id = Column(String)
+
+
+class CwlRosterSlot(Base):
+    __tablename__ = "cwl_roster_slots"
+
+    id = Column(Integer, primary_key=True)
+    guild_id = Column(String, nullable=False)
+    season = Column(String, nullable=False)
+    player_tag = Column(String, nullable=False)
+    gc_id = Column(Integer, ForeignKey("guild_clans.id"), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("guild_id", "season", "player_tag", name="uq_cwl_roster_slot"),
+    )
+
+
 class GuildConfig(Base):
     __tablename__ = "guild_configs"
 

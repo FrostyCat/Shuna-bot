@@ -13,7 +13,7 @@ from flask import Flask, abort, flash, jsonify, redirect, render_template, reque
 from sqlalchemy import and_, or_, func
 from db import Session as DBSession
 import re
-from models import Transcript, TicketPanel, TicketType, GuildConfig, GuildClan, Player, Attack, WarAttack, Clan, DiscordUser, ClanMember
+from models import Transcript, TicketPanel, TicketType, GuildConfig, GuildClan, Player, Attack, WarAttack, Clan, DiscordUser, ClanMember, CwlSignup, CwlSignupPanel, CwlRosterSlot
 from backfill_cwl import backfill_clan, past_seasons
 
 load_dotenv()
@@ -820,6 +820,24 @@ def coc_members_assign(guild_id):
 
 
 @app.route("/dashboard/<guild_id>/coc/family")
+def coc_cwl_hub(guild_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+    db = DBSession()
+    config = db.query(GuildConfig).filter_by(guild_id=guild_id).first()
+    role_id = config.clan_member_role_id if config else None
+    season = f"{datetime.now(UTC).year}-{datetime.now(UTC).month:02d}"
+    signup_count = db.query(CwlSignup).filter_by(guild_id=guild_id, season=season).count()
+    panel = db.query(CwlSignupPanel).filter_by(guild_id=guild_id, season=season).order_by(CwlSignupPanel.id.desc()).first()
+    db.close()
+    return render_template("coc_cwl_hub.html", user=session["user"], guild=guild,
+                           clan_member_role_id=role_id, signup_count=signup_count,
+                           has_panel=panel is not None,
+                           season_label=datetime.now(UTC).strftime("%B %Y"))
+
+
+@app.route("/dashboard/<guild_id>/coc/family/stats")
 def coc_family_stats(guild_id):
     guild, err = require_guild(guild_id)
     if err:
@@ -998,6 +1016,208 @@ def coc_family_stats(guild_id):
 
     return render_template("coc_family.html", user=session["user"], guild=guild,
                            role=role, leagues=sorted_leagues, month_labels=month_labels)
+
+
+# ── CWL Sign Up ────────────────────────────────────────────────────────────────
+
+@app.route("/dashboard/<guild_id>/coc/family/signup")
+def coc_cwl_signup(guild_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+
+    now = datetime.now(UTC)
+    season = f"{now.year}-{now.month:02d}"
+    season_label = now.strftime("%B %Y")
+
+    db = DBSession()
+    signups_raw = db.query(CwlSignup).filter_by(guild_id=guild_id, season=season).all()
+    panel = db.query(CwlSignupPanel).filter_by(guild_id=guild_id, season=season).order_by(CwlSignupPanel.id.desc()).first()
+
+    members_map = {m["id"]: m["username"] for m in guild_members(guild_id)}
+    player_tags = [s.player_tag for s in signups_raw]
+    players_map = {p.tag: p for p in db.query(Player).filter(Player.tag.in_(player_tags)).all()} if player_tags else {}
+
+    signups = []
+    for s in signups_raw:
+        p = players_map.get(s.player_tag)
+        signups.append({
+            "id": s.id,
+            "discord_username": members_map.get(s.discord_id, s.discord_id),
+            "player_name": p.name if p else s.player_tag,
+            "player_tag": s.player_tag,
+            "th": p.th_level if p else None,
+            "signed_up_at": s.signed_up_at,
+        })
+
+    channels = guild_text_channels(guild_id)
+    db.close()
+
+    return render_template("coc_cwl_signup.html", user=session["user"], guild=guild,
+                           season=season, season_label=season_label,
+                           signups=signups, panel=panel, channels=channels)
+
+
+@app.route("/dashboard/<guild_id>/coc/family/signup/send", methods=["POST"])
+def coc_cwl_signup_send(guild_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+
+    channel_id = request.form.get("channel_id")
+    if not channel_id:
+        flash("Wybierz kanał.", "danger")
+        return redirect(url_for("coc_cwl_signup", guild_id=guild_id))
+
+    now = datetime.now(UTC)
+    season = f"{now.year}-{now.month:02d}"
+    season_label = now.strftime("%B %Y")
+
+    embed = {
+        "title": f"🏆 CWL Roster Sign Up — {season_label}",
+        "description": (
+            "Kliknij **✅ Sign Up** aby zapisać się na CWL ten miesiąc.\n"
+            "Kliknij **❌ Remove** aby wypisać się.\n\n"
+            "Po kliknięciu Sign Up wybierzesz konto CoC jeśli masz ich kilka."
+        ),
+        "color": 0xf472b6,
+        "footer": {"text": "Zapisanych: 0"},
+    }
+    components = [{
+        "type": 1,
+        "components": [
+            {
+                "type": 2, "style": 3, "label": "Sign Up",
+                "emoji": {"name": "✅"},
+                "custom_id": f"cwl:signup:{guild_id}:{season}",
+            },
+            {
+                "type": 2, "style": 4, "label": "Remove",
+                "emoji": {"name": "❌"},
+                "custom_id": f"cwl:remove:{guild_id}:{season}",
+            },
+        ],
+    }]
+
+    r = requests.post(
+        f"{DISCORD_API}/channels/{channel_id}/messages",
+        headers={"Authorization": f"Bot {BOT_TOKEN}", "Content-Type": "application/json"},
+        json={"embeds": [embed], "components": components},
+    )
+    if not r.ok:
+        flash("Błąd wysyłania embeda do Discord.", "danger")
+        return redirect(url_for("coc_cwl_signup", guild_id=guild_id))
+
+    msg_id = r.json()["id"]
+    db = DBSession()
+    db.query(CwlSignupPanel).filter_by(guild_id=guild_id, season=season).delete()
+    db.add(CwlSignupPanel(guild_id=guild_id, season=season, message_id=msg_id, channel_id=channel_id))
+    db.commit()
+    db.close()
+
+    flash("Embed wysłany!", "success")
+    return redirect(url_for("coc_cwl_signup", guild_id=guild_id))
+
+
+@app.route("/dashboard/<guild_id>/coc/family/signup/remove", methods=["POST"])
+def coc_cwl_signup_remove(guild_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+    data = request.get_json()
+    signup_id = data.get("signup_id")
+    db = DBSession()
+    row = db.query(CwlSignup).filter_by(id=signup_id, guild_id=guild_id).first()
+    if row:
+        db.delete(row)
+        db.commit()
+    db.close()
+    return jsonify(ok=True)
+
+
+# ── CWL Roster Maker ───────────────────────────────────────────────────────────
+
+@app.route("/dashboard/<guild_id>/coc/family/roster")
+def coc_cwl_roster(guild_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+
+    now = datetime.now(UTC)
+    season = f"{now.year}-{now.month:02d}"
+    season_label = now.strftime("%B %Y")
+    month_start = datetime(now.year, now.month, 1, tzinfo=UTC)
+
+    db = DBSession()
+    signups_raw = db.query(CwlSignup).filter_by(guild_id=guild_id, season=season).all()
+    roster_map = {
+        r.player_tag: r.gc_id
+        for r in db.query(CwlRosterSlot).filter_by(guild_id=guild_id, season=season).all()
+    }
+    war_clans = db.query(GuildClan).filter_by(guild_id=guild_id, category="war").order_by(GuildClan.sort_order).all()
+    members_map = {m["id"]: m["username"] for m in guild_members(guild_id)}
+
+    player_tags = [s.player_tag for s in signups_raw]
+    players_map = {p.tag: p for p in db.query(Player).filter(Player.tag.in_(player_tags)).all()} if player_tags else {}
+
+    def _war_count(tag, since, *extra):
+        return db.query(WarAttack).filter(
+            WarAttack.attacker_tag == tag,
+            WarAttack.war_type == "war",
+            WarAttack.created_at >= since,
+            *extra,
+        ).count()
+
+    roster = []
+    for s in signups_raw:
+        p = players_map.get(s.player_tag)
+        total_mo = _war_count(s.player_tag, month_start)
+        loot_mo = _war_count(s.player_tag, month_start, WarAttack.stars == 1, WarAttack.destruction < 50)
+        clean_mo = _war_count(s.player_tag, month_start, WarAttack.stars == 3)
+        eff_mo = total_mo - loot_mo
+        rate_mo = round(clean_mo / eff_mo * 100) if eff_mo > 0 else None
+        roster.append({
+            "discord_username": members_map.get(s.discord_id, s.discord_id),
+            "player_name": p.name if p else s.player_tag,
+            "player_tag": s.player_tag,
+            "th": p.th_level if p else None,
+            "rate_mo": rate_mo,
+            "eff_mo": eff_mo,
+            "assigned_gc_id": roster_map.get(s.player_tag),
+        })
+
+    roster.sort(key=lambda x: (-(x["th"] or 0), -(x["rate_mo"] or -1)))
+    db.close()
+
+    return render_template("coc_cwl_roster.html", user=session["user"], guild=guild,
+                           season=season, season_label=season_label,
+                           roster=roster, war_clans=war_clans)
+
+
+@app.route("/dashboard/<guild_id>/coc/family/roster/assign", methods=["POST"])
+def coc_cwl_roster_assign(guild_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+    data = request.get_json()
+    player_tag = data.get("player_tag")
+    gc_id = data.get("gc_id")
+    now = datetime.now(UTC)
+    season = f"{now.year}-{now.month:02d}"
+
+    db = DBSession()
+    existing = db.query(CwlRosterSlot).filter_by(guild_id=guild_id, season=season, player_tag=player_tag).first()
+    if gc_id:
+        if existing:
+            existing.gc_id = int(gc_id)
+        else:
+            db.add(CwlRosterSlot(guild_id=guild_id, season=season, player_tag=player_tag, gc_id=int(gc_id)))
+    else:
+        if existing:
+            db.delete(existing)
+    db.commit()
+    db.close()
+    return jsonify(ok=True)
 
 
 @app.route("/dashboard/<guild_id>/coc/clans")

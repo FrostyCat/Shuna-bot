@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}CWL Manager — {{ guild.name }}{% endblock %}
+
+{% block head %}
+<style>
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #b07aaa;
+    font-size: 13px;
+    margin-bottom: 24px;
+    transition: color 0.15s;
+  }
+  .back-link:hover { color: #f0e6f0; }
+
+  .nav-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 36px;
+  }
+
+  .nav-card {
+    background: #1e1220;
+    border: 1px solid rgba(244,114,182,0.13);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-decoration: none;
+    transition: border-color 0.2s, background 0.2s, transform 0.15s;
+  }
+  .nav-card:hover {
+    border-color: rgba(244,114,182,0.4);
+    background: rgba(244,114,182,0.06);
+    transform: translateY(-2px);
+  }
+  .nav-card.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  .nav-card-icon  { font-size: 26px; line-height: 1; }
+  .nav-card-title { font-size: 14px; font-weight: 700; color: #fff; }
+  .nav-card-desc  { font-size: 12px; color: #b07aaa; line-height: 1.4; }
+
+  .nav-card-badge {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 99px;
+    background: rgba(244,114,182,0.1);
+    color: #f472b6;
+    border: 1px solid rgba(244,114,182,0.2);
+    width: fit-content;
+  }
+  .nav-card-badge.green {
+    background: rgba(59,165,92,0.12);
+    color: #3ba55c;
+    border-color: rgba(59,165,92,0.3);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <a class="back-link" href="/dashboard/{{ guild.id }}/coc">← Back to CoC Manager</a>
+
+  <h1>CWL Manager</h1>
+  <p style="margin-bottom: 28px; color: #b07aaa;">{{ guild.name }} · {{ season_label }}</p>
+
+  <div class="nav-grid">
+
+    <a class="nav-card {% if not clan_member_role_id %}disabled{% endif %}"
+       href="/dashboard/{{ guild.id }}/coc/family/stats">
+      <div class="nav-card-icon">📊</div>
+      <div class="nav-card-title">Members CWL Stats</div>
+      <div class="nav-card-desc">Star breakdown per player grouped by league, last 3 months.</div>
+      {% if clan_member_role_id %}
+        <span class="nav-card-badge green">Active</span>
+      {% else %}
+        <span class="nav-card-badge">Set role first</span>
+      {% endif %}
+    </a>
+
+    <a class="nav-card" href="/dashboard/{{ guild.id }}/coc/family/signup">
+      <div class="nav-card-icon">📋</div>
+      <div class="nav-card-title">Roster Sign Up</div>
+      <div class="nav-card-desc">Send a sign-up embed to Discord and manage who's joining CWL.</div>
+      {% if has_panel %}
+        <span class="nav-card-badge green">{{ signup_count }} signed up</span>
+      {% else %}
+        <span class="nav-card-badge">No active post</span>
+      {% endif %}
+    </a>
+
+    <a class="nav-card {% if signup_count == 0 %}disabled{% endif %}"
+       href="/dashboard/{{ guild.id }}/coc/family/roster">
+      <div class="nav-card-icon">🏗</div>
+      <div class="nav-card-title">Roster Maker</div>
+      <div class="nav-card-desc">Assign signed-up players to war clans for this month's CWL.</div>
+      {% if signup_count > 0 %}
+        <span class="nav-card-badge green">{{ signup_count }} players</span>
+      {% else %}
+        <span class="nav-card-badge">No sign-ups yet</span>
+      {% endif %}
+    </a>
+
+  </div>
+</div>
+{% endblock %}
