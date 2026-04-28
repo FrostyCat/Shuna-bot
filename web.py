@@ -1303,6 +1303,68 @@ def coc_unlink_player(guild_id, gc_id):
     return redirect(url_for("coc_clan_manage", guild_id=guild_id, gc_id=gc_id))
 
 
+@app.route("/dashboard/<guild_id>/coc/<int:gc_id>/war-stats")
+def coc_clan_war_stats(guild_id, gc_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+
+    db = DBSession()
+    gc = db.query(GuildClan).filter_by(id=gc_id, guild_id=guild_id).first()
+    if not gc:
+        db.close()
+        abort(404)
+
+    month_start = datetime.now(UTC).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    three_months_ago = month_start - timedelta(days=90)
+
+    assigned = db.query(ClanMember).filter_by(guild_clan_id=gc_id).all()
+    stats = []
+    for cm in assigned:
+        tag = cm.player_tag
+        player = db.query(Player).filter_by(tag=tag).first()
+        name = player.name if player else tag
+
+        def _war_count(since, extra_filters=()):
+            q = db.query(WarAttack).filter(
+                WarAttack.attacker_tag == tag,
+                WarAttack.war_type == "war",
+                WarAttack.created_at >= since,
+                *extra_filters,
+            )
+            return q.count()
+
+        total_mo   = _war_count(month_start)
+        loot_mo    = _war_count(month_start, (WarAttack.stars == 1, WarAttack.destruction < 50))
+        clean_mo   = _war_count(month_start, (or_(WarAttack.stars >= 2, and_(WarAttack.stars == 1, WarAttack.destruction >= 50)),))
+        total_3mo  = _war_count(three_months_ago)
+        loot_3mo   = _war_count(three_months_ago, (WarAttack.stars == 1, WarAttack.destruction < 50))
+        clean_3mo  = _war_count(three_months_ago, (or_(WarAttack.stars >= 2, and_(WarAttack.stars == 1, WarAttack.destruction >= 50)),))
+
+        eff_mo    = total_mo  - loot_mo
+        eff_3mo   = total_3mo - loot_3mo
+        rate_mo   = round(clean_mo  / eff_mo   * 100) if eff_mo   > 0 else None
+        rate_3mo  = round(clean_3mo / eff_3mo  * 100) if eff_3mo  > 0 else None
+
+        eff_prev   = eff_3mo  - eff_mo
+        clean_prev = clean_3mo - clean_mo
+        rate_prev  = round(clean_prev / eff_prev * 100) if eff_prev > 0 else None
+        trend = (rate_mo - rate_prev) if (rate_mo is not None and rate_prev is not None) else None
+
+        stats.append({
+            "tag": tag, "name": name,
+            "total_mo": total_mo, "loot_mo": loot_mo,
+            "rate_mo": rate_mo, "eff_mo": eff_mo,
+            "rate_3mo": rate_3mo, "eff_3mo": eff_3mo, "total_3mo": total_3mo,
+            "trend": trend,
+        })
+
+    stats.sort(key=lambda x: (x["rate_3mo"] is not None, x["rate_3mo"] or 0), reverse=True)
+    db.close()
+    return render_template("coc_clan_war_stats.html", user=session["user"], guild=guild, gc=gc,
+                           stats=stats, month_label=month_start.strftime("%B %Y"))
+
+
 @app.route("/dashboard/<guild_id>/coc/<int:gc_id>/remove", methods=["POST"])
 def coc_clan_remove(guild_id, gc_id):
     guild, err = require_guild(guild_id)

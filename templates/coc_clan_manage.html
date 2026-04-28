@@ -299,52 +299,6 @@
     flex-wrap: wrap;
   }
 
-  /* ── War stats table ── */
-  .war-stats-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-  }
-  .war-stats-table th {
-    font-size: 11px;
-    font-weight: 700;
-    color: #7a5278;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    padding: 8px 12px;
-    border-bottom: 1px solid rgba(244,114,182,0.12);
-    text-align: left;
-    white-space: nowrap;
-  }
-  .war-stats-table th.num { text-align: center; }
-  .war-stats-table td {
-    padding: 10px 12px;
-    border-bottom: 1px solid rgba(244,114,182,0.07);
-    color: #f0e6f0;
-    vertical-align: middle;
-  }
-  .war-stats-table td.num { text-align: center; }
-  .war-stats-table tr:last-child td { border-bottom: none; }
-  .war-stats-table tr:hover td { background: rgba(244,114,182,0.03); }
-
-  .stat-num {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 28px;
-    height: 24px;
-    border-radius: 5px;
-    font-weight: 700;
-    font-size: 13px;
-  }
-  .stat-num.zero  { color: #4a2e4a; }
-  .stat-num.low   { color: #f0e6f0; }
-  .stat-num.good  { color: #3ba55c; }
-  .stat-num.great { color: #f472b6; }
-
-  .player-cell { display: flex; flex-direction: column; gap: 2px; }
-  .player-cell .pname { font-weight: 600; color: #fff; }
-  .player-cell .ptag  { font-size: 11px; color: #7a5278; font-family: monospace; }
 </style>
 {% endblock %}
 
@@ -456,9 +410,33 @@
   {% set ROLE_NAMES = {"leader": "Leader", "coLeader": "Co-Leader", "admin": "Elder", "member": "Member"} %}
   {% set ROLE_CSS   = {"leader": "leader", "coLeader": "coLeader", "admin": "elder", "member": ""} %}
 
+  <!-- Add from linked accounts -->
+  <div class="section-header">
+    <div class="section-title">Add to Roster</div>
+  </div>
+
+  {% if addable %}
+    <form class="add-form" method="post"
+          action="/dashboard/{{ guild.id }}/coc/{{ gc.id }}/manage/add">
+      <div class="form-group">
+        <label>Linked Account</label>
+        <select name="player_tag">
+          {% for a in addable | sort(attribute='discord_username') %}
+            <option value="{{ a.tag }}">{{ a.discord_username }} — {{ a.name }} ({{ a.tag }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">Add</button>
+    </form>
+  {% else %}
+    <p class="empty-note">All linked accounts are already assigned, or no Discord members have linked CoC accounts.</p>
+  {% endif %}
+
   <!-- Roster -->
+  <hr class="divider">
   <div class="section-header">
     <div class="section-title">Assigned Roster ({{ roster | length }})</div>
+    <a href="/dashboard/{{ guild.id }}/coc/{{ gc.id }}/war-stats" class="btn btn-secondary btn-sm">⚔ War Statistics</a>
   </div>
 
   {% if roster %}
@@ -516,30 +494,7 @@
       {% endfor %}
     </div>
   {% else %}
-    <p class="empty-note">No members assigned yet. Add them below.</p>
-  {% endif %}
-
-  <!-- Add from linked accounts -->
-  <hr class="divider">
-  <div class="section-header">
-    <div class="section-title">Add to Roster</div>
-  </div>
-
-  {% if addable %}
-    <form class="add-form" method="post"
-          action="/dashboard/{{ guild.id }}/coc/{{ gc.id }}/manage/add">
-      <div class="form-group">
-        <label>Linked Account</label>
-        <select name="player_tag">
-          {% for a in addable | sort(attribute='discord_username') %}
-            <option value="{{ a.tag }}">{{ a.discord_username }} — {{ a.name }} ({{ a.tag }})</option>
-          {% endfor %}
-        </select>
-      </div>
-      <button type="submit" class="btn btn-primary">Add</button>
-    </form>
-  {% else %}
-    <p class="empty-note">All linked accounts are already assigned, or no Discord members have linked CoC accounts.</p>
+    <p class="empty-note">No members assigned yet.</p>
   {% endif %}
 
   <!-- In-clan but unassigned -->
@@ -573,48 +528,6 @@
     </div>
   {% endif %}
 
-  <!-- War Statistics -->
-  {% if roster %}
-    <hr class="divider">
-    <div class="section-header">
-      <div class="section-title">War Statistics — Roster (this month)</div>
-    </div>
-
-    <div style="overflow-x:auto;">
-      <table class="war-stats-table">
-        <thead>
-          <tr>
-            <th>Player</th>
-            <th class="num">War</th>
-            <th class="num">War ⭐⭐⭐</th>
-            <th class="num">CWL</th>
-            <th class="num">War (3 mo)</th>
-            <th class="num">Legend</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for m in roster %}
-            {% macro snum(v, good=3, great=6) %}
-              <span class="stat-num {% if v == 0 %}zero{% elif v >= great %}great{% elif v >= good %}good{% else %}low{% endif %}">{{ v }}</span>
-            {% endmacro %}
-            <tr>
-              <td>
-                <div class="player-cell">
-                  <span class="pname">{{ m.name }}</span>
-                  <span class="ptag">{{ m.tag }}</span>
-                </div>
-              </td>
-              <td class="num">{{ snum(m.war_month, 1, 5) }}</td>
-              <td class="num">{{ snum(m.war_3star, 1, 4) }}</td>
-              <td class="num">{{ snum(m.cwl_month, 1, 7) }}</td>
-              <td class="num">{{ snum(m.war_3mo, 3, 12) }}</td>
-              <td class="num">{{ snum(m.legend_month, 5, 15) }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  {% endif %}
 
 </div>
 
