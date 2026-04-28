@@ -115,6 +115,7 @@
                 <th>Discord</th>
                 <th>Account</th>
                 <th>CWL Roster</th>
+                <th>Sign Up</th>
                 {% for label in month_labels %}
                   <th>{{ label }}</th>
                 {% endfor %}
@@ -137,6 +138,13 @@
                   <td>
                     {% if s.cwl_roster %}
                       <span style="font-size:12px;font-weight:600;color:#f472b6;background:rgba(244,114,182,0.1);border:1px solid rgba(244,114,182,0.2);border-radius:5px;padding:2px 8px;white-space:nowrap;">{{ s.cwl_roster }}</span>
+                    {% else %}
+                      <span style="font-size:12px;color:#4a2e4a;">—</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if s.cwl_signup_via %}
+                      <span style="font-size:11px;color:#7a5278;background:rgba(244,114,182,0.05);border:1px solid rgba(244,114,182,0.1);border-radius:4px;padding:2px 7px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;display:inline-block;" title="{{ s.cwl_signup_via }}">{{ s.cwl_signup_via }}</span>
                     {% else %}
                       <span style="font-size:12px;color:#4a2e4a;">—</span>
                     {% endif %}

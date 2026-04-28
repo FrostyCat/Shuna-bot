@@ -884,6 +884,11 @@ def coc_family_stats(guild_id):
     ).filter(CwlRosterSlot.guild_id == guild_id, CwlRosterSlot.season == season).all()
     roster_map = {slot.player_tag: gc.clan_name or gc.clan_tag for slot, gc in roster_slots}
 
+    signups_q = db.query(CwlSignup, CwlSignupPanel).join(
+        CwlSignupPanel, CwlSignup.panel_id == CwlSignupPanel.id
+    ).filter(CwlSignup.guild_id == guild_id, CwlSignup.season == season).all()
+    signup_panel_map = {s.player_tag: (p.embed_title or "CWL Sign Up") for s, p in signups_q}
+
     stats = []
     for member in role_members:
         discord_id = member["id"]
@@ -897,7 +902,7 @@ def coc_family_stats(guild_id):
                 "discord_id": discord_id,
                 "discord_username": discord_username,
                 "tag": None, "name": None, "in_db": False,
-                "cwl_league": None, "cwl_roster": None,
+                "cwl_league": None, "cwl_roster": None, "cwl_signup_via": None,
                 "legend_total": 0, "legend_3star": 0,
                 "months": [{"stars_3": 0, "stars_2": 0, "stars_1": 0, "stars_0": 0,
                             "total": 0, "league": None, "war_3star": 0, "war_clean": 0}
@@ -1023,6 +1028,7 @@ def coc_family_stats(guild_id):
                     "in_db": True,
                     "cwl_league": cwl_league,
                     "cwl_roster": roster_map.get(player.tag),
+                    "cwl_signup_via": signup_panel_map.get(player.tag),
                     "legend_total": legend_total,
                     "legend_3star": legend_3star,
                     "months": months,
@@ -1202,6 +1208,24 @@ def coc_cwl_signup_panel_delete(guild_id):
     db = DBSession()
     panel = db.query(CwlSignupPanel).filter_by(id=panel_id, guild_id=guild_id).first()
     if panel:
+        # Find players signed up via this panel that have no other signup this season
+        panel_tags = [s.player_tag for s in db.query(CwlSignup).filter_by(panel_id=panel_id).all()]
+        orphaned = []
+        for tag in panel_tags:
+            other = db.query(CwlSignup).filter(
+                CwlSignup.guild_id == guild_id,
+                CwlSignup.season == panel.season,
+                CwlSignup.player_tag == tag,
+                CwlSignup.panel_id != panel_id,
+            ).first()
+            if not other:
+                orphaned.append(tag)
+        if orphaned:
+            db.query(CwlRosterSlot).filter(
+                CwlRosterSlot.guild_id == guild_id,
+                CwlRosterSlot.season == panel.season,
+                CwlRosterSlot.player_tag.in_(orphaned),
+            ).delete(synchronize_session=False)
         requests.delete(
             f"{DISCORD_API}/channels/{panel.channel_id}/messages/{panel.message_id}",
             headers={"Authorization": f"Bot {BOT_TOKEN}"},
