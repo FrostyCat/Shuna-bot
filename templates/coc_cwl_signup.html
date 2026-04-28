@@ -65,6 +65,30 @@
   .btn-toggle:hover { background: rgba(244,114,182,0.16); color: #f0e6f0; }
   .btn-toggle.open  { background: rgba(244,114,182,0.16); color: #f472b6; border-color: rgba(244,114,182,0.35); }
 
+  .btn-status {
+    border-radius: 6px;
+    font-size: 12px;
+    padding: 4px 12px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    font-family: inherit;
+    font-weight: 600;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .btn-status.is-open {
+    background: rgba(59,165,92,0.12);
+    border: 1px solid rgba(59,165,92,0.35);
+    color: #3ba55c;
+  }
+  .btn-status.is-open:hover { background: rgba(59,165,92,0.22); }
+  .btn-status.is-closed {
+    background: rgba(148,163,184,0.08);
+    border: 1px solid rgba(148,163,184,0.2);
+    color: #64748b;
+  }
+  .btn-status.is-closed:hover { background: rgba(148,163,184,0.15); }
+
   .btn-delete {
     background: rgba(225,29,72,0.1);
     border: 1px solid rgba(225,29,72,0.25);
@@ -239,6 +263,11 @@
                     onclick="togglePanel({{ p.id }}, this)">
               ▼ Signups ({{ p.signup_count }})
             </button>
+            <button class="btn-status {% if p.is_open %}is-open{% else %}is-closed{% endif %}"
+                    id="status-{{ p.id }}"
+                    onclick="toggleStatus({{ p.id }}, this)">
+              {% if p.is_open %}● Open{% else %}● Closed{% endif %}
+            </button>
             <button class="btn-delete" onclick="deletePanel({{ p.id }}, this)">Delete</button>
           </div>
 
@@ -368,8 +397,24 @@
     }
   }
 
+  async function toggleStatus(panelId, btn) {
+    btn.disabled = true;
+    const res = await fetch(`/dashboard/${GUILD_ID}/coc/family/signup/panel/toggle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ panel_id: panelId }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      btn.classList.toggle('is-open', data.is_open);
+      btn.classList.toggle('is-closed', !data.is_open);
+      btn.textContent = data.is_open ? '● Open' : '● Closed';
+    }
+    btn.disabled = false;
+  }
+
   async function deletePanel(panelId, btn) {
-    if (!confirm("Remove this sign-up post? The Discord buttons will be disabled.")) return;
+    if (!confirm("Remove this sign-up post? The Discord message will be deleted.")) return;
     btn.disabled = true;
     const res = await fetch(`/dashboard/${GUILD_ID}/coc/family/signup/panel/delete`, {
       method: "POST",

@@ -164,6 +164,7 @@ class CwlSignupPanel(Base):
     channel_id = Column(String)
     embed_title = Column(String, nullable=True)
     embed_description = Column(Text, nullable=True)
+    is_open = Column(Boolean, default=True, nullable=False, server_default="true")
 
 
 class CwlRosterSlot(Base):

@@ -1097,6 +1097,7 @@ def coc_cwl_signup(guild_id):
             "message_id": p.message_id,
             "embed_title": p.embed_title or f"CWL Roster Sign Up — {season_label}",
             "signup_count": len(signups_by_panel.get(p.id, [])),
+            "is_open": p.is_open,
         }
         for p in panels_raw
     ]
@@ -1201,15 +1202,49 @@ def coc_cwl_signup_panel_delete(guild_id):
     db = DBSession()
     panel = db.query(CwlSignupPanel).filter_by(id=panel_id, guild_id=guild_id).first()
     if panel:
-        requests.patch(
+        requests.delete(
             f"{DISCORD_API}/channels/{panel.channel_id}/messages/{panel.message_id}",
-            headers={"Authorization": f"Bot {BOT_TOKEN}", "Content-Type": "application/json"},
-            json={"components": []},
+            headers={"Authorization": f"Bot {BOT_TOKEN}"},
         )
         db.delete(panel)
         db.commit()
     db.close()
     return jsonify(ok=True)
+
+
+@app.route("/dashboard/<guild_id>/coc/family/signup/panel/toggle", methods=["POST"])
+def coc_cwl_signup_panel_toggle(guild_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+    data = request.get_json()
+    panel_id = data.get("panel_id")
+    db = DBSession()
+    panel = db.query(CwlSignupPanel).filter_by(id=panel_id, guild_id=guild_id).first()
+    if not panel:
+        db.close()
+        return jsonify(ok=False), 404
+    panel.is_open = not panel.is_open
+    db.commit()
+    if panel.is_open:
+        components = [{
+            "type": 1,
+            "components": [
+                {"type": 2, "style": 3, "label": "Sign Up", "emoji": {"name": "✅"},
+                 "custom_id": f"cwl:signup:{guild_id}:{panel_id}"},
+                {"type": 2, "style": 4, "label": "Remove", "emoji": {"name": "❌"},
+                 "custom_id": f"cwl:remove:{guild_id}:{panel_id}"},
+            ],
+        }]
+    else:
+        components = []
+    requests.patch(
+        f"{DISCORD_API}/channels/{panel.channel_id}/messages/{panel.message_id}",
+        headers={"Authorization": f"Bot {BOT_TOKEN}", "Content-Type": "application/json"},
+        json={"components": components},
+    )
+    db.close()
+    return jsonify(ok=True, is_open=panel.is_open)
 
 
 @app.route("/dashboard/<guild_id>/coc/family/signup/remove", methods=["POST"])

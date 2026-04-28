@@ -151,10 +151,11 @@ class CwlSignupCog(commands.Cog):
                     continue
                 try:
                     await channel.fetch_message(int(panel.message_id))
-                    self.bot.add_view(
-                        CwlSignupView(panel.guild_id, panel.id),
-                        message_id=int(panel.message_id),
-                    )
+                    if panel.is_open:
+                        self.bot.add_view(
+                            CwlSignupView(panel.guild_id, panel.id),
+                            message_id=int(panel.message_id),
+                        )
                 except discord.NotFound:
                     stale_ids.append(panel.id)
             if stale_ids:
