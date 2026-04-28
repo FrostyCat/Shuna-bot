@@ -151,23 +151,43 @@ async def _update_panel_embed(bot: discord.Bot, panel_id: int):
 
     guild = bot.get_guild(int(panel.guild_id))
 
-    player_lines = []
-    for s in signups:
+    rows = []
+    for i, s in enumerate(signups, 1):
         p = players_map.get(s.player_tag)
-        name = p.name if p else s.player_tag
-        th_str = f"TH{p.th_level}" if (p and p.th_level) else "TH?"
-        discord_str = ""
+        name = (p.name if p else s.player_tag)
+        th = str(p.th_level) if (p and p.th_level) else "?"
+        disc = ""
         if guild:
             member = guild.get_member(int(s.discord_id))
             if member:
-                discord_str = f" · @{member.display_name}"
-        player_lines.append(f"• {name} — {th_str}{discord_str} · `{s.player_tag}`")
+                disc = member.display_name
+        rows.append((i, th, name, disc))
+
+    def _trunc(s, n):
+        return s[:n] if len(s) <= n else s[:n - 1] + "…"
+
+    if rows:
+        th_w = 3
+        name_w = max(6, min(18, max(len(r[2]) for r in rows)))
+        disc_w = max(7, min(16, max((len(r[3]) for r in rows), default=7)))
+        header = f"{'#':>3}  {'TH':<{th_w}}  {'PLAYER':<{name_w}}  {'DISCORD':<{disc_w}}"
+        sep    = "─" * len(header)
+        lines  = [header, sep]
+        for i, th, name, disc in rows:
+            lines.append(
+                f"{i:>3}  {_trunc(th, th_w):<{th_w}}  "
+                f"{_trunc(name, name_w):<{name_w}}  "
+                f"{_trunc(disc, disc_w):<{disc_w}}"
+            )
+        player_section = "```\n" + "\n".join(lines) + "\n```"
+    else:
+        player_section = None
 
     parts = []
     if panel.embed_description:
         parts.append(panel.embed_description)
-    if player_lines:
-        parts.append("\n".join(player_lines))
+    if player_section:
+        parts.append(player_section)
     parts.append(_BUTTON_INSTRUCTIONS)
 
     embed = discord.Embed(
