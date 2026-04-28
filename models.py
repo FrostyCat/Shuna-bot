@@ -161,6 +161,8 @@ class CwlSignupPanel(Base):
     season = Column(String)
     message_id = Column(String, unique=True)
     channel_id = Column(String)
+    embed_title = Column(String, nullable=True)
+    embed_description = Column(Text, nullable=True)
 
 
 class CwlRosterSlot(Base):

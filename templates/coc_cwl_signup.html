@@ -18,45 +18,74 @@
   .alert-success { background: rgba(59,165,92,0.12); color: #3ba55c; border: 1px solid rgba(59,165,92,0.3); }
   .alert-danger  { background: rgba(225,29,72,0.12); color: #f87171; border: 1px solid rgba(225,29,72,0.25); }
 
-  .page-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 28px;
-    flex-wrap: wrap;
-  }
+  .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
   .page-title { font-size: 20px; font-weight: 800; color: #fff; margin-bottom: 4px; }
   .page-sub   { font-size: 13px; color: #b07aaa; }
 
   .section-title {
-    font-size: 12px;
-    font-weight: 700;
-    color: #7a5278;
-    text-transform: uppercase;
-    letter-spacing: 0.09em;
-    margin-bottom: 14px;
+    font-size: 12px; font-weight: 700; color: #7a5278;
+    text-transform: uppercase; letter-spacing: 0.09em; margin-bottom: 14px;
   }
 
-  /* Send form */
+  /* Active panels list */
+  .panel-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; max-width: 640px; }
+  .panel-item {
+    background: #1e1220;
+    border: 1px solid rgba(244,114,182,0.13);
+    border-radius: 10px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .panel-item-info { flex: 1; }
+  .panel-item-title { font-size: 14px; font-weight: 600; color: #fff; }
+  .panel-item-meta  { font-size: 12px; color: #7a5278; margin-top: 2px; }
+  .panel-item-link  { font-size: 12px; color: #b07aaa; text-decoration: none; }
+  .panel-item-link:hover { color: #f0e6f0; }
+
+  .btn-delete {
+    background: rgba(225,29,72,0.1);
+    border: 1px solid rgba(225,29,72,0.25);
+    border-radius: 6px;
+    color: #f87171;
+    font-size: 12px;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-family: inherit;
+    flex-shrink: 0;
+  }
+  .btn-delete:hover { background: rgba(225,29,72,0.2); }
+
+  .limit-note {
+    font-size: 12px; color: #7a5278; margin-bottom: 20px;
+    background: rgba(244,114,182,0.05);
+    border: 1px solid rgba(244,114,182,0.1);
+    border-radius: 6px;
+    padding: 8px 12px;
+    max-width: 640px;
+  }
+
+  /* Create form */
   .send-card {
     background: #1e1220;
     border: 1px solid rgba(244,114,182,0.13);
     border-radius: 12px;
     padding: 22px;
-    max-width: 500px;
+    max-width: 560px;
     margin-bottom: 32px;
   }
-  .send-card label {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    color: #b07aaa;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin-bottom: 6px;
+  .send-card.disabled { opacity: 0.4; pointer-events: none; }
+
+  .form-group { margin-bottom: 16px; }
+  .form-group label {
+    display: block; font-size: 12px; font-weight: 600; color: #b07aaa;
+    text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px;
   }
-  .send-card select {
+  .form-group input[type="text"],
+  .form-group textarea,
+  .form-group select {
     width: 100%;
     background: #0d0910;
     border: 1px solid rgba(244,114,182,0.15);
@@ -66,24 +95,28 @@
     padding: 10px 12px;
     font-family: inherit;
     outline: none;
-    cursor: pointer;
-    margin-bottom: 14px;
+    box-sizing: border-box;
     transition: border-color 0.15s;
   }
-  .send-card select:focus { border-color: #f472b6; }
+  .form-group input[type="text"]:focus,
+  .form-group textarea:focus,
+  .form-group select:focus { border-color: #f472b6; }
+  .form-group textarea { resize: vertical; min-height: 80px; }
 
-  .panel-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: rgba(59,165,92,0.07);
-    border: 1px solid rgba(59,165,92,0.2);
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-size: 13px;
-    color: #3ba55c;
-    margin-bottom: 32px;
-    max-width: 500px;
+  .btn-hint {
+    font-size: 11px; color: #4a2e4a; margin-top: 5px;
+  }
+
+  .instructions-preview {
+    background: #0d0910;
+    border: 1px solid rgba(244,114,182,0.1);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #7a5278;
+    margin-top: 8px;
+    line-height: 1.5;
+    white-space: pre-line;
   }
 
   /* Signups table */
@@ -94,55 +127,34 @@
     overflow: hidden;
     margin-bottom: 28px;
   }
-  .stats-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-  }
+  .stats-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   .stats-table thead tr { background: rgba(244,114,182,0.06); }
   .stats-table th {
-    font-size: 11px;
-    font-weight: 700;
-    color: #7a5278;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    padding: 12px 14px;
-    text-align: left;
+    font-size: 11px; font-weight: 700; color: #7a5278;
+    text-transform: uppercase; letter-spacing: 0.07em;
+    padding: 12px 14px; text-align: left;
     border-bottom: 1px solid rgba(244,114,182,0.12);
     white-space: nowrap;
   }
   .stats-table td {
     padding: 11px 14px;
     border-bottom: 1px solid rgba(244,114,182,0.07);
-    vertical-align: middle;
-    color: #f0e6f0;
+    vertical-align: middle; color: #f0e6f0;
   }
   .stats-table tr:last-child td { border-bottom: none; }
   .stats-table tbody tr:hover td { background: rgba(244,114,182,0.03); }
 
   .th-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px; height: 24px;
-    border-radius: 5px;
-    background: rgba(244,114,182,0.1);
-    border: 1px solid rgba(244,114,182,0.18);
-    font-size: 11px;
-    font-weight: 700;
-    color: #f472b6;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 36px; height: 24px; border-radius: 5px;
+    background: rgba(244,114,182,0.1); border: 1px solid rgba(244,114,182,0.18);
+    font-size: 11px; font-weight: 700; color: #f472b6;
   }
 
   .btn-remove {
-    background: rgba(225,29,72,0.1);
-    border: 1px solid rgba(225,29,72,0.25);
-    border-radius: 6px;
-    color: #f87171;
-    font-size: 12px;
-    padding: 4px 10px;
-    cursor: pointer;
-    transition: background 0.15s;
-    font-family: inherit;
+    background: rgba(225,29,72,0.1); border: 1px solid rgba(225,29,72,0.25);
+    border-radius: 6px; color: #f87171; font-size: 12px; padding: 4px 10px;
+    cursor: pointer; transition: background 0.15s; font-family: inherit;
   }
   .btn-remove:hover { background: rgba(225,29,72,0.2); }
 
@@ -151,14 +163,8 @@
   .btn-primary {
     background: rgba(244,114,182,0.15);
     border: 1px solid rgba(244,114,182,0.3);
-    border-radius: 7px;
-    color: #f472b6;
-    font-size: 13px;
-    font-weight: 600;
-    padding: 9px 18px;
-    cursor: pointer;
-    transition: background 0.15s;
-    font-family: inherit;
+    border-radius: 7px; color: #f472b6; font-size: 13px; font-weight: 600;
+    padding: 9px 18px; cursor: pointer; transition: background 0.15s; font-family: inherit;
   }
   .btn-primary:hover { background: rgba(244,114,182,0.25); }
 </style>
@@ -181,30 +187,68 @@
     </div>
   </div>
 
-  <!-- Send embed section -->
-  <div class="section-title">Discord Sign-Up Post</div>
+  <!-- Active panels -->
+  <div class="section-title">Active Sign-Up Posts ({{ panels | length }}/5)</div>
 
-  {% if panel %}
-    <div class="panel-info">
-      ✅ Aktywny post istnieje na tym sezonie ({{ signups | length }} zapisanych). Wyślij nowy aby go zastąpić.
+  {% if panels %}
+    <div class="panel-list">
+      {% for p in panels %}
+        <div class="panel-item" id="panel-{{ p.id }}">
+          <div class="panel-item-info">
+            <div class="panel-item-title">{{ p.embed_title }}</div>
+            <div class="panel-item-meta">
+              #{{ p.channel_name }}
+              &nbsp;·&nbsp;
+              <a class="panel-item-link"
+                 href="https://discord.com/channels/{{ guild.id }}/{{ p.channel_id }}/{{ p.message_id }}"
+                 target="_blank">Jump to message ↗</a>
+            </div>
+          </div>
+          <button class="btn-delete" onclick="deletePanel({{ p.id }}, this)">Delete</button>
+        </div>
+      {% endfor %}
     </div>
+  {% else %}
+    <p style="font-size:13px;color:#4a2e4a;margin-bottom:20px;">No active posts for this season.</p>
   {% endif %}
 
-  <div class="send-card">
+  <!-- Create new post -->
+  <div class="section-title">Create New Post</div>
+
+  {% if not can_add %}
+    <div class="limit-note">Maximum of 5 sign-up posts per season reached. Delete one to create a new one.</div>
+  {% endif %}
+
+  <div class="send-card {% if not can_add %}disabled{% endif %}">
     <form method="POST" action="/dashboard/{{ guild.id }}/coc/family/signup/send">
-      <label>Kanał Discord</label>
-      <select name="channel_id" required>
-        <option value="">— wybierz kanał —</option>
-        {% for ch in channels %}
-          <option value="{{ ch.id }}"># {{ ch.name }}</option>
-        {% endfor %}
-      </select>
-      <button type="submit" class="btn-primary">📤 Wyślij embed Sign Up</button>
+      <div class="form-group">
+        <label>Title</label>
+        <input type="text" name="embed_title"
+               placeholder="CWL Roster Sign Up — {{ season_label }}"
+               maxlength="200">
+      </div>
+      <div class="form-group">
+        <label>Description <span style="font-weight:400;text-transform:none;color:#4a2e4a;">(optional)</span></label>
+        <textarea name="embed_description"
+                  placeholder="Add any custom text above the button instructions..."></textarea>
+        <div class="btn-hint">The following will always be appended below your text:</div>
+        <div class="instructions-preview">{{ button_instructions }}</div>
+      </div>
+      <div class="form-group">
+        <label>Channel</label>
+        <select name="channel_id" required>
+          <option value="">— select a channel —</option>
+          {% for ch in channels %}
+            <option value="{{ ch.id }}"># {{ ch.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn-primary">📤 Send to Discord</button>
     </form>
   </div>
 
   <!-- Signups list -->
-  <div class="section-title">Zapisani ({{ signups | length }})</div>
+  <div class="section-title">Signed Up ({{ signups | length }})</div>
 
   {% if signups %}
   <div class="stats-table-wrap">
@@ -214,7 +258,7 @@
           <th>Discord</th>
           <th>CoC Account</th>
           <th style="text-align:center;">TH</th>
-          <th>Czas zapisu</th>
+          <th>Signed Up</th>
           <th></th>
         </tr>
       </thead>
@@ -237,7 +281,7 @@
               {{ s.signed_up_at.strftime('%d %b %H:%M') if s.signed_up_at else '—' }}
             </td>
             <td>
-              <button class="btn-remove" onclick="removeSignup({{ s.id }}, this)">Usuń</button>
+              <button class="btn-remove" onclick="removeSignup({{ s.id }}, this)">Remove</button>
             </td>
           </tr>
         {% endfor %}
@@ -245,7 +289,7 @@
     </table>
   </div>
   {% else %}
-    <div class="empty">Brak zapisanych na ten sezon. Wyślij post na Discord.</div>
+    <div class="empty">No sign-ups yet. Send a post to Discord first.</div>
   {% endif %}
 
 </div>
@@ -260,11 +304,20 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ signup_id: signupId }),
     });
-    if (res.ok) {
-      btn.closest("tr").remove();
-    } else {
-      btn.disabled = false;
-    }
+    if (res.ok) btn.closest("tr").remove();
+    else btn.disabled = false;
+  }
+
+  async function deletePanel(panelId, btn) {
+    if (!confirm("Remove this sign-up post? The Discord buttons will be disabled.")) return;
+    btn.disabled = true;
+    const res = await fetch(`/dashboard/${GUILD_ID}/coc/family/signup/panel/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ panel_id: panelId }),
+    });
+    if (res.ok) document.getElementById("panel-" + panelId).remove();
+    else btn.disabled = false;
   }
 </script>
 {% endblock %}

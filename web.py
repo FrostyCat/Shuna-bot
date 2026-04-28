@@ -1043,6 +1043,13 @@ def coc_family_stats(guild_id):
 
 # ── CWL Sign Up ────────────────────────────────────────────────────────────────
 
+_CWL_BUTTON_INSTRUCTIONS = (
+    "Click **✅ Sign Up** to register for this month's CWL.\n"
+    "Click **❌ Remove** to withdraw your signup.\n\n"
+    "If you have multiple accounts linked, you'll be asked to choose one."
+)
+
+
 @app.route("/dashboard/<guild_id>/coc/family/signup")
 def coc_cwl_signup(guild_id):
     guild, err = require_guild(guild_id)
@@ -1055,7 +1062,22 @@ def coc_cwl_signup(guild_id):
 
     db = DBSession()
     signups_raw = db.query(CwlSignup).filter_by(guild_id=guild_id, season=season).all()
-    panel = db.query(CwlSignupPanel).filter_by(guild_id=guild_id, season=season).order_by(CwlSignupPanel.id.desc()).first()
+    panels_raw = db.query(CwlSignupPanel).filter_by(guild_id=guild_id, season=season).order_by(CwlSignupPanel.id).all()
+
+    channels_list = guild_text_channels(guild_id)
+    channels_map = {c["id"]: c["name"] for c in channels_list}
+
+    panels = [
+        {
+            "id": p.id,
+            "channel_name": channels_map.get(p.channel_id, p.channel_id),
+            "channel_id": p.channel_id,
+            "message_id": p.message_id,
+            "embed_title": p.embed_title or f"CWL Roster Sign Up — {season_label}",
+            "embed_description": p.embed_description or "",
+        }
+        for p in panels_raw
+    ]
 
     members_map = {m["id"]: m["username"] for m in guild_members(guild_id)}
     player_tags = [s.player_tag for s in signups_raw]
@@ -1073,12 +1095,14 @@ def coc_cwl_signup(guild_id):
             "signed_up_at": s.signed_up_at,
         })
 
-    channels = guild_text_channels(guild_id)
     db.close()
 
     return render_template("coc_cwl_signup.html", user=session["user"], guild=guild,
                            season=season, season_label=season_label,
-                           signups=signups, panel=panel, channels=channels)
+                           signups=signups, panels=panels,
+                           channels=channels_list,
+                           can_add=len(panels) < 5,
+                           button_instructions=_CWL_BUTTON_INSTRUCTIONS)
 
 
 @app.route("/dashboard/<guild_id>/coc/family/signup/send", methods=["POST"])
@@ -1089,22 +1113,31 @@ def coc_cwl_signup_send(guild_id):
 
     channel_id = request.form.get("channel_id")
     if not channel_id:
-        flash("Wybierz kanał.", "danger")
+        flash("Select a channel.", "danger")
         return redirect(url_for("coc_cwl_signup", guild_id=guild_id))
 
     now = datetime.now(UTC)
     season = f"{now.year}-{now.month:02d}"
     season_label = now.strftime("%B %Y")
 
+    db = DBSession()
+    panel_count = db.query(CwlSignupPanel).filter_by(guild_id=guild_id, season=season).count()
+    if panel_count >= 5:
+        db.close()
+        flash("Maximum 5 sign-up posts per season.", "danger")
+        return redirect(url_for("coc_cwl_signup", guild_id=guild_id))
+    db.close()
+
+    embed_title = (request.form.get("embed_title") or f"CWL Roster Sign Up — {season_label}").strip()
+    embed_description = (request.form.get("embed_description") or "").strip()
+
+    full_description = (embed_description + "\n\n" if embed_description else "") + _CWL_BUTTON_INSTRUCTIONS
+
     embed = {
-        "title": f"🏆 CWL Roster Sign Up — {season_label}",
-        "description": (
-            "Kliknij **✅ Sign Up** aby zapisać się na CWL ten miesiąc.\n"
-            "Kliknij **❌ Remove** aby wypisać się.\n\n"
-            "Po kliknięciu Sign Up wybierzesz konto CoC jeśli masz ich kilka."
-        ),
+        "title": f"🏆 {embed_title}",
+        "description": full_description,
         "color": 0xf472b6,
-        "footer": {"text": "Zapisanych: 0"},
+        "footer": {"text": "Signed up: 0"},
     }
     components = [{
         "type": 1,
@@ -1128,18 +1161,42 @@ def coc_cwl_signup_send(guild_id):
         json={"embeds": [embed], "components": components},
     )
     if not r.ok:
-        flash("Błąd wysyłania embeda do Discord.", "danger")
+        flash("Failed to send embed to Discord.", "danger")
         return redirect(url_for("coc_cwl_signup", guild_id=guild_id))
 
     msg_id = r.json()["id"]
     db = DBSession()
-    db.query(CwlSignupPanel).filter_by(guild_id=guild_id, season=season).delete()
-    db.add(CwlSignupPanel(guild_id=guild_id, season=season, message_id=msg_id, channel_id=channel_id))
+    db.add(CwlSignupPanel(
+        guild_id=guild_id, season=season,
+        message_id=msg_id, channel_id=channel_id,
+        embed_title=embed_title, embed_description=embed_description,
+    ))
     db.commit()
     db.close()
 
-    flash("Embed wysłany!", "success")
+    flash("Sign-up post sent!", "success")
     return redirect(url_for("coc_cwl_signup", guild_id=guild_id))
+
+
+@app.route("/dashboard/<guild_id>/coc/family/signup/panel/delete", methods=["POST"])
+def coc_cwl_signup_panel_delete(guild_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+    data = request.get_json()
+    panel_id = data.get("panel_id")
+    db = DBSession()
+    panel = db.query(CwlSignupPanel).filter_by(id=panel_id, guild_id=guild_id).first()
+    if panel:
+        requests.patch(
+            f"{DISCORD_API}/channels/{panel.channel_id}/messages/{panel.message_id}",
+            headers={"Authorization": f"Bot {BOT_TOKEN}", "Content-Type": "application/json"},
+            json={"components": []},
+        )
+        db.delete(panel)
+        db.commit()
+    db.close()
+    return jsonify(ok=True)
 
 
 @app.route("/dashboard/<guild_id>/coc/family/signup/remove", methods=["POST"])

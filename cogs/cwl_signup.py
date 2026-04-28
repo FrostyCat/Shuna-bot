@@ -64,7 +64,7 @@ class AccountSelect(discord.ui.Select):
 
         await _update_signup_embed(interaction.client, self._guild_id, self._season)
         await interaction.response.send_message(
-            f"✅ Zapisano jako **{player_name}**!", ephemeral=True
+            f"✅ Signed up as **{player_name}**!", ephemeral=True
         )
 
 
@@ -77,28 +77,26 @@ class AccountSelectView(discord.ui.View):
 async def _update_signup_embed(bot: discord.Bot, guild_id: str, season: str):
     session = Session()
     try:
-        panel = session.query(CwlSignupPanel).filter_by(
+        panels = session.query(CwlSignupPanel).filter_by(
             guild_id=guild_id, season=season
-        ).order_by(CwlSignupPanel.id.desc()).first()
-        if not panel:
-            return
+        ).all()
         count = session.query(CwlSignup).filter_by(
             guild_id=guild_id, season=season
         ).count()
     finally:
         session.close()
 
-    channel = bot.get_channel(int(panel.channel_id))
-    if not channel:
-        return
-    try:
-        msg = await channel.fetch_message(int(panel.message_id))
-    except discord.NotFound:
-        return
-
-    embed = msg.embeds[0] if msg.embeds else discord.Embed(title="CWL Sign Up")
-    embed.set_footer(text=f"Zapisanych: {count}")
-    await msg.edit(embed=embed, view=CwlSignupView(guild_id, season))
+    for panel in panels:
+        channel = bot.get_channel(int(panel.channel_id))
+        if not channel:
+            continue
+        try:
+            msg = await channel.fetch_message(int(panel.message_id))
+        except discord.NotFound:
+            continue
+        embed = msg.embeds[0] if msg.embeds else discord.Embed(title="CWL Sign Up")
+        embed.set_footer(text=f"Signed up: {count}")
+        await msg.edit(embed=embed, view=CwlSignupView(guild_id, season))
 
 
 class CwlSignupCog(commands.Cog):
@@ -151,7 +149,7 @@ class CwlSignupCog(commands.Cog):
             except Exception:
                 if not interaction.response.is_done():
                     await interaction.response.send_message(
-                        "⚠️ Coś poszło nie tak. Spróbuj ponownie.", ephemeral=True
+                        "⚠️ Something went wrong. Please try again.", ephemeral=True
                     )
 
         elif custom_id.startswith("cwl:remove:"):
@@ -164,7 +162,7 @@ class CwlSignupCog(commands.Cog):
             except Exception:
                 if not interaction.response.is_done():
                     await interaction.response.send_message(
-                        "⚠️ Coś poszło nie tak. Spróbuj ponownie.", ephemeral=True
+                        "⚠️ Something went wrong. Please try again.", ephemeral=True
                     )
 
     async def _handle_signup(self, interaction: discord.Interaction, guild_id: str, season: str):
@@ -178,7 +176,7 @@ class CwlSignupCog(commands.Cog):
 
         if not players:
             await interaction.response.send_message(
-                "❌ Nie masz zlinkowanego konta CoC. Użyj `/link` na serwerze.",
+                "❌ You don't have a linked CoC account. Use `/link` in Discord.",
                 ephemeral=True,
             )
             return
@@ -203,11 +201,11 @@ class CwlSignupCog(commands.Cog):
                 session.close()
             await _update_signup_embed(self.bot, guild_id, season)
             await interaction.response.send_message(
-                f"✅ Zapisano jako **{player.name}**!", ephemeral=True
+                f"✅ Signed up as **{player.name}**!", ephemeral=True
             )
         else:
             await interaction.response.send_message(
-                "Wybierz konto CoC do zapisu na CWL:",
+                "Select your CoC account to sign up for CWL:",
                 view=AccountSelectView(guild_id, season, players),
                 ephemeral=True,
             )
@@ -230,10 +228,10 @@ class CwlSignupCog(commands.Cog):
 
         if removed:
             await _update_signup_embed(self.bot, guild_id, season)
-            await interaction.response.send_message("❌ Wypisano z CWL.", ephemeral=True)
+            await interaction.response.send_message("❌ Removed from CWL signup.", ephemeral=True)
         else:
             await interaction.response.send_message(
-                "Nie jesteś zapisany na ten sezon.", ephemeral=True
+                "You are not signed up for this season.", ephemeral=True
             )
 
 
