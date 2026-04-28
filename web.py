@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, UTC
 
 import requests
 from dotenv import load_dotenv
-from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
+from flask import Flask, abort, flash, jsonify, redirect, render_template, request, session, url_for
 
 from sqlalchemy import and_, or_, func
 from db import Session as DBSession
@@ -874,9 +874,43 @@ def coc_clans(guild_id):
     if err:
         return err
     db = DBSession()
-    clans = db.query(GuildClan).filter_by(guild_id=guild_id).all()
+    clans = db.query(GuildClan).filter_by(guild_id=guild_id).order_by(GuildClan.sort_order).all()
     db.close()
     return render_template("coc_clans.html", user=session["user"], guild=guild, clans=clans)
+
+
+@app.route("/dashboard/<guild_id>/coc/<int:gc_id>/category", methods=["POST"])
+def coc_clan_set_category(guild_id, gc_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return jsonify({"error": "unauthorized"}), 403
+    category = request.get_json(silent=True, force=True) or {}
+    cat = category.get("category", "other")
+    if cat not in ("war", "other"):
+        cat = "other"
+    db = DBSession()
+    gc = db.query(GuildClan).filter_by(id=gc_id, guild_id=guild_id).first()
+    if gc:
+        gc.category = cat
+        db.commit()
+    db.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/dashboard/<guild_id>/coc/reorder", methods=["POST"])
+def coc_clans_reorder(guild_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return jsonify({"error": "unauthorized"}), 403
+    ids = (request.get_json(silent=True, force=True) or {}).get("ids", [])
+    db = DBSession()
+    for i, gc_id in enumerate(ids):
+        gc = db.query(GuildClan).filter_by(id=int(gc_id), guild_id=guild_id).first()
+        if gc:
+            gc.sort_order = i
+    db.commit()
+    db.close()
+    return jsonify({"ok": True})
 
 
 @app.route("/dashboard/<guild_id>/coc/search")

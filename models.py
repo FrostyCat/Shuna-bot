@@ -57,6 +57,8 @@ class GuildClan(Base):
     guild_id = Column(String)
     clan_tag = Column(String)
     clan_name = Column(String, nullable=True)
+    category = Column(String, nullable=False, server_default="other")
+    sort_order = Column(Integer, nullable=False, server_default="0")
 
     __table_args__ = (
         UniqueConstraint("guild_id", "clan_tag", name="uq_guild_clan"),
