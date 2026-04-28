@@ -202,6 +202,7 @@ class GuildConfig(Base):
     clan_member_role_id = Column(String, nullable=True)
     ticket_category_id = Column(String, nullable=True)
     log_channel_id = Column(String, nullable=True)
+    notify_new_players = Column(Boolean, default=False, nullable=False, server_default="false")
     ticket_types = Column(String, nullable=True)
     ticket_msg_title = Column(String, nullable=True)
     ticket_msg_description = Column(Text, nullable=True)

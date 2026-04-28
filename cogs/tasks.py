@@ -1,4 +1,5 @@
 import asyncio
+import os
 from datetime import time as dt_time
 
 import discord
@@ -8,6 +9,8 @@ from coc_api import get_clan_members, get_player
 from db import Session
 from models import Clan, Player, GuildClan, GuildConfig
 from helpers import WARSAW, add_player_to_db, fetch_player_attacks, fetch_war_attacks, fetch_cwl_attacks
+
+_NOTIFY_GUILD_ID = os.getenv("NOTIFY_GUILD_ID", "")
 
 
 class TasksCog(discord.Cog):
@@ -34,6 +37,8 @@ class TasksCog(discord.Cog):
                 None, lambda gid=gc.guild_id: session.query(GuildConfig).filter_by(guild_id=gid).first()
             )
             if not config or not config.log_channel_id:
+                continue
+            if _NOTIFY_GUILD_ID and str(gc.guild_id) != _NOTIFY_GUILD_ID:
                 continue
             ch = self.bot.get_channel(int(config.log_channel_id))
             if not ch:
