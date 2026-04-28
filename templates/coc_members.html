@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+{% block title %}Members — {{ guild.name }}{% endblock %}
+
+{% block head %}
+<style>
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #b07aaa;
+    font-size: 13px;
+    margin-bottom: 24px;
+    transition: color 0.15s;
+  }
+  .back-link:hover { color: #f0e6f0; }
+
+  .page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+  }
+  .page-title { font-size: 20px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+  .page-sub   { font-size: 13px; color: #b07aaa; }
+  .month-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(244,114,182,0.08);
+    border: 1px solid rgba(244,114,182,0.18);
+    border-radius: 99px;
+    padding: 5px 14px;
+    font-size: 12px;
+    color: #b07aaa;
+    flex-shrink: 0;
+  }
+
+  /* ── Legend key ── */
+  .legend-key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 24px;
+    font-size: 12px;
+    color: #7a5278;
+  }
+  .legend-key span { display: flex; align-items: center; gap: 5px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+  /* ── Table ── */
+  .stats-table-wrap {
+    background: #1e1220;
+    border: 1px solid rgba(244,114,182,0.13);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+
+  .stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .stats-table thead tr { background: rgba(244,114,182,0.06); }
+
+  .stats-table th {
+    font-size: 11px;
+    font-weight: 700;
+    color: #7a5278;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 12px 14px;
+    text-align: left;
+    border-bottom: 1px solid rgba(244,114,182,0.12);
+    white-space: nowrap;
+  }
+  .stats-table th.r { text-align: right; }
+  .stats-table th.c { text-align: center; }
+
+  .stats-table td {
+    padding: 11px 14px;
+    border-bottom: 1px solid rgba(244,114,182,0.07);
+    vertical-align: middle;
+  }
+  .stats-table td.r { text-align: right; }
+  .stats-table td.c { text-align: center; }
+  .stats-table tr:last-child td { border-bottom: none; }
+  .stats-table tbody tr:hover td { background: rgba(244,114,182,0.03); }
+
+  /* ── Player cell ── */
+  .pcell { display: flex; flex-direction: column; gap: 1px; }
+  .pcell .disc  { font-size: 12px; color: #b07aaa; margin-bottom: 2px; }
+  .pcell .pname { font-weight: 600; color: #fff; font-size: 14px; }
+  .pcell .ptag  { font-size: 11px; color: #7a5278; font-family: monospace; }
+
+  /* ── Clan assign cell ── */
+  .clan-select {
+    background: #0d0910;
+    border: 1px solid rgba(244,114,182,0.18);
+    border-radius: 6px;
+    color: #f0e6f0;
+    font-size: 12px;
+    padding: 5px 8px;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+    max-width: 180px;
+    transition: border-color 0.15s;
+  }
+  .clan-select:focus { border-color: #f472b6; }
+  .clan-select.saving { opacity: 0.5; }
+  .assign-ok {
+    font-size: 11px;
+    color: #3ba55c;
+    margin-left: 6px;
+    display: none;
+  }
+
+  /* ── Numbers ── */
+  .num-zero { color: #4a2e4a; font-weight: 600; }
+  .num-loot { color: #f87171; font-weight: 600; }
+  .num-plain { color: #f0e6f0; font-weight: 600; }
+
+  /* ── Rate cell ── */
+  .rate-cell { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+  .rate-val { font-size: 15px; font-weight: 800; }
+  .rate-val.na    { color: #4a2e4a; font-size: 13px; font-weight: 400; }
+  .rate-val.low   { color: #f87171; }
+  .rate-val.mid   { color: #faa61a; }
+  .rate-val.good  { color: #3ba55c; }
+  .rate-val.great { color: #f472b6; }
+  .rate-sub { font-size: 10px; color: #7a5278; }
+
+  /* ── Trend ── */
+  .trend { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 13px; white-space: nowrap; }
+  .trend.up   { color: #3ba55c; }
+  .trend.down { color: #f87171; }
+  .trend.flat { color: #7a5278; }
+  .trend.na   { color: #4a2e4a; font-weight: 400; font-size: 12px; }
+
+  .empty { text-align: center; padding: 60px 20px; color: #7a5278; font-size: 14px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <a class="back-link" href="/dashboard/{{ guild.id }}/coc">← Back to CoC Manager</a>
+
+  <div class="page-header">
+    <div>
+      <div class="page-title">Members</div>
+      <div class="page-sub">{{ guild.name }} · {{ rows | length }} linked account{{ 's' if rows | length != 1 }}</div>
+    </div>
+    <span class="month-badge">📅 {{ month_label }}</span>
+  </div>
+
+  <div class="legend-key">
+    <span><span class="dot" style="background:#4a2e4a;"></span> 0 / no data</span>
+    <span><span class="dot" style="background:#f87171;"></span> &lt;50% hit rate</span>
+    <span><span class="dot" style="background:#faa61a;"></span> 50–69%</span>
+    <span><span class="dot" style="background:#3ba55c;"></span> 70–89%</span>
+    <span><span class="dot" style="background:#f472b6;"></span> ≥90%</span>
+  </div>
+
+  {% if rows %}
+  <div class="stats-table-wrap">
+    <table class="stats-table">
+      <thead>
+        <tr>
+          <th>Player</th>
+          <th>Assigned Clan</th>
+          <th class="c">Attacks<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:#4a2e4a;">this month</span></th>
+          <th class="c">Loot Hits<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:#4a2e4a;">this month</span></th>
+          <th class="r">Hit Rate<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:#4a2e4a;">this month</span></th>
+          <th class="r">Hit Rate<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:#4a2e4a;">3 months</span></th>
+          <th class="c">Trend<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:#4a2e4a;">vs. prior period</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in rows %}
+          {% macro rate_class(r) %}{% if r is none %}na{% elif r >= 90 %}great{% elif r >= 70 %}good{% elif r >= 50 %}mid{% else %}low{% endif %}{% endmacro %}
+          <tr>
+            <td>
+              <div class="pcell">
+                <span class="disc">@ {{ m.discord_username }}</span>
+                <span class="pname">{{ m.name }}</span>
+                <span class="ptag">{{ m.tag }}</span>
+              </div>
+            </td>
+
+            <td>
+              <div style="display:flex;align-items:center;gap:4px;">
+                <select class="clan-select"
+                        data-tag="{{ m.tag }}"
+                        onchange="assignClan(this)">
+                  <option value="">— Unassigned —</option>
+                  {% for gc in guild_clans %}
+                    <option value="{{ gc.id }}"
+                      {% if m.assigned_gc_id == gc.id %}selected{% endif %}>
+                      {{ gc.clan_name or gc.clan_tag }}
+                    </option>
+                  {% endfor %}
+                </select>
+                <span class="assign-ok" id="ok-{{ m.tag | replace('#','') }}">✓</span>
+              </div>
+            </td>
+
+            <td class="c">
+              <span class="{% if m.total_mo == 0 %}num-zero{% else %}num-plain{% endif %}">{{ m.total_mo }}</span>
+            </td>
+
+            <td class="c">
+              <span class="{% if m.loot_mo == 0 %}num-zero{% else %}num-loot{% endif %}">{{ m.loot_mo }}</span>
+            </td>
+
+            <td class="r">
+              <div class="rate-cell">
+                {% if m.rate_mo is not none %}
+                  <span class="rate-val {{ rate_class(m.rate_mo) }}">{{ m.rate_mo }}%</span>
+                  <span class="rate-sub">{{ m.eff_mo }} eff. attack{{ 's' if m.eff_mo != 1 }}</span>
+                {% else %}
+                  <span class="rate-val na">—</span>
+                {% endif %}
+              </div>
+            </td>
+
+            <td class="r">
+              <div class="rate-cell">
+                {% if m.rate_3mo is not none %}
+                  <span class="rate-val {{ rate_class(m.rate_3mo) }}">{{ m.rate_3mo }}%</span>
+                  <span class="rate-sub">{{ m.eff_3mo }} eff. / {{ m.total_3mo }} total</span>
+                {% else %}
+                  <span class="rate-val na">—</span>
+                {% endif %}
+              </div>
+            </td>
+
+            <td class="c">
+              {% if m.trend is not none %}
+                {% if m.trend > 0 %}
+                  <span class="trend up">↑ +{{ m.trend }}pp</span>
+                {% elif m.trend < 0 %}
+                  <span class="trend down">↓ {{ m.trend }}pp</span>
+                {% else %}
+                  <span class="trend flat">→ 0pp</span>
+                {% endif %}
+              {% else %}
+                <span class="trend na">—</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <p style="margin-top:14px;font-size:12px;color:#4a2e4a;">
+    Hit rate = clean attacks ÷ (total − loot hits) · Clean = 2+ stars or 1 star ≥50% destruction
+  </p>
+
+  {% else %}
+    <div class="empty">No linked Discord members found. Use <code>/link</code> in Discord to connect CoC accounts.</div>
+  {% endif %}
+</div>
+
+<script>
+  const GUILD_ID   = "{{ guild.id }}";
+  const ASSIGN_URL = `/dashboard/${GUILD_ID}/coc/members/assign`;
+
+  async function assignClan(select) {
+    const tag   = select.dataset.tag;
+    const gc_id = select.value || null;
+    const okEl  = document.getElementById("ok-" + tag.replace("#", ""));
+
+    select.classList.add("saving");
+    okEl.style.display = "none";
+
+    try {
+      const res = await fetch(ASSIGN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ player_tag: tag, gc_id }),
+      });
+      if (res.ok) {
+        okEl.style.display = "inline";
+        setTimeout(() => { okEl.style.display = "none"; }, 2000);
+      }
+    } finally {
+      select.classList.remove("saving");
+    }
+  }
+</script>
+{% endblock %}

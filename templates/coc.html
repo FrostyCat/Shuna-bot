@@ -239,16 +239,11 @@
   <!-- Navigation hub -->
   <div class="nav-grid">
 
-    <a class="nav-card {% if not clan_member_role_id %}disabled{% endif %}"
-       href="/dashboard/{{ guild.id }}/coc/role?role_id={{ clan_member_role_id }}">
+    <a class="nav-card" href="/dashboard/{{ guild.id }}/coc/members">
       <div class="nav-card-icon">👥</div>
       <div class="nav-card-title">Members</div>
-      <div class="nav-card-desc">War, legend & loot hit rates for all clan members.</div>
-      {% if clan_member_role_id %}
-        <span class="nav-card-badge green">Active</span>
-      {% else %}
-        <span class="nav-card-badge">Set role first</span>
-      {% endif %}
+      <div class="nav-card-desc">Linked accounts, clan assignments and war hit rates.</div>
+      <span class="nav-card-badge green">Active</span>
     </a>
 
     <a class="nav-card {% if not clan_member_role_id %}disabled{% endif %}"
