@@ -150,7 +150,7 @@ class CwlSignup(Base):
     signed_up_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
     __table_args__ = (
-        UniqueConstraint("panel_id", "discord_id", name="uq_cwl_signup"),
+        UniqueConstraint("panel_id", "player_tag", name="uq_cwl_signup"),
     )
 
 

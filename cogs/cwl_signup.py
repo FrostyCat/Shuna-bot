@@ -62,9 +62,8 @@ class AccountSelect(discord.ui.Select):
                 discord_id=discord_id,
                 player_tag=player_tag,
                 signed_up_at=datetime.now(UTC),
-            ).on_conflict_do_update(
-                index_elements=["panel_id", "discord_id"],
-                set_={"player_tag": player_tag, "signed_up_at": datetime.now(UTC)},
+            ).on_conflict_do_nothing(
+                index_elements=["panel_id", "player_tag"],
             )
             session.execute(stmt)
             session.commit()
@@ -83,6 +82,50 @@ class AccountSelectView(discord.ui.View):
     def __init__(self, guild_id: str, panel_id: int, players: list):
         super().__init__(timeout=60)
         self.add_item(AccountSelect(guild_id, panel_id, players))
+
+
+class AccountRemoveSelect(discord.ui.Select):
+    def __init__(self, guild_id: str, panel_id: int, options: list):
+        self._guild_id = guild_id
+        self._panel_id = panel_id
+        select_options = [
+            discord.SelectOption(label=name[:25], value=str(signup_id), description=tag)
+            for signup_id, name, tag in options
+        ]
+        super().__init__(
+            placeholder="Select account to remove...",
+            options=select_options,
+            custom_id=f"cwl:removeselect:{guild_id}:{panel_id}",
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        signup_id = int(self.values[0])
+        session = Session()
+        try:
+            row = session.query(CwlSignup).filter_by(id=signup_id).first()
+            if row:
+                player = session.query(Player).filter_by(tag=row.player_tag).first()
+                player_name = player.name if player else row.player_tag
+                session.delete(row)
+                session.commit()
+            else:
+                player_name = None
+        finally:
+            session.close()
+
+        if player_name is not None:
+            await _update_panel_embed(interaction.client, self._panel_id)
+            await interaction.response.send_message(
+                f"❌ Removed **{player_name}** from CWL signup.", ephemeral=True
+            )
+        else:
+            await interaction.response.send_message("Could not find that signup.", ephemeral=True)
+
+
+class AccountRemoveView(discord.ui.View):
+    def __init__(self, guild_id: str, panel_id: int, options: list):
+        super().__init__(timeout=60)
+        self.add_item(AccountRemoveSelect(guild_id, panel_id, options))
 
 
 async def _update_panel_embed(bot: discord.Bot, panel_id: int):
@@ -205,6 +248,11 @@ class CwlSignupCog(commands.Cog):
             panel = session.query(CwlSignupPanel).filter_by(id=panel_id).first()
             db_user = session.query(DiscordUser).filter_by(discord_id=discord_id).first()
             players = list(db_user.players) if db_user else []
+            already_signed = {
+                s.player_tag for s in session.query(CwlSignup).filter_by(
+                    panel_id=panel_id, discord_id=discord_id
+                ).all()
+            }
         finally:
             session.close()
 
@@ -219,8 +267,17 @@ class CwlSignupCog(commands.Cog):
             )
             return
 
-        if len(players) == 1:
-            player = players[0]
+        available = [p for p in players if p.tag not in already_signed]
+
+        if not available:
+            await interaction.response.send_message(
+                "✅ All your linked accounts are already signed up for this post.",
+                ephemeral=True,
+            )
+            return
+
+        if len(available) == 1:
+            player = available[0]
             session = Session()
             try:
                 stmt = pg_insert(CwlSignup).values(
@@ -230,9 +287,8 @@ class CwlSignupCog(commands.Cog):
                     discord_id=discord_id,
                     player_tag=player.tag,
                     signed_up_at=datetime.now(UTC),
-                ).on_conflict_do_update(
-                    index_elements=["panel_id", "discord_id"],
-                    set_={"player_tag": player.tag, "signed_up_at": datetime.now(UTC)},
+                ).on_conflict_do_nothing(
+                    index_elements=["panel_id", "player_tag"],
                 )
                 session.execute(stmt)
                 session.commit()
@@ -244,8 +300,8 @@ class CwlSignupCog(commands.Cog):
             )
         else:
             await interaction.response.send_message(
-                "Select your CoC account to sign up for CWL:",
-                view=AccountSelectView(guild_id, panel_id, players),
+                "Select a CoC account to sign up for CWL:",
+                view=AccountSelectView(guild_id, panel_id, available),
                 ephemeral=True,
             )
 
@@ -253,24 +309,50 @@ class CwlSignupCog(commands.Cog):
         discord_id = str(interaction.user.id)
         session = Session()
         try:
-            row = session.query(CwlSignup).filter_by(
+            signups = session.query(CwlSignup).filter_by(
                 panel_id=panel_id, discord_id=discord_id
-            ).first()
-            if row:
-                session.delete(row)
-                session.commit()
-                removed = True
-            else:
-                removed = False
+            ).all()
+            signup_data = [(s.id, s.player_tag) for s in signups]
         finally:
             session.close()
 
-        if removed:
+        if not signup_data:
+            await interaction.response.send_message(
+                "You are not signed up for this post.", ephemeral=True
+            )
+            return
+
+        if len(signup_data) == 1:
+            signup_id = signup_data[0][0]
+            session = Session()
+            try:
+                row = session.query(CwlSignup).filter_by(id=signup_id).first()
+                if row:
+                    session.delete(row)
+                    session.commit()
+            finally:
+                session.close()
             await _update_panel_embed(self.bot, panel_id)
             await interaction.response.send_message("❌ Removed from CWL signup.", ephemeral=True)
         else:
+            # Multiple accounts signed up — let user pick which to remove
+            tags = [tag for _, tag in signup_data]
+            session = Session()
+            try:
+                players_map = {
+                    p.tag: p for p in session.query(Player).filter(Player.tag.in_(tags)).all()
+                }
+            finally:
+                session.close()
+
+            options = [
+                (signup_id, (players_map[tag].name if tag in players_map else tag), tag)
+                for signup_id, tag in signup_data
+            ]
             await interaction.response.send_message(
-                "You are not signed up for this post.", ephemeral=True
+                "Select which account to remove from CWL signup:",
+                view=AccountRemoveView(guild_id, panel_id, options),
+                ephemeral=True,
             )
 
 
