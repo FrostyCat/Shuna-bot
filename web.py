@@ -1169,11 +1169,51 @@ def coc_clan_manage(guild_id, gc_id):
                     "discord_username": member_id_to_name.get(du.discord_id, du.discord_id),
                 })
 
+    month_start = datetime.now(UTC).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    three_months_ago = month_start - timedelta(days=90)
+
+    for m in roster:
+        tag = m["tag"]
+        player = db.query(Player).filter_by(tag=tag).first()
+        m["war_month"] = db.query(WarAttack).filter(
+            WarAttack.attacker_tag == tag,
+            WarAttack.war_type == "war",
+            WarAttack.created_at >= month_start,
+        ).count()
+        m["cwl_month"] = db.query(WarAttack).filter(
+            WarAttack.attacker_tag == tag,
+            WarAttack.war_type == "cwl",
+            WarAttack.created_at >= month_start,
+        ).count()
+        m["war_3star"] = db.query(WarAttack).filter(
+            WarAttack.attacker_tag == tag,
+            WarAttack.war_type == "war",
+            WarAttack.stars == 3,
+            WarAttack.created_at >= month_start,
+        ).count()
+        m["war_3mo"] = db.query(WarAttack).filter(
+            WarAttack.attacker_tag == tag,
+            WarAttack.war_type == "war",
+            WarAttack.created_at >= three_months_ago,
+        ).count()
+        if player:
+            legend_cutoff = (
+                max(month_start, player.tracked_since + timedelta(days=1))
+                if player.tracked_since else month_start
+            )
+            m["legend_month"] = db.query(Attack).filter(
+                Attack.player_id == player.id,
+                Attack.is_attack == True,
+                Attack.created_at >= legend_cutoff,
+            ).count()
+        else:
+            m["legend_month"] = 0
+
     db.close()
     return render_template("coc_clan_manage.html", user=session["user"], guild=guild, gc=gc,
                            roster=roster, unassigned_api=unassigned_api, addable=addable,
                            clan_capacity=clan_capacity, clan_member_count=clan_member_count,
-                           all_guild_members=all_guild_members)
+                           all_guild_members=all_guild_members, clan_data=clan_data)
 
 
 @app.route("/dashboard/<guild_id>/coc/<int:gc_id>/manage/add", methods=["POST"])
@@ -1228,13 +1268,13 @@ def coc_link_player(guild_id, gc_id):
     discord_id = request.form.get("discord_id", "").strip()
     if not player_tag or not discord_id:
         flash("Select a Discord user.", "danger")
-        return redirect(url_for("coc_clan", guild_id=guild_id, gc_id=gc_id))
+        return redirect(url_for("coc_clan_manage", guild_id=guild_id, gc_id=gc_id))
     db = DBSession()
     player = db.query(Player).filter_by(tag=player_tag).first()
     if not player:
         flash("Player not found.", "danger")
         db.close()
-        return redirect(url_for("coc_clan", guild_id=guild_id, gc_id=gc_id))
+        return redirect(url_for("coc_clan_manage", guild_id=guild_id, gc_id=gc_id))
     discord_user = db.query(DiscordUser).filter_by(discord_id=discord_id).first()
     if not discord_user:
         discord_user = DiscordUser(discord_id=discord_id)
@@ -1244,7 +1284,7 @@ def coc_link_player(guild_id, gc_id):
     db.commit()
     db.close()
     flash("Player linked!", "success")
-    return redirect(url_for("coc_clan", guild_id=guild_id, gc_id=gc_id))
+    return redirect(url_for("coc_clan_manage", guild_id=guild_id, gc_id=gc_id))
 
 
 @app.route("/dashboard/<guild_id>/coc/<int:gc_id>/unlink", methods=["POST"])
@@ -1260,7 +1300,7 @@ def coc_unlink_player(guild_id, gc_id):
         db.commit()
         flash("Player unlinked.", "success")
     db.close()
-    return redirect(url_for("coc_clan", guild_id=guild_id, gc_id=gc_id))
+    return redirect(url_for("coc_clan_manage", guild_id=guild_id, gc_id=gc_id))
 
 
 @app.route("/dashboard/<guild_id>/coc/<int:gc_id>/remove", methods=["POST"])

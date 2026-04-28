@@ -27,7 +27,7 @@
     border: 1px solid rgba(244,114,182,0.13);
     border-radius: 14px;
     padding: 22px 28px;
-    margin-bottom: 32px;
+    margin-bottom: 16px;
     flex-wrap: wrap;
   }
 
@@ -50,8 +50,68 @@
     background: linear-gradient(90deg, #db2777, #f472b6);
     transition: width 0.4s;
   }
-  .capacity-count { font-size: 22px; font-weight: 800; color: #fff; text-align: right; }
-  .capacity-sub   { font-size: 12px; color: #7a5278; text-align: right; }
+
+  /* ── Clan stats toggle ── */
+  .stats-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(244,114,182,0.07);
+    border: 1px solid rgba(244,114,182,0.18);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 13px;
+    color: #b07aaa;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    margin-bottom: 24px;
+    font-family: inherit;
+  }
+  .stats-toggle-btn:hover { background: rgba(244,114,182,0.13); color: #f0e6f0; }
+  .stats-toggle-btn .arrow { transition: transform 0.2s; display: inline-block; }
+  .stats-toggle-btn.open .arrow { transform: rotate(180deg); }
+
+  /* ── Clan statistics panel ── */
+  .clan-stats-panel {
+    display: none;
+    background: #1e1220;
+    border: 1px solid rgba(244,114,182,0.13);
+    border-radius: 14px;
+    padding: 22px 28px;
+    margin-bottom: 28px;
+  }
+  .clan-stats-panel.open { display: block; }
+
+  .clan-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+  }
+
+  .cstat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .cstat-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #7a5278;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+  .cstat-value {
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff;
+  }
+  .cstat-value.green  { color: #3ba55c; }
+  .cstat-value.red    { color: #f87171; }
+  .cstat-value.yellow { color: #faa61a; }
+  .cstat-sub {
+    font-size: 11px;
+    color: #7a5278;
+  }
 
   /* ── Section ── */
   .section-header {
@@ -238,6 +298,53 @@
     gap: 14px;
     flex-wrap: wrap;
   }
+
+  /* ── War stats table ── */
+  .war-stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .war-stats-table th {
+    font-size: 11px;
+    font-weight: 700;
+    color: #7a5278;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(244,114,182,0.12);
+    text-align: left;
+    white-space: nowrap;
+  }
+  .war-stats-table th.num { text-align: center; }
+  .war-stats-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(244,114,182,0.07);
+    color: #f0e6f0;
+    vertical-align: middle;
+  }
+  .war-stats-table td.num { text-align: center; }
+  .war-stats-table tr:last-child td { border-bottom: none; }
+  .war-stats-table tr:hover td { background: rgba(244,114,182,0.03); }
+
+  .stat-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 24px;
+    border-radius: 5px;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .stat-num.zero  { color: #4a2e4a; }
+  .stat-num.low   { color: #f0e6f0; }
+  .stat-num.good  { color: #3ba55c; }
+  .stat-num.great { color: #f472b6; }
+
+  .player-cell { display: flex; flex-direction: column; gap: 2px; }
+  .player-cell .pname { font-weight: 600; color: #fff; }
+  .player-cell .ptag  { font-size: 11px; color: #7a5278; font-family: monospace; }
 </style>
 {% endblock %}
 
@@ -266,6 +373,12 @@
     <div class="clan-header-info">
       <div class="clan-header-name">{{ gc.clan_name or gc.clan_tag }}</div>
       <div class="clan-header-tag">{{ gc.clan_tag }}</div>
+      {% if clan_data %}
+        <div style="font-size:12px;color:#7a5278;margin-top:6px;">
+          Level {{ clan_data.get('clanLevel', '?') }}
+          {% if clan_data.get('warLeague') %} · {{ clan_data['warLeague']['name'] }}{% endif %}
+        </div>
+      {% endif %}
     </div>
     <div class="capacity-bar-wrap">
       <div class="capacity-label">
@@ -282,6 +395,62 @@
       </div>
     </div>
   </div>
+
+  <!-- Clan statistics toggle -->
+  {% if clan_data %}
+  <button class="stats-toggle-btn" id="statsToggle" type="button">
+    Show clan statistics <span class="arrow">▼</span>
+  </button>
+
+  <div class="clan-stats-panel" id="statsPanel">
+    {% set war_freq_map = {"always": "Always", "moreThanOncePerWeek": "2×/week", "oncePerWeek": "1×/week", "lessThanOncePerWeek": "Rarely", "never": "Never", "unknown": "—"} %}
+    <div class="clan-stats-grid">
+      <div class="cstat">
+        <span class="cstat-label">War Wins</span>
+        <span class="cstat-value green">{{ clan_data.get('warWins', 0) }}</span>
+      </div>
+      {% if clan_data.get('isWarLogPublic') %}
+      <div class="cstat">
+        <span class="cstat-label">War Losses</span>
+        <span class="cstat-value red">{{ clan_data.get('warLosses', 0) }}</span>
+      </div>
+      <div class="cstat">
+        <span class="cstat-label">War Ties</span>
+        <span class="cstat-value yellow">{{ clan_data.get('warTies', 0) }}</span>
+      </div>
+      {% endif %}
+      <div class="cstat">
+        <span class="cstat-label">Win Streak</span>
+        <span class="cstat-value {% if clan_data.get('warWinStreak', 0) >= 5 %}green{% else %}low{% endif %}">{{ clan_data.get('warWinStreak', 0) }}</span>
+      </div>
+      <div class="cstat">
+        <span class="cstat-label">War Frequency</span>
+        <span class="cstat-value" style="font-size:14px;">{{ war_freq_map.get(clan_data.get('warFrequency', 'unknown'), '—') }}</span>
+      </div>
+      <div class="cstat">
+        <span class="cstat-label">Clan Points</span>
+        <span class="cstat-value" style="font-size:15px;">{{ '{:,}'.format(clan_data.get('clanPoints', 0)) }}</span>
+      </div>
+      <div class="cstat">
+        <span class="cstat-label">Required Trophies</span>
+        <span class="cstat-value" style="font-size:15px;">{{ clan_data.get('requiredTrophies', 0) }}</span>
+      </div>
+      <div class="cstat">
+        <span class="cstat-label">Type</span>
+        <span class="cstat-value" style="font-size:14px;text-transform:capitalize;">{{ clan_data.get('type', '—') }}</span>
+      </div>
+      {% if clan_data.get('location') %}
+      <div class="cstat">
+        <span class="cstat-label">Location</span>
+        <span class="cstat-value" style="font-size:14px;">{{ clan_data['location'].get('name', '—') }}</span>
+      </div>
+      {% endif %}
+    </div>
+    {% if clan_data.get('description') %}
+      <p style="margin-top:18px;font-size:13px;color:#b07aaa;border-top:1px solid rgba(244,114,182,0.1);padding-top:14px;">{{ clan_data['description'] }}</p>
+    {% endif %}
+  </div>
+  {% endif %}
 
   {# Map CoC API role keys to in-game display names #}
   {% set ROLE_NAMES = {"leader": "Leader", "coLeader": "Co-Leader", "admin": "Elder", "member": "Member"} %}
@@ -404,11 +573,53 @@
     </div>
   {% endif %}
 
+  <!-- War Statistics -->
+  {% if roster %}
+    <hr class="divider">
+    <div class="section-header">
+      <div class="section-title">War Statistics — Roster (this month)</div>
+    </div>
+
+    <div style="overflow-x:auto;">
+      <table class="war-stats-table">
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th class="num">War</th>
+            <th class="num">War ⭐⭐⭐</th>
+            <th class="num">CWL</th>
+            <th class="num">War (3 mo)</th>
+            <th class="num">Legend</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in roster %}
+            {% macro snum(v, good=3, great=6) %}
+              <span class="stat-num {% if v == 0 %}zero{% elif v >= great %}great{% elif v >= good %}good{% else %}low{% endif %}">{{ v }}</span>
+            {% endmacro %}
+            <tr>
+              <td>
+                <div class="player-cell">
+                  <span class="pname">{{ m.name }}</span>
+                  <span class="ptag">{{ m.tag }}</span>
+                </div>
+              </td>
+              <td class="num">{{ snum(m.war_month, 1, 5) }}</td>
+              <td class="num">{{ snum(m.war_3star, 1, 4) }}</td>
+              <td class="num">{{ snum(m.cwl_month, 1, 7) }}</td>
+              <td class="num">{{ snum(m.war_3mo, 3, 12) }}</td>
+              <td class="num">{{ snum(m.legend_month, 5, 15) }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
 </div>
 
 <script>
   let remaining = 60;
-  const pill = document.getElementById("refresh-pill");
   const countdown = document.getElementById("refresh-countdown");
 
   function tick() {
@@ -419,7 +630,17 @@
   }
 
   setTimeout(tick, 1000);
-
   document.getElementById("refresh-now").addEventListener("click", () => location.reload());
+
+  const statsToggle = document.getElementById("statsToggle");
+  const statsPanel  = document.getElementById("statsPanel");
+  if (statsToggle) {
+    statsToggle.addEventListener("click", () => {
+      const open = statsPanel.classList.toggle("open");
+      statsToggle.classList.toggle("open", open);
+      statsToggle.querySelector(".arrow").textContent = open ? "▲" : "▼";
+      statsToggle.childNodes[0].textContent = open ? "Hide clan statistics " : "Show clan statistics ";
+    });
+  }
 </script>
 {% endblock %}
