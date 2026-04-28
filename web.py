@@ -639,8 +639,7 @@ def coc_role_stats(guild_id):
                     WarAttack.attacker_tag == player.tag,
                     WarAttack.war_type == "war",
                     WarAttack.created_at >= month_start,
-                    or_(WarAttack.stars >= 2,
-                        and_(WarAttack.stars == 1, WarAttack.destruction >= 50)),
+                    WarAttack.stars == 3,
                 ).count()
                 legend_month_3star = db.query(Attack).filter(
                     Attack.player_id == player.id,
@@ -745,10 +744,10 @@ def coc_members(guild_id):
 
             total_mo  = _wc(month_start)
             loot_mo   = _wc(month_start, WarAttack.stars == 1, WarAttack.destruction < 50)
-            clean_mo  = _wc(month_start, or_(WarAttack.stars >= 2, and_(WarAttack.stars == 1, WarAttack.destruction >= 50)))
+            clean_mo  = _wc(month_start, WarAttack.stars == 3)
             total_3mo = _wc(three_months_ago)
             loot_3mo  = _wc(three_months_ago, WarAttack.stars == 1, WarAttack.destruction < 50)
-            clean_3mo = _wc(three_months_ago, or_(WarAttack.stars >= 2, and_(WarAttack.stars == 1, WarAttack.destruction >= 50)))
+            clean_3mo = _wc(three_months_ago, WarAttack.stars == 3)
 
             eff_mo   = total_mo  - loot_mo
             eff_3mo  = total_3mo - loot_3mo
@@ -920,8 +919,7 @@ def coc_family_stats(guild_id):
                     WarAttack.attacker_tag == player.tag,
                     WarAttack.war_type == 'war',
                     WarAttack.created_at >= oldest,
-                    or_(WarAttack.stars >= 2,
-                        and_(WarAttack.stars == 1, WarAttack.destruction >= 50)),
+                    WarAttack.stars == 3,
                 ).group_by(yr_expr, mo_expr).all()
 
                 legend_cutoff = (
@@ -1185,8 +1183,7 @@ def coc_clan(guild_id, gc_id):
                 WarAttack.attacker_tag == member_tag,
                 WarAttack.war_type == "war",
                 WarAttack.created_at >= month_start,
-                or_(WarAttack.stars >= 2,
-                    and_(WarAttack.stars == 1, WarAttack.destruction >= 50)),
+                WarAttack.stars == 3,
             ).count()
             legend_month_3star = db.query(Attack).filter(
                 Attack.player_id == player.id,
@@ -1504,10 +1501,10 @@ def coc_clan_war_stats(guild_id, gc_id):
 
         total_mo   = _war_count(month_start)
         loot_mo    = _war_count(month_start, (WarAttack.stars == 1, WarAttack.destruction < 50))
-        clean_mo   = _war_count(month_start, (or_(WarAttack.stars >= 2, and_(WarAttack.stars == 1, WarAttack.destruction >= 50)),))
+        clean_mo   = _war_count(month_start, (WarAttack.stars == 3,))
         total_3mo  = _war_count(three_months_ago)
         loot_3mo   = _war_count(three_months_ago, (WarAttack.stars == 1, WarAttack.destruction < 50))
-        clean_3mo  = _war_count(three_months_ago, (or_(WarAttack.stars >= 2, and_(WarAttack.stars == 1, WarAttack.destruction >= 50)),))
+        clean_3mo  = _war_count(three_months_ago, (WarAttack.stars == 3,))
 
         eff_mo    = total_mo  - loot_mo
         eff_3mo   = total_3mo - loot_3mo
