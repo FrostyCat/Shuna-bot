@@ -163,6 +163,13 @@ def guild_icon_url(guild: dict) -> str | None:
 def require_guild(guild_id: str):
     if "user" not in session:
         return None, redirect(url_for("index"))
+
+    # Check session cache (valid for 5 minutes per guild)
+    cache_key = f"guild_cache_{guild_id}"
+    cached = session.get(cache_key)
+    if cached and time.time() - cached["ts"] < 300:
+        return cached["guild"], None
+
     bot_ids = bot_guild_ids()
     if guild_id not in bot_ids:
         return None, abort(403)
@@ -172,14 +179,21 @@ def require_guild(guild_id: str):
         session.clear()
         return None, redirect(url_for("index"))
     if not resp.ok:
+        # Use cached guild if available, otherwise fail
+        if cached:
+            return cached["guild"], None
         return None, abort(503)
     user_guilds = resp.json()
     if not isinstance(user_guilds, list):
+        if cached:
+            return cached["guild"], None
         return None, abort(503)
     guild = next((g for g in user_guilds if g["id"] == guild_id and (int(g["permissions"]) & ADMINISTRATOR)), None)
     if not guild:
         return None, abort(403)
     guild["icon_url"] = guild_icon_url(guild)
+    session[cache_key] = {"guild": guild, "ts": time.time()}
+    session.modified = True
     return guild, None
 
 
