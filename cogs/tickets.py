@@ -199,6 +199,18 @@ class TicketManageView(discord.ui.View):
         await interaction.response.defer()
 
 
+class TicketPanelView(discord.ui.View):
+    def __init__(self, types: list[str]):
+        super().__init__(timeout=None)
+        for t in types:
+            self.add_item(discord.ui.Button(
+                label=t,
+                style=discord.ButtonStyle.primary,
+                emoji="🎫",
+                custom_id=f"ticket:open:{t.lower()}",
+            ))
+
+
 class ConfirmCloseView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=30)
@@ -274,6 +286,34 @@ class Tickets(commands.Cog):
 
     async def cog_load(self):
         self.bot.add_view(TicketManageView())
+        self.bot.loop.create_task(self._restore_panels())
+
+    async def _restore_panels(self):
+        await self.bot.wait_until_ready()
+        session = Session()
+        try:
+            panels = session.query(TicketPanel).all()
+            stale_ids = []
+            for panel in panels:
+                channel = self.bot.get_channel(int(panel.channel_id))
+                if channel is None:
+                    stale_ids.append(panel.id)
+                    continue
+                try:
+                    await channel.fetch_message(int(panel.message_id))
+                    types = _ticket_types(int(panel.guild_id))
+                    if types:
+                        self.bot.add_view(
+                            TicketPanelView(types),
+                            message_id=int(panel.message_id),
+                        )
+                except discord.NotFound:
+                    stale_ids.append(panel.id)
+            if stale_ids:
+                session.query(TicketPanel).filter(TicketPanel.id.in_(stale_ids)).delete(synchronize_session=False)
+                session.commit()
+        finally:
+            session.close()
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
@@ -282,7 +322,13 @@ class Tickets(commands.Cog):
         custom_id = interaction.data.get("custom_id", "")
         if custom_id.startswith("ticket:open:"):
             ticket_type = custom_id[len("ticket:open:"):]
-            await self._open_ticket(interaction, ticket_type)
+            try:
+                await self._open_ticket(interaction, ticket_type)
+            except Exception:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "⚠️ Something went wrong. Please try again.", ephemeral=True
+                    )
 
     async def _open_ticket(self, interaction: discord.Interaction, ticket_type: str):
         guild = interaction.guild
@@ -360,14 +406,7 @@ class Tickets(commands.Cog):
             return
 
         types = _ticket_types(ctx.guild_id)
-        view = discord.ui.View(timeout=None)
-        for t in types:
-            view.add_item(discord.ui.Button(
-                label=t,
-                style=discord.ButtonStyle.primary,
-                emoji="🎫",
-                custom_id=f"ticket:open:{t.lower()}",
-            ))
+        view = TicketPanelView(types)
 
         embed = discord.Embed(
             title="🎫 Support",
