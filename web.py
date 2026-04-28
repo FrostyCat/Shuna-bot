@@ -168,14 +168,14 @@ def require_guild(guild_id: str):
         return None, abort(403)
     headers = {"Authorization": f"Bearer {session['access_token']}"}
     resp = requests.get(f"{DISCORD_API}/users/@me/guilds", headers=headers)
-    if not resp.ok:
-        # Token expired or invalid — force re-login
+    if resp.status_code == 401:
         session.clear()
         return None, redirect(url_for("index"))
+    if not resp.ok:
+        return None, abort(503)
     user_guilds = resp.json()
     if not isinstance(user_guilds, list):
-        session.clear()
-        return None, redirect(url_for("index"))
+        return None, abort(503)
     guild = next((g for g in user_guilds if g["id"] == guild_id and (int(g["permissions"]) & ADMINISTRATOR)), None)
     if not guild:
         return None, abort(403)

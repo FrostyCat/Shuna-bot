@@ -202,6 +202,31 @@
 
   .role-chip.elder { background: rgba(88,101,242,0.12); color: #8fa4f8; border-color: rgba(88,101,242,0.25); }
 
+  .refresh-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(244,114,182,0.08);
+    border: 1px solid rgba(244,114,182,0.18);
+    border-radius: 99px;
+    padding: 5px 14px 5px 10px;
+    font-size: 12px;
+    color: #b07aaa;
+  }
+  .refresh-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #f472b6;
+    animation: dot-pulse 1.5s ease-in-out infinite;
+  }
+  #refresh-now {
+    background: none; border: none; cursor: pointer;
+    color: #f472b6; font-size: 12px; padding: 0;
+    font-family: inherit; text-decoration: underline;
+    transition: color 0.15s;
+  }
+  #refresh-now:hover { color: #fff; }
+
   /* ── Unassigned section ── */
   .unassigned-row {
     background: rgba(244,114,182,0.03);
@@ -225,6 +250,16 @@
       <div class="alert alert-{{ category }}">{{ message }}</div>
     {% endfor %}
   {% endwith %}
+
+  <!-- Auto-refresh pill -->
+  <div style="margin-bottom:16px;">
+    <div class="refresh-pill" id="refresh-pill">
+      <span class="refresh-dot"></span>
+      Live data · refreshes in <strong id="refresh-countdown">60s</strong>
+      &nbsp;·&nbsp;
+      <button id="refresh-now">Refresh now</button>
+    </div>
+  </div>
 
   <!-- Clan header -->
   <div class="clan-header">
@@ -370,4 +405,21 @@
   {% endif %}
 
 </div>
+
+<script>
+  let remaining = 60;
+  const pill = document.getElementById("refresh-pill");
+  const countdown = document.getElementById("refresh-countdown");
+
+  function tick() {
+    remaining--;
+    countdown.textContent = remaining + "s";
+    if (remaining <= 0) location.reload();
+    else setTimeout(tick, 1000);
+  }
+
+  setTimeout(tick, 1000);
+
+  document.getElementById("refresh-now").addEventListener("click", () => location.reload());
+</script>
 {% endblock %}
