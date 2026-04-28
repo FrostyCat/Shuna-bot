@@ -114,6 +114,7 @@
               <tr>
                 <th>Discord</th>
                 <th>Account</th>
+                <th>CWL Roster</th>
                 {% for label in month_labels %}
                   <th>{{ label }}</th>
                 {% endfor %}
@@ -131,6 +132,13 @@
                       <div class="player-tag">{{ s.tag }}</div>
                     {% else %}
                       <span class="no-account">No account linked</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if s.cwl_roster %}
+                      <span style="font-size:12px;font-weight:600;color:#f472b6;background:rgba(244,114,182,0.1);border:1px solid rgba(244,114,182,0.2);border-radius:5px;padding:2px 8px;white-space:nowrap;">{{ s.cwl_roster }}</span>
+                    {% else %}
+                      <span style="font-size:12px;color:#4a2e4a;">—</span>
                     {% endif %}
                   </td>
                   {% for mo in s.months %}

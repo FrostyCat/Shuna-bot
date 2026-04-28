@@ -875,6 +875,12 @@ def coc_family_stats(guild_id):
     yr_expr = func.extract('year', WarAttack.created_at)
     mo_expr = func.extract('month', WarAttack.created_at)
 
+    season = f"{now.year}-{now.month:02d}"
+    roster_slots = db.query(CwlRosterSlot, GuildClan).join(
+        GuildClan, CwlRosterSlot.gc_id == GuildClan.id
+    ).filter(CwlRosterSlot.guild_id == guild_id, CwlRosterSlot.season == season).all()
+    roster_map = {slot.player_tag: gc.clan_name or gc.clan_tag for slot, gc in roster_slots}
+
     stats = []
     for member in role_members:
         discord_id = member["id"]
@@ -888,7 +894,7 @@ def coc_family_stats(guild_id):
                 "discord_id": discord_id,
                 "discord_username": discord_username,
                 "tag": None, "name": None, "in_db": False,
-                "cwl_league": None,
+                "cwl_league": None, "cwl_roster": None,
                 "legend_total": 0, "legend_3star": 0,
                 "months": [{"stars_3": 0, "stars_2": 0, "stars_1": 0, "stars_0": 0,
                             "total": 0, "league": None, "war_3star": 0, "war_clean": 0}
@@ -997,6 +1003,7 @@ def coc_family_stats(guild_id):
                     "name": player.name,
                     "in_db": True,
                     "cwl_league": cwl_league,
+                    "cwl_roster": roster_map.get(player.tag),
                     "legend_total": legend_total,
                     "legend_3star": legend_3star,
                     "months": months,
