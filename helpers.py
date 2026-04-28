@@ -31,7 +31,7 @@ async def fetch_player_attacks(session, player):
     def _insert_all():
         count = 0
         for b in battles:
-            if b.get("battleType") != "legend":
+            if b.get("battleType") != "ranked":
                 continue
             is_attack = b.get("attack", False)
             stars = b.get("stars", 0)
