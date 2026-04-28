@@ -438,7 +438,9 @@
   const othersToggle = document.getElementById("othersToggle");
   const otherList    = document.getElementById("list-other");
   if (othersToggle && otherList) {
-    let hidden = false;
+    let hidden = true;
+    otherList.style.display = "none";
+    othersToggle.textContent = "Show";
     othersToggle.addEventListener("click", () => {
       hidden = !hidden;
       otherList.style.display = hidden ? "none" : "";
