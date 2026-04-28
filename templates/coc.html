@@ -272,18 +272,6 @@
       {% endif %}
     </a>
 
-    <a class="nav-card {% if not clan_member_role_id %}disabled{% endif %}"
-       href="/dashboard/{{ guild.id }}/coc/bb-subs">
-      <div class="nav-card-icon">🔨</div>
-      <div class="nav-card-title">BB Sub Manager</div>
-      <div class="nav-card-desc">Track and manage Builder Base sub assignments across clans.</div>
-      {% if clan_member_role_id %}
-        <span class="nav-card-badge green">Active</span>
-      {% else %}
-        <span class="nav-card-badge">Set role first</span>
-      {% endif %}
-    </a>
-
     <a class="nav-card" href="/dashboard/{{ guild.id }}/settings">
       <div class="nav-card-icon">⚙️</div>
       <div class="nav-card-title">Settings</div>
