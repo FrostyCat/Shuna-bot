@@ -151,7 +151,7 @@ async def add_player_to_db(tag: str, session, commit=True, fetch_attacks=True):
     if not data:
         return {"success": False, "error": "Player not found"}
 
-    tag_api, name, *_ = data
+    tag_api, name, _trophies, _rank, th_level = (*data, *([None] * (5 - len(data))))
 
     is_new = False
 
@@ -159,12 +159,14 @@ async def add_player_to_db(tag: str, session, commit=True, fetch_attacks=True):
         nonlocal is_new
         p = session.query(Player).filter_by(tag=tag_api).first()
         if not p:
-            p = Player(tag=tag_api, name=name, tracked_since=datetime.now(UTC))
+            p = Player(tag=tag_api, name=name, tracked_since=datetime.now(UTC), th_level=th_level)
             session.add(p)
             session.flush()
             is_new = True
         else:
             p.name = name
+            if th_level is not None:
+                p.th_level = th_level
         if commit:
             session.commit()
         return p

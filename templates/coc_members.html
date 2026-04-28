@@ -37,7 +37,6 @@
     flex-shrink: 0;
   }
 
-  /* ── Legend key ── */
   .legend-key {
     display: flex;
     flex-wrap: wrap;
@@ -55,6 +54,7 @@
     border: 1px solid rgba(244,114,182,0.13);
     border-radius: 14px;
     overflow: hidden;
+    margin-bottom: 28px;
   }
 
   .stats-table {
@@ -95,7 +95,22 @@
   .pcell .pname { font-weight: 600; color: #fff; font-size: 14px; }
   .pcell .ptag  { font-size: 11px; color: #7a5278; font-family: monospace; }
 
-  /* ── Clan assign cell ── */
+  /* ── TH badge ── */
+  .th-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px; height: 24px;
+    border-radius: 5px;
+    background: rgba(244,114,182,0.1);
+    border: 1px solid rgba(244,114,182,0.18);
+    font-size: 11px;
+    font-weight: 700;
+    color: #f472b6;
+  }
+  .th-badge.zero { color: #4a2e4a; background: transparent; border-color: rgba(244,114,182,0.08); }
+
+  /* ── Clan assign ── */
   .clan-select {
     background: #0d0910;
     border: 1px solid rgba(244,114,182,0.18);
@@ -106,21 +121,16 @@
     font-family: inherit;
     outline: none;
     cursor: pointer;
-    max-width: 180px;
-    transition: border-color 0.15s;
+    max-width: 170px;
+    transition: border-color 0.15s, opacity 0.15s;
   }
   .clan-select:focus { border-color: #f472b6; }
-  .clan-select.saving { opacity: 0.5; }
-  .assign-ok {
-    font-size: 11px;
-    color: #3ba55c;
-    margin-left: 6px;
-    display: none;
-  }
+  .clan-select.saving { opacity: 0.45; pointer-events: none; }
+  .assign-ok { font-size: 11px; color: #3ba55c; margin-left: 5px; display: none; }
 
   /* ── Numbers ── */
-  .num-zero { color: #4a2e4a; font-weight: 600; }
-  .num-loot { color: #f87171; font-weight: 600; }
+  .num-zero  { color: #4a2e4a; font-weight: 600; }
+  .num-loot  { color: #f87171; font-weight: 600; }
   .num-plain { color: #f0e6f0; font-weight: 600; }
 
   /* ── Rate cell ── */
@@ -140,6 +150,30 @@
   .trend.flat { color: #7a5278; }
   .trend.na   { color: #4a2e4a; font-weight: 400; font-size: 12px; }
 
+  /* ── No-account section ── */
+  .section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #7a5278;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    margin-bottom: 10px;
+  }
+  .no-account-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(225,29,72,0.04);
+    border: 1px solid rgba(225,29,72,0.15);
+    border-radius: 8px;
+    padding: 11px 16px;
+    font-size: 13px;
+    color: #f87171;
+    margin-bottom: 6px;
+  }
+  .no-account-row .disc { color: #f0e6f0; font-weight: 600; }
+  .no-account-row .hint { font-size: 12px; color: #7a5278; margin-left: auto; font-style: italic; }
+
   .empty { text-align: center; padding: 60px 20px; color: #7a5278; font-size: 14px; }
 </style>
 {% endblock %}
@@ -151,7 +185,7 @@
   <div class="page-header">
     <div>
       <div class="page-title">Members</div>
-      <div class="page-sub">{{ guild.name }} · {{ rows | length }} linked account{{ 's' if rows | length != 1 }}</div>
+      <div class="page-sub">{{ guild.name }} · {{ rows | length }} linked · {{ no_account_rows | length }} unlinked</div>
     </div>
     <span class="month-badge">📅 {{ month_label }}</span>
   </div>
@@ -170,6 +204,7 @@
       <thead>
         <tr>
           <th>Player</th>
+          <th class="c">TH</th>
           <th>Assigned Clan</th>
           <th class="c">Attacks<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:#4a2e4a;">this month</span></th>
           <th class="c">Loot Hits<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:#4a2e4a;">this month</span></th>
@@ -188,6 +223,14 @@
                 <span class="pname">{{ m.name }}</span>
                 <span class="ptag">{{ m.tag }}</span>
               </div>
+            </td>
+
+            <td class="c">
+              {% if m.th %}
+                <span class="th-badge">{{ m.th }}</span>
+              {% else %}
+                <span class="th-badge zero">?</span>
+              {% endif %}
             </td>
 
             <td>
@@ -256,13 +299,24 @@
     </table>
   </div>
 
-  <p style="margin-top:14px;font-size:12px;color:#4a2e4a;">
-    Hit rate = clean attacks ÷ (total − loot hits) · Clean = 2+ stars or 1 star ≥50% destruction
+  <p style="margin-top:-18px;margin-bottom:28px;font-size:12px;color:#4a2e4a;">
+    Sorted by hit rate this month ↓ then TH ↓ · Hit rate = clean attacks ÷ (total − loot hits) · Clean = 2+ stars or 1 star ≥50% destruction
   </p>
-
-  {% else %}
-    <div class="empty">No linked Discord members found. Use <code>/link</code> in Discord to connect CoC accounts.</div>
+  {% elif not no_account_rows %}
+    <div class="empty">No members with linked CoC accounts found.</div>
   {% endif %}
+
+  <!-- No account section -->
+  {% if no_account_rows %}
+    <div class="section-title">No Linked Account ({{ no_account_rows | length }})</div>
+    {% for m in no_account_rows %}
+      <div class="no-account-row">
+        <span class="disc">@ {{ m.discord_username }}</span>
+        <span class="hint">No CoC account linked — use /link in Discord</span>
+      </div>
+    {% endfor %}
+  {% endif %}
+
 </div>
 
 <script>

@@ -693,77 +693,96 @@ def coc_members(guild_id):
         return err
 
     db = DBSession()
+    config = db.query(GuildConfig).filter_by(guild_id=guild_id).first()
+    role_id = config.clan_member_role_id if config else None
+    if not role_id:
+        db.close()
+        flash("Set the clan member role in Settings first.", "danger")
+        return redirect(url_for("coc_manager", guild_id=guild_id))
+
     guild_clans = db.query(GuildClan).filter_by(guild_id=guild_id).order_by(GuildClan.sort_order).all()
     guild_clan_ids = [gc.id for gc in guild_clans]
-    clan_by_id = {gc.id: gc for gc in guild_clans}
 
-    # player_tag -> gc_id mapping for this guild
     assignments = {}
     if guild_clan_ids:
         for cm in db.query(ClanMember).filter(ClanMember.guild_clan_id.in_(guild_clan_ids)).all():
             assignments[cm.player_tag] = cm.guild_clan_id
 
-    # All players with a linked discord account
-    all_players = db.query(Player).filter(Player.discord_user_id.isnot(None)).all()
-
-    discord_ids = [p.discord_user.discord_id for p in all_players if p.discord_user]
-    guild_member_list = guild_members(guild_id)
-    guild_member_ids = {m["id"]: m["username"] for m in guild_member_list}
+    all_guild_members = guild_members(guild_id)
+    role_members = [m for m in all_guild_members if role_id in m.get("roles", [])]
 
     month_start = datetime.now(UTC).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     three_months_ago = month_start - timedelta(days=90)
 
     rows = []
-    for player in all_players:
-        if not player.discord_user:
+    no_account_rows = []
+
+    for member in role_members:
+        disc_id = member["id"]
+        discord_username = member["username"]
+
+        db_user = db.query(DiscordUser).filter_by(discord_id=disc_id).first()
+        players = db_user.players if db_user else []
+
+        if not players:
+            no_account_rows.append({
+                "discord_id": disc_id,
+                "discord_username": discord_username,
+                "linked": False,
+            })
             continue
-        disc_id = player.discord_user.discord_id
-        if disc_id not in guild_member_ids:
-            continue
-        discord_username = guild_member_ids[disc_id]
 
-        tag = player.tag
+        for player in players:
+            tag = player.tag
 
-        def _wc(since, *extra):
-            return db.query(WarAttack).filter(
-                WarAttack.attacker_tag == tag,
-                WarAttack.war_type == "war",
-                WarAttack.created_at >= since,
-                *extra,
-            ).count()
+            def _wc(since, *extra, _tag=tag):
+                return db.query(WarAttack).filter(
+                    WarAttack.attacker_tag == _tag,
+                    WarAttack.war_type == "war",
+                    WarAttack.created_at >= since,
+                    *extra,
+                ).count()
 
-        total_mo  = _wc(month_start)
-        loot_mo   = _wc(month_start, WarAttack.stars == 1, WarAttack.destruction < 50)
-        clean_mo  = _wc(month_start, or_(WarAttack.stars >= 2, and_(WarAttack.stars == 1, WarAttack.destruction >= 50)))
-        total_3mo = _wc(three_months_ago)
-        loot_3mo  = _wc(three_months_ago, WarAttack.stars == 1, WarAttack.destruction < 50)
-        clean_3mo = _wc(three_months_ago, or_(WarAttack.stars >= 2, and_(WarAttack.stars == 1, WarAttack.destruction >= 50)))
+            total_mo  = _wc(month_start)
+            loot_mo   = _wc(month_start, WarAttack.stars == 1, WarAttack.destruction < 50)
+            clean_mo  = _wc(month_start, or_(WarAttack.stars >= 2, and_(WarAttack.stars == 1, WarAttack.destruction >= 50)))
+            total_3mo = _wc(three_months_ago)
+            loot_3mo  = _wc(three_months_ago, WarAttack.stars == 1, WarAttack.destruction < 50)
+            clean_3mo = _wc(three_months_ago, or_(WarAttack.stars >= 2, and_(WarAttack.stars == 1, WarAttack.destruction >= 50)))
 
-        eff_mo   = total_mo  - loot_mo
-        eff_3mo  = total_3mo - loot_3mo
-        rate_mo  = round(clean_mo  / eff_mo  * 100) if eff_mo  > 0 else None
-        rate_3mo = round(clean_3mo / eff_3mo * 100) if eff_3mo > 0 else None
+            eff_mo   = total_mo  - loot_mo
+            eff_3mo  = total_3mo - loot_3mo
+            rate_mo  = round(clean_mo  / eff_mo  * 100) if eff_mo  > 0 else None
+            rate_3mo = round(clean_3mo / eff_3mo * 100) if eff_3mo > 0 else None
 
-        eff_prev   = eff_3mo  - eff_mo
-        clean_prev = clean_3mo - clean_mo
-        rate_prev  = round(clean_prev / eff_prev * 100) if eff_prev > 0 else None
-        trend = (rate_mo - rate_prev) if (rate_mo is not None and rate_prev is not None) else None
+            eff_prev   = eff_3mo - eff_mo
+            clean_prev = clean_3mo - clean_mo
+            rate_prev  = round(clean_prev / eff_prev * 100) if eff_prev > 0 else None
+            trend = (rate_mo - rate_prev) if (rate_mo is not None and rate_prev is not None) else None
 
-        assigned_gc_id = assignments.get(tag)
-        rows.append({
-            "tag": tag, "name": player.name,
-            "discord_id": disc_id, "discord_username": discord_username,
-            "assigned_gc_id": assigned_gc_id,
-            "total_mo": total_mo, "loot_mo": loot_mo,
-            "rate_mo": rate_mo, "eff_mo": eff_mo,
-            "rate_3mo": rate_3mo, "eff_3mo": eff_3mo, "total_3mo": total_3mo,
-            "trend": trend,
-        })
+            rows.append({
+                "tag": tag, "name": player.name,
+                "th": player.th_level or 0,
+                "discord_id": disc_id, "discord_username": discord_username,
+                "assigned_gc_id": assignments.get(tag),
+                "total_mo": total_mo, "loot_mo": loot_mo,
+                "rate_mo": rate_mo, "eff_mo": eff_mo,
+                "rate_3mo": rate_3mo, "eff_3mo": eff_3mo, "total_3mo": total_3mo,
+                "trend": trend,
+                "linked": True,
+            })
 
-    rows.sort(key=lambda x: (x["discord_username"] or "").lower())
+    # Sort linked rows: hit rate desc (None last), then TH desc
+    rows.sort(key=lambda x: (
+        x["rate_mo"] is None,
+        -(x["rate_mo"] or 0),
+        -(x["th"] or 0),
+    ))
+
     db.close()
     return render_template("coc_members.html", user=session["user"], guild=guild,
-                           rows=rows, guild_clans=guild_clans, clan_by_id=clan_by_id,
+                           rows=rows, no_account_rows=no_account_rows,
+                           guild_clans=guild_clans,
                            month_label=month_start.strftime("%B %Y"))
 
 

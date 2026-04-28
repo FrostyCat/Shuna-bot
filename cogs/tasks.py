@@ -68,6 +68,8 @@ class TasksCog(discord.Cog):
                 data = await get_player(p.tag)
                 if data:
                     p.current_rank = data[3]
+                    if data[4] is not None:
+                        p.th_level = data[4]
                 await loop.run_in_executor(None, session.commit)
             except Exception as e:
                 await loop.run_in_executor(None, session.rollback)
