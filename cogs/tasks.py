@@ -6,7 +6,7 @@ from discord.ext import commands, tasks
 
 from coc_api import get_clan_members, get_player
 from db import Session
-from models import Clan, Player
+from models import Clan, Player, GuildClan, GuildConfig
 from helpers import WARSAW, add_player_to_db, fetch_player_attacks, fetch_war_attacks, fetch_cwl_attacks
 
 
@@ -23,6 +23,33 @@ class TasksCog(discord.Cog):
         self.refresh_clans.cancel()
         self.snapshot_ranks.cancel()
         self.refresh_wars.cancel()
+
+    async def _notify_new_player(self, session, clan_tag: str, name: str, tag: str):
+        loop = asyncio.get_running_loop()
+        guild_clans = await loop.run_in_executor(
+            None, lambda: session.query(GuildClan).filter_by(clan_tag=clan_tag).all()
+        )
+        for gc in guild_clans:
+            config = await loop.run_in_executor(
+                None, lambda gid=gc.guild_id: session.query(GuildConfig).filter_by(guild_id=gid).first()
+            )
+            if not config or not config.log_channel_id:
+                continue
+            ch = self.bot.get_channel(int(config.log_channel_id))
+            if not ch:
+                continue
+            embed = discord.Embed(
+                title="New Player Tracking Started",
+                description=(
+                    f"**{name}** (`{tag}`) has been added to the tracking system.\n"
+                    f"Stats collection starts now — first-day data will be skipped to ensure accuracy."
+                ),
+                color=0xf472b6,
+            )
+            try:
+                await ch.send(embed=embed)
+            except Exception as e:
+                print(f"Notify error for {tag}: {e}")
 
     @tasks.loop(minutes=10)
     async def refresh_players(self):
@@ -90,7 +117,9 @@ class TasksCog(discord.Cog):
                 members = await get_clan_members(clan.tag)
                 for member in members:
                     tag = member if isinstance(member, str) else member["tag"]
-                    await add_player_to_db(tag, session, commit=False, fetch_attacks=False)
+                    result = await add_player_to_db(tag, session, commit=False, fetch_attacks=False)
+                    if result.get("is_new"):
+                        await self._notify_new_player(session, clan.tag, result["name"], result["tag"])
                     await asyncio.sleep(0.5)
             except Exception as e:
                 await loop.run_in_executor(None, session.rollback)

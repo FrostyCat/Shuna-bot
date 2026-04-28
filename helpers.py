@@ -153,12 +153,16 @@ async def add_player_to_db(tag: str, session, commit=True, fetch_attacks=True):
 
     tag_api, name, *_ = data
 
+    is_new = False
+
     def _get_or_create():
+        nonlocal is_new
         p = session.query(Player).filter_by(tag=tag_api).first()
         if not p:
-            p = Player(tag=tag_api, name=name)
+            p = Player(tag=tag_api, name=name, tracked_since=datetime.now(UTC))
             session.add(p)
             session.flush()
+            is_new = True
         else:
             p.name = name
         if commit:
@@ -173,4 +177,4 @@ async def add_player_to_db(tag: str, session, commit=True, fetch_attacks=True):
         if commit:
             await asyncio.get_running_loop().run_in_executor(None, session.commit)
 
-    return {"success": True, "name": name, "tag": tag_api, "added_attacks": added}
+    return {"success": True, "name": name, "tag": tag_api, "added_attacks": added, "is_new": is_new}

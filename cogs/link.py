@@ -3,7 +3,7 @@ from discord.ext import commands
 
 from coc_api import get_player, verify_player_token
 from db import Session
-from models import DiscordUser, Player
+from models import DiscordUser, Player, GuildConfig
 from helpers import add_player_to_db
 
 
@@ -33,6 +33,30 @@ async def linked_tag_autocomplete(ctx: discord.AutocompleteContext):
     return choices[:25]
 
 
+async def _notify_new_player_link(bot, guild_id: int, name: str, tag: str):
+    session = Session()
+    try:
+        config = session.query(GuildConfig).filter_by(guild_id=str(guild_id)).first()
+        if not config or not config.log_channel_id:
+            return
+        ch = bot.get_channel(int(config.log_channel_id))
+        if not ch:
+            return
+        embed = discord.Embed(
+            title="New Player Tracking Started",
+            description=(
+                f"**{name}** (`{tag}`) has been added to the tracking system.\n"
+                f"Stats collection starts now — first-day data will be skipped to ensure accuracy."
+            ),
+            color=0xf472b6,
+        )
+        await ch.send(embed=embed)
+    except Exception as e:
+        print(f"Notify error for {tag}: {e}")
+    finally:
+        session.close()
+
+
 class LinkCog(discord.Cog):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
@@ -58,12 +82,14 @@ class LinkCog(discord.Cog):
 
         session = Session()
         player = session.query(Player).filter_by(tag=tag).first()
+        is_new = False
         if not player:
             result = await add_player_to_db(tag, session)
             if not result["success"]:
                 await ctx.followup.send("❌ " + result["error"], ephemeral=True)
                 session.close()
                 return
+            is_new = result.get("is_new", False)
             player = session.query(Player).filter_by(tag=result["tag"]).first()
 
         discord_user = session.query(DiscordUser).filter_by(discord_id=str(user.id)).first()
@@ -81,6 +107,10 @@ class LinkCog(discord.Cog):
         player_name = player.name
         session.commit()
         session.close()
+
+        if is_new and ctx.guild:
+            await _notify_new_player_link(self.bot, ctx.guild.id, player_name, tag)
+
         await ctx.followup.send(f"✅ Linked **{player_name}** ({tag}) to {user.mention}.", ephemeral=True)
 
     @discord.slash_command(
@@ -102,12 +132,14 @@ class LinkCog(discord.Cog):
 
         session = Session()
         player = session.query(Player).filter_by(tag=tag).first()
+        is_new = False
         if not player:
             result = await add_player_to_db(tag, session)
             if not result["success"]:
                 await ctx.followup.send("❌ " + result["error"], ephemeral=True)
                 session.close()
                 return
+            is_new = result.get("is_new", False)
             player = session.query(Player).filter_by(tag=result["tag"]).first()
 
         discord_user = session.query(DiscordUser).filter_by(discord_id=str(user.id)).first()
@@ -125,6 +157,10 @@ class LinkCog(discord.Cog):
         player_name = player.name
         session.commit()
         session.close()
+
+        if is_new and ctx.guild:
+            await _notify_new_player_link(self.bot, ctx.guild.id, player_name, tag)
+
         await ctx.followup.send(f"✅ Linked **{player_name}** ({tag}) to {user.mention}.", ephemeral=True)
 
     @discord.slash_command(name="unlink", description="Unlink a Clash of Clans account from Discord")

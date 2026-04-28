@@ -22,6 +22,7 @@ class Player(Base):
     initial_rank = Column(Integer, nullable=True)
     current_rank = Column(Integer, nullable=True)
     discord_user_id = Column(Integer, ForeignKey("discord_users.id"), nullable=True)
+    tracked_since = Column(DateTime, nullable=True)
 
     attacks = relationship("Attack", back_populates="player")
     discord_user = relationship("DiscordUser", back_populates="players")

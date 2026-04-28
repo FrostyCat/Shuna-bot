@@ -620,10 +620,14 @@ def coc_role_stats(guild_id):
                     WarAttack.war_type == "cwl",
                     WarAttack.created_at >= three_months_ago,
                 ).count()
+                legend_cutoff = (
+                    max(month_start, player.tracked_since + timedelta(days=1))
+                    if player.tracked_since else month_start
+                )
                 legend_month = db.query(Attack).filter(
                     Attack.player_id == player.id,
                     Attack.is_attack == True,
-                    Attack.created_at >= month_start,
+                    Attack.created_at >= legend_cutoff,
                 ).count()
                 war_month_3star = db.query(WarAttack).filter(
                     WarAttack.attacker_tag == player.tag,
@@ -642,7 +646,7 @@ def coc_role_stats(guild_id):
                     Attack.player_id == player.id,
                     Attack.is_attack == True,
                     Attack.stars == 3,
-                    Attack.created_at >= month_start,
+                    Attack.created_at >= legend_cutoff,
                 ).count()
                 war_loot = db.query(WarAttack).filter(
                     WarAttack.attacker_tag == player.tag,
@@ -786,16 +790,20 @@ def coc_family_stats(guild_id):
                         and_(WarAttack.stars == 1, WarAttack.destruction >= 50)),
                 ).group_by(yr_expr, mo_expr).all()
 
+                legend_cutoff = (
+                    max(current_month_start, player.tracked_since + timedelta(days=1))
+                    if player.tracked_since else current_month_start
+                )
                 legend_total = db.query(Attack).filter(
                     Attack.player_id == player.id,
                     Attack.is_attack == True,
-                    Attack.created_at >= current_month_start,
+                    Attack.created_at >= legend_cutoff,
                 ).count()
                 legend_3star = db.query(Attack).filter(
                     Attack.player_id == player.id,
                     Attack.is_attack == True,
                     Attack.stars == 3,
-                    Attack.created_at >= current_month_start,
+                    Attack.created_at >= legend_cutoff,
                 ).count()
 
                 month_map = {}
@@ -990,10 +998,14 @@ def coc_clan(guild_id, gc_id):
                 WarAttack.war_type == "cwl",
                 WarAttack.created_at >= three_months_ago,
             ).count()
+            legend_cutoff = (
+                max(month_start, player.tracked_since + timedelta(days=1))
+                if player.tracked_since else month_start
+            )
             legend_month = db.query(Attack).filter(
                 Attack.player_id == player.id,
                 Attack.is_attack == True,
-                Attack.created_at >= month_start,
+                Attack.created_at >= legend_cutoff,
             ).count()
             war_month_3star = db.query(WarAttack).filter(
                 WarAttack.attacker_tag == member_tag,
@@ -1012,7 +1024,7 @@ def coc_clan(guild_id, gc_id):
                 Attack.player_id == player.id,
                 Attack.is_attack == True,
                 Attack.stars == 3,
-                Attack.created_at >= month_start,
+                Attack.created_at >= legend_cutoff,
             ).count()
             war_loot = db.query(WarAttack).filter(
                 WarAttack.attacker_tag == member_tag,
