@@ -935,7 +935,7 @@ def coc_family_stats(guild_id):
                     WarAttack.created_at >= oldest,
                 ).group_by(yr_expr, mo_expr).all()
 
-                war_clean_rows = db.query(
+                war_total_rows = db.query(
                     yr_expr.label('yr'),
                     mo_expr.label('mo'),
                     func.count().label('cnt'),
@@ -943,7 +943,18 @@ def coc_family_stats(guild_id):
                     WarAttack.attacker_tag == player.tag,
                     WarAttack.war_type == 'war',
                     WarAttack.created_at >= oldest,
-                    WarAttack.stars == 3,
+                ).group_by(yr_expr, mo_expr).all()
+
+                war_loot_rows = db.query(
+                    yr_expr.label('yr'),
+                    mo_expr.label('mo'),
+                    func.count().label('cnt'),
+                ).filter(
+                    WarAttack.attacker_tag == player.tag,
+                    WarAttack.war_type == 'war',
+                    WarAttack.created_at >= oldest,
+                    WarAttack.stars == 1,
+                    WarAttack.destruction < 50,
                 ).group_by(yr_expr, mo_expr).all()
 
                 legend_cutoff = (
@@ -969,11 +980,16 @@ def coc_family_stats(guild_id):
 
                 league_by_month = {(int(r.yr), int(r.mo)): r.league for r in league_rows}
                 war_3star_map = {(int(r.yr), int(r.mo)): r.cnt for r in war_3star_rows}
-                war_clean_map = {(int(r.yr), int(r.mo)): r.cnt for r in war_clean_rows}
+                war_total_map  = {(int(r.yr), int(r.mo)): r.cnt for r in war_total_rows}
+                war_loot_map   = {(int(r.yr), int(r.mo)): r.cnt for r in war_loot_rows}
 
                 months = []
                 for y, m in cwl_months:
                     d = month_map.get((y, m), {})
+                    wt = war_total_map.get((y, m), 0)
+                    wl = war_loot_map.get((y, m), 0)
+                    w3 = war_3star_map.get((y, m), 0)
+                    eff = wt - wl
                     months.append({
                         "stars_3": d.get(3, 0),
                         "stars_2": d.get(2, 0),
@@ -981,8 +997,8 @@ def coc_family_stats(guild_id):
                         "stars_0": d.get(0, 0),
                         "total": sum(d.values()),
                         "league": league_by_month.get((y, m)),
-                        "war_3star": war_3star_map.get((y, m), 0),
-                        "war_clean": war_clean_map.get((y, m), 0),
+                        "war_3star": w3,
+                        "war_eff": eff,
                     })
 
                 cwl_league = (

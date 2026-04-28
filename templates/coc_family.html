@@ -118,8 +118,8 @@
                 {% for label in month_labels %}
                   <th>{{ label }}</th>
                 {% endfor %}
-                <th>War HR <span class="th-hint">this month · clean</span></th>
-                <th>Legend HR <span class="th-hint">this month</span></th>
+                <th>War HR</th>
+                <th>Legend HR</th>
               </tr>
             </thead>
             <tbody>
@@ -161,12 +161,12 @@
                   {% endfor %}
                   {% set cur = s.months[0] %}
                   <td>
-                    {% if not s.in_db or cur.war_clean == 0 %}
+                    {% if not s.in_db or cur.war_eff == 0 %}
                       <span class="no-data">—</span>
                     {% else %}
-                      {% set whr = (cur.war_3star / cur.war_clean * 100) | round | int %}
+                      {% set whr = (cur.war_3star / cur.war_eff * 100) | round | int %}
                       <strong style="color:{% if whr >= 75 %}#3ba55c{% elif whr >= 50 %}#faa61a{% else %}#ed4245{% endif %}; font-size:14px;">{{ whr }}%</strong>
-                      <div class="atk-total">{{ cur.war_3star }}/{{ cur.war_clean }} clean</div>
+                      <div class="atk-total">{{ cur.war_3star }}/{{ cur.war_eff }} eff.</div>
                     {% endif %}
                   </td>
                   {% set leg_hr = (s.legend_3star / s.legend_total * 100) | round | int if s.legend_total > 0 else none %}
