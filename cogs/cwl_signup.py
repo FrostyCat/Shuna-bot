@@ -7,36 +7,42 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from db import Session
 from models import CwlSignup, CwlSignupPanel, DiscordUser, Player
 
+_BUTTON_INSTRUCTIONS = (
+    "Click **✅ Sign Up** to register for this month's CWL.\n"
+    "Click **❌ Remove** to withdraw your signup.\n\n"
+    "If you have multiple accounts linked, you'll be asked to choose one."
+)
+
 
 class CwlSignupView(discord.ui.View):
-    def __init__(self, guild_id: str, season: str):
+    def __init__(self, guild_id: str, panel_id: int):
         super().__init__(timeout=None)
         self.add_item(discord.ui.Button(
             label="Sign Up",
             style=discord.ButtonStyle.success,
             emoji="✅",
-            custom_id=f"cwl:signup:{guild_id}:{season}",
+            custom_id=f"cwl:signup:{guild_id}:{panel_id}",
         ))
         self.add_item(discord.ui.Button(
             label="Remove",
             style=discord.ButtonStyle.danger,
             emoji="❌",
-            custom_id=f"cwl:remove:{guild_id}:{season}",
+            custom_id=f"cwl:remove:{guild_id}:{panel_id}",
         ))
 
 
 class AccountSelect(discord.ui.Select):
-    def __init__(self, guild_id: str, season: str, players: list):
+    def __init__(self, guild_id: str, panel_id: int, players: list):
         self._guild_id = guild_id
-        self._season = season
+        self._panel_id = panel_id
         options = [
             discord.SelectOption(label=p.name[:25], value=p.tag, description=p.tag)
             for p in players
         ]
         super().__init__(
-            placeholder="Wybierz konto CoC...",
+            placeholder="Select your CoC account...",
             options=options,
-            custom_id=f"cwl:select:{guild_id}:{season}",
+            custom_id=f"cwl:select:{guild_id}:{panel_id}",
         )
 
     async def callback(self, interaction: discord.Interaction):
@@ -45,14 +51,19 @@ class AccountSelect(discord.ui.Select):
 
         session = Session()
         try:
+            panel = session.query(CwlSignupPanel).filter_by(id=self._panel_id).first()
+            if not panel:
+                await interaction.response.send_message("❌ This sign-up post no longer exists.", ephemeral=True)
+                return
             stmt = pg_insert(CwlSignup).values(
-                guild_id=self._guild_id,
-                season=self._season,
+                panel_id=self._panel_id,
+                guild_id=panel.guild_id,
+                season=panel.season,
                 discord_id=discord_id,
                 player_tag=player_tag,
                 signed_up_at=datetime.now(UTC),
             ).on_conflict_do_update(
-                index_elements=["guild_id", "season", "discord_id"],
+                index_elements=["panel_id", "discord_id"],
                 set_={"player_tag": player_tag, "signed_up_at": datetime.now(UTC)},
             )
             session.execute(stmt)
@@ -62,41 +73,62 @@ class AccountSelect(discord.ui.Select):
         finally:
             session.close()
 
-        await _update_signup_embed(interaction.client, self._guild_id, self._season)
+        await _update_panel_embed(interaction.client, self._panel_id)
         await interaction.response.send_message(
             f"✅ Signed up as **{player_name}**!", ephemeral=True
         )
 
 
 class AccountSelectView(discord.ui.View):
-    def __init__(self, guild_id: str, season: str, players: list):
+    def __init__(self, guild_id: str, panel_id: int, players: list):
         super().__init__(timeout=60)
-        self.add_item(AccountSelect(guild_id, season, players))
+        self.add_item(AccountSelect(guild_id, panel_id, players))
 
 
-async def _update_signup_embed(bot: discord.Bot, guild_id: str, season: str):
+async def _update_panel_embed(bot: discord.Bot, panel_id: int):
     session = Session()
     try:
-        panels = session.query(CwlSignupPanel).filter_by(
-            guild_id=guild_id, season=season
-        ).all()
-        count = session.query(CwlSignup).filter_by(
-            guild_id=guild_id, season=season
-        ).count()
+        panel = session.query(CwlSignupPanel).filter_by(id=panel_id).first()
+        if not panel:
+            return
+        signups = session.query(CwlSignup).filter_by(panel_id=panel_id).all()
+        count = len(signups)
+        tags = [s.player_tag for s in signups]
+        players_map = {p.tag: p for p in session.query(Player).filter(Player.tag.in_(tags)).all()} if tags else {}
     finally:
         session.close()
 
-    for panel in panels:
-        channel = bot.get_channel(int(panel.channel_id))
-        if not channel:
-            continue
-        try:
-            msg = await channel.fetch_message(int(panel.message_id))
-        except discord.NotFound:
-            continue
-        embed = msg.embeds[0] if msg.embeds else discord.Embed(title="CWL Sign Up")
-        embed.set_footer(text=f"Signed up: {count}")
-        await msg.edit(embed=embed, view=CwlSignupView(guild_id, season))
+    channel = bot.get_channel(int(panel.channel_id))
+    if not channel:
+        return
+    try:
+        msg = await channel.fetch_message(int(panel.message_id))
+    except discord.NotFound:
+        return
+
+    player_lines = []
+    for s in signups:
+        p = players_map.get(s.player_tag)
+        if p:
+            th_str = f" — TH{p.th_level}" if p.th_level else ""
+            player_lines.append(f"• {p.name}{th_str}")
+        else:
+            player_lines.append(f"• {s.player_tag}")
+
+    parts = []
+    if panel.embed_description:
+        parts.append(panel.embed_description)
+    if player_lines:
+        parts.append("\n".join(player_lines))
+    parts.append(_BUTTON_INSTRUCTIONS)
+
+    embed = discord.Embed(
+        title=f"🏆 {panel.embed_title or 'CWL Roster Sign Up'}",
+        description="\n\n".join(parts),
+        color=0xf472b6,
+    )
+    embed.set_footer(text=f"Signed up: {count}")
+    await msg.edit(embed=embed, view=CwlSignupView(panel.guild_id, panel_id))
 
 
 class CwlSignupCog(commands.Cog):
@@ -120,7 +152,7 @@ class CwlSignupCog(commands.Cog):
                 try:
                     await channel.fetch_message(int(panel.message_id))
                     self.bot.add_view(
-                        CwlSignupView(panel.guild_id, panel.season),
+                        CwlSignupView(panel.guild_id, panel.id),
                         message_id=int(panel.message_id),
                     )
                 except discord.NotFound:
@@ -143,9 +175,9 @@ class CwlSignupCog(commands.Cog):
             parts = custom_id.split(":", 3)
             if len(parts) < 4:
                 return
-            guild_id, season = parts[2], parts[3]
+            guild_id, panel_id_str = parts[2], parts[3]
             try:
-                await self._handle_signup(interaction, guild_id, season)
+                await self._handle_signup(interaction, guild_id, int(panel_id_str))
             except Exception:
                 if not interaction.response.is_done():
                     await interaction.response.send_message(
@@ -156,23 +188,28 @@ class CwlSignupCog(commands.Cog):
             parts = custom_id.split(":", 3)
             if len(parts) < 4:
                 return
-            guild_id, season = parts[2], parts[3]
+            guild_id, panel_id_str = parts[2], parts[3]
             try:
-                await self._handle_remove(interaction, guild_id, season)
+                await self._handle_remove(interaction, guild_id, int(panel_id_str))
             except Exception:
                 if not interaction.response.is_done():
                     await interaction.response.send_message(
                         "⚠️ Something went wrong. Please try again.", ephemeral=True
                     )
 
-    async def _handle_signup(self, interaction: discord.Interaction, guild_id: str, season: str):
+    async def _handle_signup(self, interaction: discord.Interaction, guild_id: str, panel_id: int):
         discord_id = str(interaction.user.id)
         session = Session()
         try:
+            panel = session.query(CwlSignupPanel).filter_by(id=panel_id).first()
             db_user = session.query(DiscordUser).filter_by(discord_id=discord_id).first()
             players = list(db_user.players) if db_user else []
         finally:
             session.close()
+
+        if not panel:
+            await interaction.response.send_message("❌ This sign-up post no longer exists.", ephemeral=True)
+            return
 
         if not players:
             await interaction.response.send_message(
@@ -186,36 +223,37 @@ class CwlSignupCog(commands.Cog):
             session = Session()
             try:
                 stmt = pg_insert(CwlSignup).values(
+                    panel_id=panel_id,
                     guild_id=guild_id,
-                    season=season,
+                    season=panel.season,
                     discord_id=discord_id,
                     player_tag=player.tag,
                     signed_up_at=datetime.now(UTC),
                 ).on_conflict_do_update(
-                    index_elements=["guild_id", "season", "discord_id"],
+                    index_elements=["panel_id", "discord_id"],
                     set_={"player_tag": player.tag, "signed_up_at": datetime.now(UTC)},
                 )
                 session.execute(stmt)
                 session.commit()
             finally:
                 session.close()
-            await _update_signup_embed(self.bot, guild_id, season)
+            await _update_panel_embed(self.bot, panel_id)
             await interaction.response.send_message(
                 f"✅ Signed up as **{player.name}**!", ephemeral=True
             )
         else:
             await interaction.response.send_message(
                 "Select your CoC account to sign up for CWL:",
-                view=AccountSelectView(guild_id, season, players),
+                view=AccountSelectView(guild_id, panel_id, players),
                 ephemeral=True,
             )
 
-    async def _handle_remove(self, interaction: discord.Interaction, guild_id: str, season: str):
+    async def _handle_remove(self, interaction: discord.Interaction, guild_id: str, panel_id: int):
         discord_id = str(interaction.user.id)
         session = Session()
         try:
             row = session.query(CwlSignup).filter_by(
-                guild_id=guild_id, season=season, discord_id=discord_id
+                panel_id=panel_id, discord_id=discord_id
             ).first()
             if row:
                 session.delete(row)
@@ -227,11 +265,11 @@ class CwlSignupCog(commands.Cog):
             session.close()
 
         if removed:
-            await _update_signup_embed(self.bot, guild_id, season)
+            await _update_panel_embed(self.bot, panel_id)
             await interaction.response.send_message("❌ Removed from CWL signup.", ephemeral=True)
         else:
             await interaction.response.send_message(
-                "You are not signed up for this season.", ephemeral=True
+                "You are not signed up for this post.", ephemeral=True
             )
 
 

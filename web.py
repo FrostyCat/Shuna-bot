@@ -828,7 +828,10 @@ def coc_cwl_hub(guild_id):
     config = db.query(GuildConfig).filter_by(guild_id=guild_id).first()
     role_id = config.clan_member_role_id if config else None
     season = f"{datetime.now(UTC).year}-{datetime.now(UTC).month:02d}"
-    signup_count = db.query(CwlSignup).filter_by(guild_id=guild_id, season=season).count()
+    from sqlalchemy import distinct as sa_distinct
+    signup_count = db.query(func.count(sa_distinct(CwlSignup.player_tag))).filter(
+        CwlSignup.guild_id == guild_id, CwlSignup.season == season
+    ).scalar() or 0
     panel = db.query(CwlSignupPanel).filter_by(guild_id=guild_id, season=season).order_by(CwlSignupPanel.id.desc()).first()
     db.close()
     return render_template("coc_cwl_hub.html", user=session["user"], guild=guild,
@@ -1048,6 +1051,7 @@ _CWL_BUTTON_INSTRUCTIONS = (
     "Click **❌ Remove** to withdraw your signup.\n\n"
     "If you have multiple accounts linked, you'll be asked to choose one."
 )
+# Note: this must match _BUTTON_INSTRUCTIONS in cogs/cwl_signup.py
 
 
 @app.route("/dashboard/<guild_id>/coc/family/signup")
@@ -1061,11 +1065,29 @@ def coc_cwl_signup(guild_id):
     season_label = now.strftime("%B %Y")
 
     db = DBSession()
-    signups_raw = db.query(CwlSignup).filter_by(guild_id=guild_id, season=season).all()
     panels_raw = db.query(CwlSignupPanel).filter_by(guild_id=guild_id, season=season).order_by(CwlSignupPanel.id).all()
 
     channels_list = guild_text_channels(guild_id)
     channels_map = {c["id"]: c["name"] for c in channels_list}
+
+    panel_ids = [p.id for p in panels_raw]
+    signups_raw = db.query(CwlSignup).filter(CwlSignup.panel_id.in_(panel_ids)).all() if panel_ids else []
+
+    members_map = {m["id"]: m["username"] for m in guild_members(guild_id)}
+    player_tags = [s.player_tag for s in signups_raw]
+    players_map = {p.tag: p for p in db.query(Player).filter(Player.tag.in_(player_tags)).all()} if player_tags else {}
+
+    signups_by_panel = {p_id: [] for p_id in panel_ids}
+    for s in signups_raw:
+        pl = players_map.get(s.player_tag)
+        signups_by_panel[s.panel_id].append({
+            "id": s.id,
+            "discord_username": members_map.get(s.discord_id, s.discord_id),
+            "player_name": pl.name if pl else s.player_tag,
+            "player_tag": s.player_tag,
+            "th": pl.th_level if pl else None,
+            "signed_up_at": s.signed_up_at,
+        })
 
     panels = [
         {
@@ -1074,32 +1096,16 @@ def coc_cwl_signup(guild_id):
             "channel_id": p.channel_id,
             "message_id": p.message_id,
             "embed_title": p.embed_title or f"CWL Roster Sign Up — {season_label}",
-            "embed_description": p.embed_description or "",
+            "signup_count": len(signups_by_panel.get(p.id, [])),
         }
         for p in panels_raw
     ]
-
-    members_map = {m["id"]: m["username"] for m in guild_members(guild_id)}
-    player_tags = [s.player_tag for s in signups_raw]
-    players_map = {p.tag: p for p in db.query(Player).filter(Player.tag.in_(player_tags)).all()} if player_tags else {}
-
-    signups = []
-    for s in signups_raw:
-        p = players_map.get(s.player_tag)
-        signups.append({
-            "id": s.id,
-            "discord_username": members_map.get(s.discord_id, s.discord_id),
-            "player_name": p.name if p else s.player_tag,
-            "player_tag": s.player_tag,
-            "th": p.th_level if p else None,
-            "signed_up_at": s.signed_up_at,
-        })
 
     db.close()
 
     return render_template("coc_cwl_signup.html", user=session["user"], guild=guild,
                            season=season, season_label=season_label,
-                           signups=signups, panels=panels,
+                           signups_by_panel=signups_by_panel, panels=panels,
                            channels=channels_list,
                            can_add=len(panels) < 5,
                            button_instructions=_CWL_BUTTON_INSTRUCTIONS)
@@ -1126,10 +1132,20 @@ def coc_cwl_signup_send(guild_id):
         db.close()
         flash("Maximum 5 sign-up posts per season.", "danger")
         return redirect(url_for("coc_cwl_signup", guild_id=guild_id))
-    db.close()
 
     embed_title = (request.form.get("embed_title") or f"CWL Roster Sign Up — {season_label}").strip()
     embed_description = (request.form.get("embed_description") or "").strip()
+
+    # Insert panel first to get its ID for use in Discord custom_ids
+    panel = CwlSignupPanel(
+        guild_id=guild_id, season=season,
+        message_id=f"pending_{secrets.token_hex(8)}",
+        channel_id=channel_id,
+        embed_title=embed_title, embed_description=embed_description,
+    )
+    db.add(panel)
+    db.flush()
+    panel_id = panel.id
 
     full_description = (embed_description + "\n\n" if embed_description else "") + _CWL_BUTTON_INSTRUCTIONS
 
@@ -1145,12 +1161,12 @@ def coc_cwl_signup_send(guild_id):
             {
                 "type": 2, "style": 3, "label": "Sign Up",
                 "emoji": {"name": "✅"},
-                "custom_id": f"cwl:signup:{guild_id}:{season}",
+                "custom_id": f"cwl:signup:{guild_id}:{panel_id}",
             },
             {
                 "type": 2, "style": 4, "label": "Remove",
                 "emoji": {"name": "❌"},
-                "custom_id": f"cwl:remove:{guild_id}:{season}",
+                "custom_id": f"cwl:remove:{guild_id}:{panel_id}",
             },
         ],
     }]
@@ -1161,16 +1177,13 @@ def coc_cwl_signup_send(guild_id):
         json={"embeds": [embed], "components": components},
     )
     if not r.ok:
+        db.delete(panel)
+        db.commit()
+        db.close()
         flash("Failed to send embed to Discord.", "danger")
         return redirect(url_for("coc_cwl_signup", guild_id=guild_id))
 
-    msg_id = r.json()["id"]
-    db = DBSession()
-    db.add(CwlSignupPanel(
-        guild_id=guild_id, season=season,
-        message_id=msg_id, channel_id=channel_id,
-        embed_title=embed_title, embed_description=embed_description,
-    ))
+    panel.message_id = r.json()["id"]
     db.commit()
     db.close()
 
@@ -1229,7 +1242,13 @@ def coc_cwl_roster(guild_id):
     month_start = datetime(now.year, now.month, 1, tzinfo=UTC)
 
     db = DBSession()
-    signups_raw = db.query(CwlSignup).filter_by(guild_id=guild_id, season=season).all()
+    # Aggregate signups across all panels for this season, deduped by player_tag
+    all_signups = db.query(CwlSignup).filter_by(guild_id=guild_id, season=season).all()
+    seen_tags: dict = {}
+    for s in all_signups:
+        if s.player_tag not in seen_tags:
+            seen_tags[s.player_tag] = s
+    signups_raw = list(seen_tags.values())
     roster_map = {
         r.player_tag: r.gc_id
         for r in db.query(CwlRosterSlot).filter_by(guild_id=guild_id, season=season).all()

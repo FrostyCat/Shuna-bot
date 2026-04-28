@@ -142,6 +142,7 @@ class CwlSignup(Base):
     __tablename__ = "cwl_signups"
 
     id = Column(Integer, primary_key=True)
+    panel_id = Column(Integer, ForeignKey("cwl_signup_panels.id", ondelete="CASCADE"), nullable=False)
     guild_id = Column(String, nullable=False)
     season = Column(String, nullable=False)
     discord_id = Column(String, nullable=False)
@@ -149,7 +150,7 @@ class CwlSignup(Base):
     signed_up_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
     __table_args__ = (
-        UniqueConstraint("guild_id", "season", "discord_id", name="uq_cwl_signup"),
+        UniqueConstraint("panel_id", "discord_id", name="uq_cwl_signup"),
     )
 
 
