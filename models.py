@@ -167,6 +167,19 @@ class CwlSignupPanel(Base):
     is_open = Column(Boolean, default=True, nullable=False, server_default="true")
 
 
+class CwlParticipantClan(Base):
+    __tablename__ = "cwl_participant_clans"
+
+    id = Column(Integer, primary_key=True)
+    guild_id = Column(String, nullable=False)
+    season = Column(String, nullable=False)
+    gc_id = Column(Integer, ForeignKey("guild_clans.id", ondelete="CASCADE"), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("guild_id", "season", "gc_id", name="uq_cwl_participant_clan"),
+    )
+
+
 class CwlRosterSlot(Base):
     __tablename__ = "cwl_roster_slots"
 

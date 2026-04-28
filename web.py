@@ -13,7 +13,7 @@ from flask import Flask, abort, flash, jsonify, redirect, render_template, reque
 from sqlalchemy import and_, or_, func
 from db import Session as DBSession
 import re
-from models import Transcript, TicketPanel, TicketType, GuildConfig, GuildClan, Player, Attack, WarAttack, Clan, DiscordUser, ClanMember, CwlSignup, CwlSignupPanel, CwlRosterSlot
+from models import Transcript, TicketPanel, TicketType, GuildConfig, GuildClan, Player, Attack, WarAttack, Clan, DiscordUser, ClanMember, CwlSignup, CwlSignupPanel, CwlRosterSlot, CwlParticipantClan
 from backfill_cwl import backfill_clan, past_seasons
 
 load_dotenv()
@@ -1277,18 +1277,26 @@ def coc_cwl_roster(guild_id):
     month_start = datetime(now.year, now.month, 1, tzinfo=UTC)
 
     db = DBSession()
-    # Aggregate signups across all panels for this season, deduped by player_tag
+    # All signups deduped by player_tag (first signup per tag)
     all_signups = db.query(CwlSignup).filter_by(guild_id=guild_id, season=season).all()
     seen_tags: dict = {}
     for s in all_signups:
         if s.player_tag not in seen_tags:
             seen_tags[s.player_tag] = s
     signups_raw = list(seen_tags.values())
+
     roster_map = {
         r.player_tag: r.gc_id
         for r in db.query(CwlRosterSlot).filter_by(guild_id=guild_id, season=season).all()
     }
-    war_clans = db.query(GuildClan).filter_by(guild_id=guild_id, category="war").order_by(GuildClan.sort_order).all()
+    all_clans = db.query(GuildClan).filter_by(guild_id=guild_id).order_by(GuildClan.sort_order).all()
+    active_clan_ids = {
+        r.gc_id for r in db.query(CwlParticipantClan).filter_by(guild_id=guild_id, season=season).all()
+    }
+    panels_map = {
+        p.id: (p.embed_title or "CWL Sign Up")
+        for p in db.query(CwlSignupPanel).filter_by(guild_id=guild_id, season=season).all()
+    }
     members_map = {m["id"]: m["username"] for m in guild_members(guild_id)}
 
     player_tags = [s.player_tag for s in signups_raw]
@@ -1318,14 +1326,21 @@ def coc_cwl_roster(guild_id):
             "rate_mo": rate_mo,
             "eff_mo": eff_mo,
             "assigned_gc_id": roster_map.get(s.player_tag),
+            "panel_title": panels_map.get(s.panel_id, "—"),
         })
 
     roster.sort(key=lambda x: (-(x["th"] or 0), -(x["rate_mo"] or -1)))
     db.close()
 
+    import json as _json
+    all_clans_json = _json.dumps({str(gc.id): (gc.clan_name or gc.clan_tag) for gc in all_clans})
+
     return render_template("coc_cwl_roster.html", user=session["user"], guild=guild,
                            season=season, season_label=season_label,
-                           roster=roster, war_clans=war_clans)
+                           roster=roster,
+                           all_clans=all_clans,
+                           active_clan_ids=active_clan_ids,
+                           all_clans_json=all_clans_json)
 
 
 @app.route("/dashboard/<guild_id>/coc/family/roster/assign", methods=["POST"])
@@ -1352,6 +1367,34 @@ def coc_cwl_roster_assign(guild_id):
     db.commit()
     db.close()
     return jsonify(ok=True)
+
+
+@app.route("/dashboard/<guild_id>/coc/family/roster/clan/toggle", methods=["POST"])
+def coc_cwl_roster_clan_toggle(guild_id):
+    guild, err = require_guild(guild_id)
+    if err:
+        return err
+    data = request.get_json()
+    gc_id = int(data.get("gc_id"))
+    now = datetime.now(UTC)
+    season = f"{now.year}-{now.month:02d}"
+
+    db = DBSession()
+    gc = db.query(GuildClan).filter_by(id=gc_id, guild_id=guild_id).first()
+    if not gc:
+        db.close()
+        return jsonify(ok=False), 404
+    existing = db.query(CwlParticipantClan).filter_by(guild_id=guild_id, season=season, gc_id=gc_id).first()
+    if existing:
+        db.delete(existing)
+        is_active = False
+    else:
+        db.add(CwlParticipantClan(guild_id=guild_id, season=season, gc_id=gc_id))
+        is_active = True
+    db.commit()
+    active_ids = [r.gc_id for r in db.query(CwlParticipantClan).filter_by(guild_id=guild_id, season=season).all()]
+    db.close()
+    return jsonify(ok=True, is_active=is_active, active_clan_ids=active_ids)
 
 
 @app.route("/dashboard/<guild_id>/coc/clans")

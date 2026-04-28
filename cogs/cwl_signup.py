@@ -149,14 +149,19 @@ async def _update_panel_embed(bot: discord.Bot, panel_id: int):
     except discord.NotFound:
         return
 
+    guild = bot.get_guild(int(panel.guild_id))
+
     player_lines = []
     for s in signups:
         p = players_map.get(s.player_tag)
-        if p:
-            th_str = f" — TH{p.th_level}" if p.th_level else ""
-            player_lines.append(f"• {p.name}{th_str}")
-        else:
-            player_lines.append(f"• {s.player_tag}")
+        name = p.name if p else s.player_tag
+        th_str = f"TH{p.th_level}" if (p and p.th_level) else "TH?"
+        discord_str = ""
+        if guild:
+            member = guild.get_member(int(s.discord_id))
+            if member:
+                discord_str = f" · @{member.display_name}"
+        player_lines.append(f"• {name} — {th_str}{discord_str} · `{s.player_tag}`")
 
     parts = []
     if panel.embed_description:

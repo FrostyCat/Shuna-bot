@@ -19,28 +19,48 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 16px;
-    margin-bottom: 28px;
+    margin-bottom: 20px;
     flex-wrap: wrap;
   }
   .page-title { font-size: 20px; font-weight: 800; color: #fff; margin-bottom: 4px; }
   .page-sub   { font-size: 13px; color: #b07aaa; }
 
-  /* Clan slot counters */
+  .section-label {
+    font-size: 11px; font-weight: 700; color: #7a5278;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+
+  /* Clan selector badges */
   .clan-counters {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 8px;
     margin-bottom: 24px;
   }
   .clan-counter {
-    background: #1e1220;
-    border: 1px solid rgba(244,114,182,0.13);
+    background: #1a1020;
+    border: 1px solid rgba(244,114,182,0.12);
     border-radius: 8px;
-    padding: 8px 14px;
+    padding: 7px 13px;
     font-size: 12px;
-    color: #b07aaa;
+    color: #7a5278;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    user-select: none;
   }
-  .clan-counter strong { color: #f472b6; }
+  .clan-counter:hover { border-color: rgba(244,114,182,0.3); color: #b07aaa; }
+  .clan-counter.active {
+    background: rgba(244,114,182,0.1);
+    border-color: rgba(244,114,182,0.4);
+    color: #f0e6f0;
+  }
+  .clan-counter.active strong { color: #f472b6; }
+  .clan-counter strong { color: #b07aaa; transition: color 0.15s; }
+
+  .clan-hint {
+    font-size: 11px; color: #4a2e4a; margin-bottom: 20px;
+  }
 
   /* Table */
   .stats-table-wrap {
@@ -96,6 +116,21 @@
   .pcell .pname { font-weight: 600; color: #fff; font-size: 14px; }
   .pcell .ptag  { font-size: 11px; color: #7a5278; font-family: monospace; }
 
+  .panel-badge {
+    display: inline-block;
+    font-size: 11px;
+    color: #7a5278;
+    background: rgba(244,114,182,0.05);
+    border: 1px solid rgba(244,114,182,0.1);
+    border-radius: 4px;
+    padding: 2px 7px;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
   .rate-val { font-size: 14px; font-weight: 700; }
   .rate-val.na    { color: #4a2e4a; font-size: 12px; font-weight: 400; }
   .rate-val.low   { color: #f87171; }
@@ -121,6 +156,10 @@
   .clan-select.saving { opacity: 0.45; pointer-events: none; }
   .assign-ok { font-size: 11px; color: #3ba55c; margin-left: 5px; display: none; }
 
+  .no-clans-hint {
+    font-size: 12px; color: #4a2e4a; font-style: italic;
+  }
+
   .empty { text-align: center; padding: 60px 20px; color: #7a5278; font-size: 14px; }
 </style>
 {% endblock %}
@@ -136,10 +175,14 @@
     </div>
   </div>
 
-  {% if war_clans %}
+  <!-- Clan selector -->
+  <div class="section-label">CWL Clans — click to select which clans participate</div>
   <div class="clan-counters" id="counters">
-    {% for gc in war_clans %}
-      <div class="clan-counter" id="counter-{{ gc.id }}">
+    {% for gc in all_clans %}
+      {% set is_active = gc.id in active_clan_ids %}
+      <div class="clan-counter {% if is_active %}active{% endif %}"
+           id="counter-{{ gc.id }}"
+           onclick="toggleClan({{ gc.id }}, this)">
         <strong>{{ gc.clan_name or gc.clan_tag }}</strong>
         <span id="count-{{ gc.id }}">
           {{ roster | selectattr('assigned_gc_id', 'equalto', gc.id) | list | length }}
@@ -147,7 +190,7 @@
       </div>
     {% endfor %}
   </div>
-  {% endif %}
+  <div class="clan-hint">Selected clans (highlighted) appear in the Assigned Clan dropdown.</div>
 
   {% if roster %}
   <div class="stats-table-wrap">
@@ -157,6 +200,7 @@
           <th>Player</th>
           <th style="text-align:center;">TH</th>
           <th class="r">War HR<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:#4a2e4a;">this month</span></th>
+          <th>Signed Up Via</th>
           <th>Assigned Clan</th>
         </tr>
       </thead>
@@ -187,16 +231,22 @@
               {% endif %}
             </td>
             <td>
+              <span class="panel-badge" title="{{ m.panel_title }}">{{ m.panel_title }}</span>
+            </td>
+            <td>
               <div style="display:flex;align-items:center;gap:4px;">
                 <select class="clan-select"
                         data-tag="{{ m.player_tag }}"
+                        data-assigned="{{ m.assigned_gc_id or '' }}"
                         onchange="assignClan(this)">
                   <option value="">— Unassigned —</option>
-                  {% for gc in war_clans %}
-                    <option value="{{ gc.id }}"
-                      {% if m.assigned_gc_id == gc.id %}selected{% endif %}>
-                      {{ gc.clan_name or gc.clan_tag }}
-                    </option>
+                  {% for gc in all_clans %}
+                    {% if gc.id in active_clan_ids %}
+                      <option value="{{ gc.id }}"
+                        {% if m.assigned_gc_id == gc.id %}selected{% endif %}>
+                        {{ gc.clan_name or gc.clan_tag }}
+                      </option>
+                    {% endif %}
                   {% endfor %}
                 </select>
                 <span class="assign-ok" id="ok-{{ loop.index }}">✓</span>
@@ -208,26 +258,58 @@
     </table>
   </div>
   {% else %}
-    <div class="empty">Brak zapisanych graczy na ten sezon. Najpierw wyślij post Sign Up.</div>
+    <div class="empty">No sign-ups for this season yet. Send a Sign Up post first.</div>
   {% endif %}
 
 </div>
 
 <script>
-  const GUILD_ID   = "{{ guild.id }}";
-  const ASSIGN_URL = `/dashboard/${GUILD_ID}/coc/family/roster/assign`;
+  const GUILD_ID    = "{{ guild.id }}";
+  const ASSIGN_URL  = `/dashboard/${GUILD_ID}/coc/family/roster/assign`;
+  const TOGGLE_URL  = `/dashboard/${GUILD_ID}/coc/family/roster/clan/toggle`;
+  const ALL_CLANS   = {{ all_clans_json | safe }};
 
-  const clanCounts = {};
-  document.querySelectorAll("[id^='count-']").forEach(el => {
-    const gcId = el.id.replace("count-", "");
-    clanCounts[gcId] = parseInt(el.textContent.trim()) || 0;
+  // Track current assigned values for counter updates
+  document.querySelectorAll(".clan-select").forEach(sel => {
+    sel.dataset.prev = sel.value || "";
   });
 
+  async function toggleClan(gcId, badge) {
+    badge.style.opacity = "0.5";
+    const res = await fetch(TOGGLE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gc_id: gcId }),
+    });
+    badge.style.opacity = "";
+    if (!res.ok) return;
+    const data = await res.json();
+    badge.classList.toggle("active", data.is_active);
+    rebuildDropdowns(data.active_clan_ids);
+  }
+
+  function rebuildDropdowns(activeIds) {
+    const activeSet = new Set(activeIds.map(String));
+    document.querySelectorAll(".clan-select").forEach(sel => {
+      const current = sel.value;
+      // Remove all options except first (Unassigned)
+      while (sel.options.length > 1) sel.remove(1);
+      // Re-add active clans
+      for (const [id, name] of Object.entries(ALL_CLANS)) {
+        if (activeSet.has(id)) {
+          const opt = new Option(name, id);
+          if (id === current) opt.selected = true;
+          sel.add(opt);
+        }
+      }
+    });
+  }
+
   async function assignClan(select) {
-    const tag   = select.dataset.tag;
-    const gc_id = select.value || null;
-    const okEl  = select.parentElement.querySelector(".assign-ok");
+    const tag      = select.dataset.tag;
+    const gc_id    = select.value || null;
     const prevGcId = select.dataset.prev || null;
+    const okEl     = select.parentElement.querySelector(".assign-ok");
 
     select.classList.add("saving");
     if (okEl) okEl.style.display = "none";
@@ -240,7 +322,6 @@
       });
       if (res.ok) {
         if (okEl) { okEl.style.display = "inline"; setTimeout(() => { okEl.style.display = "none"; }, 2000); }
-
         if (prevGcId) {
           const prevCount = document.getElementById("count-" + prevGcId);
           if (prevCount) prevCount.textContent = Math.max(0, (parseInt(prevCount.textContent) || 0) - 1);
@@ -255,10 +336,5 @@
       select.classList.remove("saving");
     }
   }
-
-  // Init prev values for counter tracking
-  document.querySelectorAll(".clan-select").forEach(sel => {
-    sel.dataset.prev = sel.value || "";
-  });
 </script>
 {% endblock %}
