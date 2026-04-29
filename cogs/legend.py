@@ -16,6 +16,10 @@ MONTHS_EN = ["January", "February", "March", "April", "May", "June",
              "July", "August", "September", "October", "November", "December"]
 
 
+def is_legend1(player_data) -> bool:
+    return bool(player_data and len(player_data) > 5 and player_data[5] == "#0")
+
+
 def season_label(season: int) -> str:
     end = SEASON_EPOCH - SEASON_DURATION * (season - 1) + SEASON_DURATION
     return f"{MONTHS_EN[end.month - 1]} {end.year}"
@@ -321,8 +325,12 @@ class LegendCog(discord.Cog):
             await asyncio.get_running_loop().run_in_executor(None, session.rollback)
 
         player_data = await get_player(player.tag)
-        season_trophies = player_data[2] if player_data else None
-        rank = player_data[3] if player_data else None
+        if not is_legend1(player_data):
+            session.close()
+            await ctx.followup.send("❌ This player is not currently in Legend League 1.")
+            return
+        season_trophies = player_data[2]
+        rank = player_data[3]
 
         embed = build_legend_embed(player, session, day_offset=0, season_trophies=season_trophies, rank=rank, initial_rank=player.initial_rank)
         session.close()
@@ -349,7 +357,9 @@ class LegendCog(discord.Cog):
         rows = []
         for player in discord_user.players:
             player_data = await get_player(player.tag)
-            season_trophies = player_data[2] if player_data else None
+            if not is_legend1(player_data):
+                continue
+            season_trophies = player_data[2]
             attacks = session.query(Attack).filter(
                 Attack.player_id == player.id,
                 Attack.created_at >= start,
@@ -369,6 +379,9 @@ class LegendCog(discord.Cog):
             rows.append((player.name, player.tag, atk, deff, net, init, season_trophies, player.initial_rank, len(attacks), len(defenses)))
 
         session.close()
+        if not rows:
+            await ctx.followup.send(f"❌ {target.mention} has no accounts in Legend League 1.")
+            return
         embeds = build_legend_table_embeds(f"📊 Legend Day — {target.display_name}", rows)
         await ctx.followup.send(embeds=embeds)
 
@@ -396,7 +409,9 @@ class LegendCog(discord.Cog):
                 continue
             for player in discord_user.players:
                 player_data = await get_player(player.tag)
-                season_trophies = player_data[2] if player_data else None
+                if not is_legend1(player_data):
+                    continue
+                season_trophies = player_data[2]
                 attacks = session.query(Attack).filter(
                     Attack.player_id == player.id,
                     Attack.created_at >= start,
@@ -466,7 +481,9 @@ class LegendCog(discord.Cog):
             if not player:
                 continue
             player_data = await get_player(player.tag)
-            season_trophies = player_data[2] if player_data else None
+            if not is_legend1(player_data):
+                continue
+            season_trophies = player_data[2]
             attacks = session.query(Attack).filter(
                 Attack.player_id == player.id,
                 Attack.created_at >= start,

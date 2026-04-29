@@ -41,7 +41,7 @@ async def get_player(tag):
     current_season = data.get("legendStatistics", {}).get("currentSeason", {})
     season_trophies = current_season.get("trophies")
     rank = current_season.get("rank")
-    return (data["tag"], data["name"], season_trophies, rank, data.get("townHallLevel"))
+    return (data["tag"], data["name"], season_trophies, rank, data.get("townHallLevel"), data.get("currentLeagueGroupTag"))
 
 async def get_clan(tag):
     tag = tag.replace("#", "%23")

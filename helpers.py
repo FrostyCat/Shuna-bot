@@ -151,7 +151,7 @@ async def add_player_to_db(tag: str, session, commit=True, fetch_attacks=True):
     if not data:
         return {"success": False, "error": "Player not found"}
 
-    tag_api, name, _trophies, _rank, th_level = (*data, *([None] * (5 - len(data))))
+    tag_api, name, _trophies, _rank, th_level = data[0], data[1], data[2] if len(data) > 2 else None, data[3] if len(data) > 3 else None, data[4] if len(data) > 4 else None
 
     is_new = False
 
