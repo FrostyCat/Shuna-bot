@@ -69,12 +69,13 @@ class TasksCog(discord.Cog):
 
         for p in players:
             try:
-                await fetch_player_attacks(session, p)
                 data = await get_player(p.tag)
                 if data:
                     p.current_rank = data[3]
                     if data[4] is not None:
                         p.th_level = data[4]
+                    if len(data) > 5 and data[5] == "#0":
+                        await fetch_player_attacks(session, p)
                 await loop.run_in_executor(None, session.commit)
             except Exception as e:
                 await loop.run_in_executor(None, session.rollback)
