@@ -16,16 +16,42 @@ _NOTIFY_GUILD_ID = os.getenv("NOTIFY_GUILD_ID", "")
 class TasksCog(discord.Cog):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
+        self._api_sem = asyncio.Semaphore(3)
         self.refresh_players.start()
         self.refresh_clans.start()
         self.snapshot_ranks.start()
         self.refresh_wars.start()
+        self.pre_reset_sweep.start()
 
     def cog_unload(self):
         self.refresh_players.cancel()
         self.refresh_clans.cancel()
         self.snapshot_ranks.cancel()
         self.refresh_wars.cancel()
+        self.pre_reset_sweep.cancel()
+
+    async def _refresh_one_player(self, tag: str, sem: asyncio.Semaphore = None, sleep: float = 0.3):
+        async with (sem or self._api_sem):
+            session = Session()
+            try:
+                data = await get_player(tag)
+                if not data:
+                    return
+                player = session.query(Player).filter_by(tag=tag).first()
+                if not player:
+                    return
+                player.current_rank = data[3]
+                if data[4] is not None:
+                    player.th_level = data[4]
+                if len(data) > 5 and data[5] == "#0":
+                    await fetch_player_attacks(session, player)
+                session.commit()
+            except Exception as e:
+                session.rollback()
+                print(f"Error for {tag}: {e}")
+            finally:
+                session.close()
+            await asyncio.sleep(sleep)
 
     async def _notify_new_player(self, session, clan_tag: str, name: str, tag: str):
         loop = asyncio.get_running_loop()
@@ -58,31 +84,17 @@ class TasksCog(discord.Cog):
 
     @tasks.loop(minutes=10)
     async def refresh_players(self):
-        loop = asyncio.get_running_loop()
         session = Session()
         try:
-            players = await loop.run_in_executor(None, lambda: session.query(Player).all())
+            tags = [p.tag for p in session.query(Player).all()]
         except Exception as e:
             print(f"DB error loading players: {e}")
             session.close()
             return
+        finally:
+            session.close()
 
-        for p in players:
-            try:
-                data = await get_player(p.tag)
-                if data:
-                    p.current_rank = data[3]
-                    if data[4] is not None:
-                        p.th_level = data[4]
-                    if len(data) > 5 and data[5] == "#0":
-                        await fetch_player_attacks(session, p)
-                await loop.run_in_executor(None, session.commit)
-            except Exception as e:
-                await loop.run_in_executor(None, session.rollback)
-                print(f"Error for {p.tag}: {e}")
-            await asyncio.sleep(1.0)
-
-        session.close()
+        await asyncio.gather(*[self._refresh_one_player(tag) for tag in tags])
 
     @refresh_players.before_loop
     async def before_refresh_players(self):
@@ -107,6 +119,27 @@ class TasksCog(discord.Cog):
 
     @snapshot_ranks.before_loop
     async def before_snapshot_ranks(self):
+        await self.bot.wait_until_ready()
+
+    @tasks.loop(time=dt_time(hour=6, minute=55, tzinfo=WARSAW))
+    async def pre_reset_sweep(self):
+        session = Session()
+        try:
+            tags = [p.tag for p in session.query(Player).all()]
+        except Exception as e:
+            print(f"[pre_reset_sweep] DB error: {e}")
+            session.close()
+            return
+        finally:
+            session.close()
+
+        sweep_sem = asyncio.Semaphore(5)
+        print(f"[pre_reset_sweep] Starting sweep for {len(tags)} players...")
+        await asyncio.gather(*[self._refresh_one_player(tag, sem=sweep_sem, sleep=0.2) for tag in tags])
+        print("[pre_reset_sweep] Done.")
+
+    @pre_reset_sweep.before_loop
+    async def before_pre_reset_sweep(self):
         await self.bot.wait_until_ready()
 
     @tasks.loop(hours=12)
