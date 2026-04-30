@@ -20,6 +20,28 @@ def is_legend1(player_data) -> bool:
     return bool(player_data and len(player_data) > 5 and player_data[5] == "#0")
 
 
+def is_first_day(player, day_offset: int = 0) -> bool:
+    if not player.tracked_since:
+        return False
+    start, end = get_day_window(day_offset)
+    ts = player.tracked_since.astimezone(UTC)
+    return start <= ts < end
+
+
+def build_first_day_embed(player) -> discord.Embed:
+    ts = player.tracked_since.astimezone(WARSAW).strftime("%Y-%m-%d")
+    embed = discord.Embed(
+        title="New Player Tracking Started",
+        description=(
+            f"**{player.name}** (`{player.tag}`) has been added to the tracking system.\n"
+            f"Stats collection starts now — first-day data will be skipped to ensure accuracy."
+        ),
+        color=0xf472b6,
+    )
+    embed.set_footer(text=f"Tracked since: {ts}")
+    return embed
+
+
 def season_label(season: int) -> str:
     end = SEASON_EPOCH - SEASON_DURATION * (season - 1) + SEASON_DURATION
     return f"{MONTHS_EN[end.month - 1]} {end.year}"
@@ -330,6 +352,12 @@ class LegendCog(discord.Cog):
             print(f"[legend_day] fetch failed for {player.tag}: {e}")
             await asyncio.get_running_loop().run_in_executor(None, session.rollback)
 
+        if is_first_day(player):
+            embed = build_first_day_embed(player)
+            session.close()
+            await ctx.followup.send(embed=embed)
+            return
+
         player_data = await get_player(player.tag)
         if not is_legend1(player_data):
             session.close()
@@ -482,9 +510,13 @@ class LegendCog(discord.Cog):
         start, end = get_day_window(0)
 
         rows = []
+        first_day_players = []
         for member_tag in member_tags:
             player = session.query(Player).filter_by(tag=member_tag).first()
             if not player:
+                continue
+            if is_first_day(player):
+                first_day_players.append(player.name)
                 continue
             player_data = await get_player(player.tag)
             if not is_legend1(player_data):
@@ -518,6 +550,12 @@ class LegendCog(discord.Cog):
         rows.sort(key=lambda r: (r[5] if r[5] is not None else 0, r[4]), reverse=True)
 
         embeds = build_legend_table_embeds(f"📊 Legend Day — {clan.name}", rows)
+        if first_day_players and embeds:
+            embeds[0].add_field(
+                name="🆕 New to tracking",
+                value="\n".join(f"• {n}" for n in first_day_players) + "\n*First-day data skipped.*",
+                inline=False,
+            )
         if clan.tracked_since and embeds:
             ts = clan.tracked_since.astimezone(WARSAW)
             embeds[0].set_footer(text=f"{clan.tag} • tracked since {ts.strftime('%Y-%m-%d')}")
