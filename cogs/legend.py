@@ -93,6 +93,11 @@ def build_legend_embed(player, session, day_offset: int, season_trophies=None, r
     trophy_line = f"Current: {season_trophies} 🏆\n" if season_trophies is not None else ""
     reset_line = f"Reset: {season_trophies - net} 🏆\n" if season_trophies is not None else ""
 
+    tracked_line = ""
+    if player.tracked_since:
+        ts = player.tracked_since.astimezone(WARSAW)
+        tracked_line = f"Tracked since: {ts.strftime('%Y-%m-%d')}\n"
+
     embed = discord.Embed(title=f"📊 {player.name} ({player.tag}) — {day_label}", color=0x8B4513)
     embed.add_field(
         name="🏆 Overview",
@@ -103,6 +108,7 @@ def build_legend_embed(player, session, day_offset: int, season_trophies=None, r
             f"Trophies: {total_trophies:+}\n"
             f"Defenses: {total_trophies_def:-}\n"
             f"Net: {net:+}\n"
+            f"{tracked_line}"
         ),
         inline=False,
     )
@@ -467,7 +473,7 @@ class LegendCog(discord.Cog):
                 session.close()
                 return
             clan_tag, name = data
-            clan = Clan(tag=clan_tag, name=name)
+            clan = Clan(tag=clan_tag, name=name, tracked_since=datetime.now(UTC))
             session.add(clan)
             session.commit()
 
@@ -512,6 +518,9 @@ class LegendCog(discord.Cog):
         rows.sort(key=lambda r: (r[5] if r[5] is not None else 0, r[4]), reverse=True)
 
         embeds = build_legend_table_embeds(f"📊 Legend Day — {clan.name}", rows)
+        if clan.tracked_since and embeds:
+            ts = clan.tracked_since.astimezone(WARSAW)
+            embeds[0].set_footer(text=f"{clan.tag} • tracked since {ts.strftime('%Y-%m-%d')}")
         await ctx.followup.send(embeds=embeds)
 
     @discord.slash_command(name="legend_stats_clan", description="3⭐ hit rate for clan members in legend league")
@@ -537,7 +546,7 @@ class LegendCog(discord.Cog):
                 session.close()
                 return
             clan_tag, name = data
-            clan = Clan(tag=clan_tag, name=name)
+            clan = Clan(tag=clan_tag, name=name, tracked_since=datetime.now(UTC))
             session.add(clan)
             session.commit()
 
@@ -599,7 +608,8 @@ class LegendCog(discord.Cog):
             if block:
                 embed.add_field(name="", value=block, inline=False)
 
-        embed.set_footer(text=f"{clan.tag} • {len(rows)} players")
+        tracked_str = f" • tracked since {clan.tracked_since.astimezone(WARSAW).strftime('%Y-%m-%d')}" if clan.tracked_since else ""
+        embed.set_footer(text=f"{clan.tag} • {len(rows)} players{tracked_str}")
         await ctx.followup.send(embed=embed)
 
 

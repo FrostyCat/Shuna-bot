@@ -51,6 +51,7 @@ class Clan(Base):
     id = Column(Integer, primary_key=True)
     tag = Column(String, unique=True)
     name = Column(String)
+    tracked_since = Column(DateTime, nullable=True)
 
 
 class GuildClan(Base):
