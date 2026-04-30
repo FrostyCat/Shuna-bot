@@ -1,4 +1,6 @@
 import os
+from datetime import datetime, UTC
+
 import discord
 from discord.ext import commands
 
@@ -109,6 +111,8 @@ class LinkCog(discord.Cog):
             return
 
         player.discord_user_id = discord_user.id
+        player.is_verified = True
+        player.verified_at = datetime.now(UTC)
         player_name = player.name
         session.commit()
         session.close()
@@ -197,6 +201,8 @@ class LinkCog(discord.Cog):
 
         player_name = player.name
         player.discord_user_id = None
+        player.is_verified = False
+        player.verified_at = None
         session.commit()
         session.close()
         await ctx.followup.send(f"✅ Unlinked **{player_name}** ({tag}) from {user.mention}.", ephemeral=True)
@@ -227,9 +233,68 @@ class LinkCog(discord.Cog):
 
         player_name = player.name
         player.discord_user_id = None
+        player.is_verified = False
+        player.verified_at = None
         session.commit()
         session.close()
         await ctx.followup.send(f"✅ Unlinked **{player_name}** ({tag}).", ephemeral=True)
+
+    @discord.slash_command(name="verify", description="Link and verify your Clash of Clans account")
+    async def verify(
+        self,
+        ctx: discord.ApplicationContext,
+        tag: discord.Option(str, "Your player tag, e.g. #ABC123"),
+        api_token: discord.Option(str, "API token from in-game: Settings → More Settings → API Token"),
+    ):
+        await ctx.defer(ephemeral=True)
+
+        tag = tag.upper().replace("O", "0")
+        if not tag.startswith("#"):
+            tag = "#" + tag
+
+        valid = await verify_player_token(tag, api_token)
+        if not valid:
+            await ctx.followup.send(
+                "❌ Invalid API token. Find it in-game: **Settings → More Settings → API Token**.",
+                ephemeral=True,
+            )
+            return
+
+        session = Session()
+        try:
+            player = session.query(Player).filter_by(tag=tag).first()
+            if not player:
+                result = await add_player_to_db(tag, session)
+                if not result["success"]:
+                    await ctx.followup.send("❌ " + result["error"], ephemeral=True)
+                    return
+                player = session.query(Player).filter_by(tag=result["tag"]).first()
+
+            discord_user = session.query(DiscordUser).filter_by(discord_id=str(ctx.author.id)).first()
+            if not discord_user:
+                discord_user = DiscordUser(discord_id=str(ctx.author.id))
+                session.add(discord_user)
+                session.flush()
+
+            if player.discord_user_id and player.discord_user_id != discord_user.id:
+                await ctx.followup.send(
+                    "❌ This account is already linked to a different Discord user.",
+                    ephemeral=True,
+                )
+                return
+
+            player.discord_user_id = discord_user.id
+            player.is_verified = True
+            player.verified_at = datetime.now(UTC)
+            player_name = player.name
+            session.commit()
+        finally:
+            session.close()
+
+        await ctx.followup.send(
+            f"✅ **{player_name}** ({tag}) verified and linked to your account.",
+            ephemeral=True,
+        )
 
     @discord.slash_command(name="profile", description="Show CoC accounts linked to a Discord user")
     async def profile(
