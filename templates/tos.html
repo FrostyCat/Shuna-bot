@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}Terms of Service — Shuna Bot{% endblock %}
+
+{% block head %}
+<style>
+  .tos-wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  .tos-title {
+    font-size: 32px;
+    font-weight: 800;
+    color: #fff;
+    text-align: center;
+    margin-bottom: 6px;
+  }
+
+  .tos-sub {
+    text-align: center;
+    font-size: 13px;
+    color: #7a5278;
+    margin-bottom: 48px;
+  }
+
+  .tos-section {
+    margin-bottom: 36px;
+  }
+
+  .tos-section h2 {
+    font-size: 17px;
+    font-weight: 700;
+    color: #f472b6;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(244,114,182,0.15);
+  }
+
+  .tos-section h3 {
+    font-size: 14px;
+    font-weight: 700;
+    color: #f0e6f0;
+    margin: 16px 0 8px;
+  }
+
+  .tos-section p {
+    font-size: 14px;
+    color: #c9b8c9;
+    line-height: 1.7;
+    margin-bottom: 10px;
+  }
+
+  .tos-section ul {
+    padding-left: 20px;
+    margin-bottom: 10px;
+  }
+
+  .tos-section ul li {
+    font-size: 14px;
+    color: #c9b8c9;
+    line-height: 1.7;
+    margin-bottom: 4px;
+  }
+
+  .tos-footer {
+    text-align: center;
+    font-size: 13px;
+    color: #7a5278;
+    font-style: italic;
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(244,114,182,0.12);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="tos-wrap">
+  <div class="tos-title">Terms of Service</div>
+  <div class="tos-sub">Shuna Bot · Last updated: April 30, 2025</div>
+
+  <div class="tos-section">
+    <h2>1. Acceptance of Terms</h2>
+    <p>By adding this bot to your Discord server or using any of its commands, you agree to be bound by these Terms of Service. If you do not agree to these terms, please remove the bot from your server and discontinue use immediately.</p>
+    <p>These Terms apply to all users, server administrators, and server owners who interact with the bot in any capacity.</p>
+  </div>
+
+  <div class="tos-section">
+    <h2>2. Description of Service</h2>
+    <p>Shuna Bot provides utility tools and features for Discord servers, including but not limited to polls, statistics, data lookups, and integrations with third-party services and APIs. The exact feature set may change over time.</p>
+  </div>
+
+  <div class="tos-section">
+    <h2>3. Third-Party API Integrations</h2>
+    <h3>3.1 External Services</h3>
+    <p>The bot integrates with third-party APIs and services to provide its functionality. By using the bot, you acknowledge that:</p>
+    <ul>
+      <li>Data you provide through bot commands may be sent to third-party APIs (e.g., Clash of Clans API, Clash King API) to fulfil your request.</li>
+      <li>Your use of features powered by third-party APIs is also subject to the terms of service and privacy policies of those respective providers.</li>
+      <li>The bot developer is not affiliated with or endorsed by any third-party service provider.</li>
+    </ul>
+    <h3>3.2 Third-Party Terms</h3>
+    <p>Relevant third-party terms of service include:</p>
+    <ul>
+      <li><strong>Clash of Clans API:</strong> Clash of Clans API Terms of Service (developer.clashofclans.com)</li>
+      <li><strong>Clash King API:</strong> Clash King API Terms (clashk.ing)</li>
+      <li><strong>Discord:</strong> Discord Developer Terms of Service</li>
+    </ul>
+    <p>You are responsible for ensuring your use of third-party-powered features complies with those providers' terms.</p>
+  </div>
+
+  <div class="tos-section">
+    <h2>4. Data Collection &amp; Privacy</h2>
+    <h3>4.1 Data We Collect</h3>
+    <p>In order to operate, the bot may collect and process the following data:</p>
+    <ul>
+      <li>Discord User IDs and server (guild) IDs to identify users and provide per-server functionality.</li>
+      <li>Command inputs and query content submitted through bot interactions.</li>
+      <li>Data returned by third-party APIs in response to your requests.</li>
+      <li>Usage statistics and logs for the purpose of debugging and improving the service.</li>
+    </ul>
+    <h3>4.2 How We Use Your Data</h3>
+    <p>Collected data is used solely to:</p>
+    <ul>
+      <li>Provide and improve the bot's features and services.</li>
+      <li>Diagnose technical issues and prevent abuse.</li>
+      <li>Comply with Discord's Developer Policy and applicable law.</li>
+    </ul>
+    <h3>4.3 Data Retention</h3>
+    <p>Data is retained only as long as necessary to provide the service or as required by law. Temporary query data is not stored longer than needed to process your request. You may request deletion of your data by contacting the bot developer.</p>
+    <h3>4.4 Data Sharing</h3>
+    <p>We do not sell, rent, or trade your personal data. Data is only shared with third-party APIs strictly for the purpose of fulfilling your commands, as described in Section 3.</p>
+  </div>
+
+  <div class="tos-section">
+    <h2>5. Acceptable Use</h2>
+    <p>You agree NOT to use the bot to:</p>
+    <ul>
+      <li>Violate any applicable laws or regulations.</li>
+      <li>Violate Discord's Community Guidelines or Terms of Service.</li>
+      <li>Harass, abuse, or harm other users.</li>
+      <li>Send spam, automated abuse, or excessive requests intended to overload the bot.</li>
+      <li>Attempt to exploit, reverse-engineer, or gain unauthorized access to the bot or its infrastructure.</li>
+      <li>Use the bot to generate or distribute illegal, harmful, or malicious content.</li>
+      <li>Circumvent any usage limits or restrictions imposed by the bot or third-party APIs.</li>
+    </ul>
+    <p>Violation of these rules may result in your user or server being permanently blocked from using the bot.</p>
+  </div>
+
+  <div class="tos-section">
+    <h2>6. Availability &amp; Disclaimer</h2>
+    <p>The bot is provided on an "as is" and "as available" basis. We do not guarantee:</p>
+    <ul>
+      <li>Uninterrupted or error-free operation of the bot.</li>
+      <li>Accuracy, completeness, or reliability of any data returned by third-party APIs.</li>
+      <li>Continuous availability of any specific feature.</li>
+    </ul>
+    <p>The bot developer reserves the right to modify, suspend, or discontinue any part of the service at any time without prior notice.</p>
+  </div>
+
+  <div class="tos-section">
+    <h2>7. Limitation of Liability</h2>
+    <p>To the maximum extent permitted by applicable law, the bot developer shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the bot or third-party API integrations, including but not limited to loss of data, loss of profits, or service interruptions.</p>
+  </div>
+
+  <div class="tos-section">
+    <h2>8. Changes to These Terms</h2>
+    <p>We reserve the right to update or modify these Terms of Service at any time. Continued use of the bot after changes have been posted constitutes your acceptance of the updated terms. We encourage you to review these Terms periodically.</p>
+  </div>
+
+  <div class="tos-section">
+    <h2>9. Contact</h2>
+    <p>If you have any questions about these Terms of Service, data handling practices, or wish to request data deletion, please contact the bot developer via:</p>
+    <ul>
+      <li>The official Discord support server (link available on the bot's profile).</li>
+      <li>Discord: <strong>kittycathello</strong></li>
+    </ul>
+  </div>
+
+  <div class="tos-footer">By using this bot, you confirm that you have read and agree to these Terms of Service.</div>
+</div>
+{% endblock %}

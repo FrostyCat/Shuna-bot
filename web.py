@@ -204,6 +204,11 @@ def index():
     return render_template("login.html")
 
 
+@app.route("/terms-of-service/")
+def tos():
+    return render_template("tos.html")
+
+
 @app.route("/login")
 def login():
     state = secrets.token_hex(16)
