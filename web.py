@@ -209,6 +209,11 @@ def tos():
     return render_template("tos.html")
 
 
+@app.route("/privacy-policy/")
+def privacy_policy():
+    return render_template("privacy_policy.html")
+
+
 @app.route("/login")
 def login():
     state = secrets.token_hex(16)
