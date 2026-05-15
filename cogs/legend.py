@@ -65,6 +65,8 @@ def get_season_window(season: int):
 
 
 def get_filled_defense_trophies(session, player, day_offset: int, real_def_count: int) -> int:
+    if day_offset == 0:
+        return 0
     if real_def_count >= 8:
         return 0
     missing = 8 - real_def_count
