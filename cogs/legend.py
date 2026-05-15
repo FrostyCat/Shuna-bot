@@ -64,6 +64,26 @@ def get_season_window(season: int):
     return start, end
 
 
+def get_filled_defense_trophies(session, player, day_offset: int, real_def_count: int) -> int:
+    if real_def_count >= 8:
+        return 0
+    missing = 8 - real_def_count
+    prev_trophies = []
+    for offset in [day_offset - 1, day_offset - 2]:
+        start, end = get_day_window(offset)
+        defs = session.query(Attack).filter(
+            Attack.player_id == player.id,
+            Attack.created_at >= start,
+            Attack.created_at < end,
+            Attack.is_attack == False,
+        ).all()
+        prev_trophies.extend(d.trophies for d in defs)
+    if not prev_trophies:
+        return 0
+    avg = sum(prev_trophies) / len(prev_trophies)
+    return round(avg * missing)
+
+
 def build_legend_embed(player, session, day_offset: int, season_trophies=None, rank=None, initial_rank=None):
     start, end = get_day_window(day_offset)
 
@@ -88,6 +108,9 @@ def build_legend_embed(player, session, day_offset: int, season_trophies=None, r
 
     last_8_def = defenses[::-1][:8]
     total_trophies_def = sum(d.trophies for d in last_8_def)
+    filled_count = max(0, 8 - len(last_8_def))
+    filled_trophies = get_filled_defense_trophies(session, player, day_offset, len(last_8_def))
+    total_trophies_def_net = total_trophies_def + filled_trophies
 
     if day_offset == 0:
         day_label = "Today"
@@ -99,11 +122,14 @@ def build_legend_embed(player, session, day_offset: int, season_trophies=None, r
     attacks_text = "```\n" + "".join(
         f"{a.defender:<10} {a.stars}⭐ {a.destruction:>3}% {a.trophies:+}\n" for a in last_8
     ) + "```"
-    defenses_text = "```\n" + "".join(
+    def_lines = "".join(
         f"{d.defender:<10} {d.stars}⭐ {d.destruction:>3}% {d.trophies:+}\n" for d in last_8_def
-    ) + "```"
+    )
+    if filled_count > 0:
+        def_lines += f"{'(filled)':<10} {'':>4}    {filled_trophies:+} x{filled_count}\n"
+    defenses_text = "```\n" + def_lines + "```"
 
-    net = total_trophies + total_trophies_def
+    net = total_trophies + total_trophies_def_net
     if rank is not None and initial_rank is not None:
         diff_str = f" ({initial_rank - rank:+})" if initial_rank != rank else ""
         rank_line = f"Rank: #{rank}{diff_str} (start: #{initial_rank})\n"
@@ -125,10 +151,10 @@ def build_legend_embed(player, session, day_offset: int, season_trophies=None, r
         name="🏆 Overview",
         value=(
             f"{rank_line}{trophy_line}{reset_line}"
-            f"⚔️ {total} / 🛡️ {len(last_8_def)}\n"
+            f"⚔️ {total} / 🛡️ {len(last_8_def)}{f' (+{filled_count} filled)' if filled_count else ''}\n"
             f"Avg ⭐: {avg_stars:.2f}\n"
             f"Trophies: {total_trophies:+}\n"
-            f"Defenses: {total_trophies_def:-}\n"
+            f"Defenses: {total_trophies_def_net:+}\n"
             f"Net: {net:+}\n"
             f"{tracked_line}"
         ),
