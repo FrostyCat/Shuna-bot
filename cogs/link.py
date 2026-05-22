@@ -1,8 +1,11 @@
+import io
 import os
 from datetime import datetime, UTC
 
 import discord
 from discord.ext import commands
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
 
 from coc_api import get_player, verify_player_token
 from db import Session
@@ -325,6 +328,69 @@ class LinkCog(discord.Cog):
         session.close()
         await ctx.respond(embed=embed)
 
+
+    @discord.slash_command(name="member_role_export", description="Export linked CoC accounts for members with a role to Excel")
+    async def member_role_export(
+        self,
+        ctx: discord.ApplicationContext,
+        role: discord.Option(discord.Role, "Discord role"),
+    ):
+        await ctx.defer()
+        session = Session()
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = role.name[:31]
+
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(fill_type="solid", fgColor="8B4513")
+        headers = ["Discord ID", "Discord Name", "CoC Name", "CoC Tag", "TH Level", "Verified"]
+        col_widths = [20, 25, 25, 14, 10, 10]
+
+        for col, (h, w) in enumerate(zip(headers, col_widths), 1):
+            cell = ws.cell(row=1, column=col, value=h)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center")
+            ws.column_dimensions[cell.column_letter].width = w
+
+        row = 2
+        unlinked = []
+        for member in role.members:
+            discord_user = session.query(DiscordUser).filter_by(discord_id=str(member.id)).first()
+            if not discord_user or not discord_user.players:
+                unlinked.append(member.display_name)
+                continue
+            for player in discord_user.players:
+                ws.append([
+                    str(member.id),
+                    member.display_name,
+                    player.name,
+                    player.tag,
+                    player.th_level,
+                    "Yes" if player.is_verified else "No",
+                ])
+                row += 1
+
+        if unlinked:
+            ws_unlinked = wb.create_sheet("Unlinked")
+            ws_unlinked.append(["Discord Name"])
+            ws_unlinked.column_dimensions["A"].width = 25
+            for name in unlinked:
+                ws_unlinked.append([name])
+
+        session.close()
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+
+        now = datetime.now().strftime("%Y%m%d_%H%M")
+        filename = f"members_{role.name}_{now}.xlsx".replace(" ", "_")
+        await ctx.followup.send(
+            f"📊 **{role.name}** — {row - 1} linked accounts, {len(unlinked)} unlinked",
+            file=discord.File(buf, filename=filename),
+        )
 
     @discord.slash_command(name="member_role", description="Show all linked CoC accounts for members with a role")
     async def member_role(
