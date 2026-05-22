@@ -326,5 +326,57 @@ class LinkCog(discord.Cog):
         await ctx.respond(embed=embed)
 
 
+    @discord.slash_command(name="member_role", description="Show all linked CoC accounts for members with a role")
+    async def member_role(
+        self,
+        ctx: discord.ApplicationContext,
+        role: discord.Option(discord.Role, "Discord role"),
+    ):
+        await ctx.defer()
+        session = Session()
+
+        header = f"‎`{'DISCORD':<22} {'COC NAME':<18} {'TAG':<12} {'TH':>2}`"
+        lines = [header]
+        unlinked = []
+
+        for member in role.members:
+            discord_user = session.query(DiscordUser).filter_by(discord_id=str(member.id)).first()
+            if not discord_user or not discord_user.players:
+                unlinked.append(member.display_name)
+                continue
+            discord_name = member.display_name[:22]
+            for i, player in enumerate(discord_user.players):
+                name_col = discord_name if i == 0 else ""
+                coc_name = "".join(c for c in player.name if c.isascii() or "Ā" <= c <= "ɏ").strip()[:18] or player.name[:18]
+                th = str(player.th_level) if player.th_level else "—"
+                lines.append(f"‎`{name_col:<22} {coc_name:<18} {player.tag:<12} {th:>2}`")
+
+        session.close()
+
+        embed = discord.Embed(title=f"👥 Members — {role.name}", color=0x8B4513)
+        desc = "\n".join(lines)
+        if len(desc) <= 4000:
+            embed.description = desc
+        else:
+            block = header
+            for line in lines[1:]:
+                if len(block) + len(line) + 1 > 1024:
+                    embed.add_field(name="", value=block, inline=False)
+                    block = line
+                else:
+                    block += "\n" + line
+            if block:
+                embed.add_field(name="", value=block, inline=False)
+
+        embed.set_footer(text=f"{len(role.members) - len(unlinked)} linked · {len(unlinked)} unlinked")
+        await ctx.followup.send(embed=embed)
+
+        if unlinked:
+            await ctx.followup.send(
+                "⚠️ No linked accounts: " + ", ".join(unlinked),
+                ephemeral=True,
+            )
+
+
 def setup(bot: discord.Bot):
     bot.add_cog(LinkCog(bot))
