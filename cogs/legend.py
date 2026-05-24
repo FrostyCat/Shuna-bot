@@ -10,7 +10,7 @@ from db import Session
 from models import Attack, Clan, Player
 from helpers import WARSAW, add_player_to_db, fetch_player_attacks
 
-SEASON_EPOCH = datetime(2026, 4, 20, 7, 0, 0, tzinfo=WARSAW)
+SEASON_EPOCH = datetime(2026, 5, 19, 7, 0, 0, tzinfo=WARSAW)
 SEASON_DURATION = timedelta(days=28)
 MONTHS_EN = ["January", "February", "March", "April", "May", "June",
              "July", "August", "September", "October", "November", "December"]
@@ -24,12 +24,12 @@ def is_first_day(player, day_offset: int = 0) -> bool:
     if not player.tracked_since:
         return False
     start, end = get_day_window(day_offset)
-    ts = player.tracked_since.astimezone(UTC)
+    ts = player.tracked_since.replace(tzinfo=UTC)
     return start <= ts < end
 
 
 def build_first_day_embed(player) -> discord.Embed:
-    ts = player.tracked_since.astimezone(WARSAW).strftime("%Y-%m-%d")
+    ts = player.tracked_since.replace(tzinfo=UTC).astimezone(WARSAW).strftime("%Y-%m-%d")
     embed = discord.Embed(
         title="New Player Tracking Started",
         description=(
@@ -145,7 +145,7 @@ def build_legend_embed(player, session, day_offset: int, season_trophies=None, r
 
     tracked_line = ""
     if player.tracked_since:
-        ts = player.tracked_since.astimezone(WARSAW)
+        ts = player.tracked_since.replace(tzinfo=UTC).astimezone(WARSAW)
         tracked_line = f"Tracked since: {ts.strftime('%Y-%m-%d')}\n"
 
     embed = discord.Embed(title=f"📊 {player.name} ({player.tag}) — {day_label}", color=0x8B4513)
@@ -178,7 +178,7 @@ def build_season_embed(player, session, season_trophies: int | None) -> discord.
 
     days: dict[int, dict] = {}
     for a in all_attacks:
-        local = a.created_at.astimezone(WARSAW)
+        local = a.created_at.replace(tzinfo=UTC).astimezone(WARSAW)
         if local.hour < 7:
             local -= timedelta(days=1)
         day_start = local.replace(hour=7, minute=0, second=0, microsecond=0)
@@ -249,9 +249,10 @@ def build_legend_table_embeds(title: str, rows: list) -> list[discord.Embed]:
 
 class LegendView(discord.ui.View):
     def __init__(self, player_tag: str, day_offset: int = 0):
-        super().__init__(timeout=300)
+        super().__init__(timeout=None)
         self.player_tag = player_tag
         self.day_offset = day_offset
+        self.message: discord.Message | None = None
         self._update_buttons()
 
     def _update_buttons(self):
@@ -261,13 +262,30 @@ class LegendView(discord.ui.View):
     async def prev_day(self, _button: discord.ui.Button, interaction: discord.Interaction):
         self.day_offset -= 1
         self._update_buttons()
-        await self._refresh(interaction)
+        await self._render(interaction)
 
     @discord.ui.button(label="▶", style=discord.ButtonStyle.secondary)
     async def next_day(self, _button: discord.ui.Button, interaction: discord.Interaction):
         self.day_offset += 1
         self._update_buttons()
-        await self._refresh(interaction)
+        await self._render(interaction)
+
+    @discord.ui.button(label="🔄", style=discord.ButtonStyle.secondary)
+    async def refresh(self, _button: discord.ui.Button, interaction: discord.Interaction):
+        await interaction.response.defer()
+        session = Session()
+        player = session.query(Player).filter_by(tag=self.player_tag).first()
+        try:
+            await fetch_player_attacks(session, player)
+            await asyncio.get_running_loop().run_in_executor(None, session.commit)
+        except Exception:
+            await asyncio.get_running_loop().run_in_executor(None, session.rollback)
+        player_data = await get_player(player.tag)
+        season_trophies = player_data[2] if player_data else None
+        rank = player_data[3] if player_data else None
+        embed = build_legend_embed(player, session, self.day_offset, season_trophies=season_trophies, rank=rank, initial_rank=player.initial_rank)
+        session.close()
+        await interaction.edit_original_response(embed=embed, view=self)
 
     @discord.ui.button(label="📅 Season", style=discord.ButtonStyle.primary)
     async def season_log(self, _button: discord.ui.Button, interaction: discord.Interaction):
@@ -277,9 +295,11 @@ class LegendView(discord.ui.View):
         season_trophies = player_data[2] if player_data else None
         embed = build_season_embed(player, session, season_trophies)
         session.close()
-        await interaction.response.edit_message(embed=embed, view=SeasonView(self.player_tag))
+        season_view = SeasonView(self.player_tag)
+        season_view.message = self.message
+        await interaction.response.edit_message(embed=embed, view=season_view)
 
-    async def _refresh(self, interaction: discord.Interaction):
+    async def _render(self, interaction: discord.Interaction):
         session = Session()
         player = session.query(Player).filter_by(tag=self.player_tag).first()
         embed = build_legend_embed(player, session, self.day_offset)
@@ -289,8 +309,9 @@ class LegendView(discord.ui.View):
 
 class SeasonView(discord.ui.View):
     def __init__(self, player_tag: str):
-        super().__init__(timeout=300)
+        super().__init__(timeout=None)
         self.player_tag = player_tag
+        self.message: discord.Message | None = None
 
     @discord.ui.button(label="◀ Back", style=discord.ButtonStyle.secondary)
     async def back(self, _button: discord.ui.Button, interaction: discord.Interaction):
@@ -298,7 +319,9 @@ class SeasonView(discord.ui.View):
         player = session.query(Player).filter_by(tag=self.player_tag).first()
         embed = build_legend_embed(player, session, day_offset=0)
         session.close()
-        await interaction.response.edit_message(embed=embed, view=LegendView(self.player_tag))
+        legend_view = LegendView(self.player_tag)
+        legend_view.message = self.message
+        await interaction.response.edit_message(embed=embed, view=legend_view)
 
 
 async def tag_autocomplete(ctx: discord.AutocompleteContext):
@@ -394,9 +417,10 @@ class LegendCog(discord.Cog):
         season_trophies = player_data[2]
         rank = player_data[3]
 
+        view = LegendView(player.tag)
         embed = build_legend_embed(player, session, day_offset=0, season_trophies=season_trophies, rank=rank, initial_rank=player.initial_rank)
         session.close()
-        await ctx.followup.send(embed=embed, view=LegendView(player.tag))
+        view.message = await ctx.followup.send(embed=embed, view=view)
 
     @discord.slash_command(name="legend_day_user", description="Legend day stats for all linked accounts of a user")
     async def legend_day_user(
@@ -585,7 +609,7 @@ class LegendCog(discord.Cog):
                 inline=False,
             )
         if clan.tracked_since and embeds:
-            ts = clan.tracked_since.astimezone(WARSAW)
+            ts = clan.tracked_since.replace(tzinfo=UTC).astimezone(WARSAW)
             embeds[0].set_footer(text=f"{clan.tag} • tracked since {ts.strftime('%Y-%m-%d')}")
         await ctx.followup.send(embeds=embeds)
 
@@ -674,7 +698,7 @@ class LegendCog(discord.Cog):
             if block:
                 embed.add_field(name="", value=block, inline=False)
 
-        tracked_str = f" • tracked since {clan.tracked_since.astimezone(WARSAW).strftime('%Y-%m-%d')}" if clan.tracked_since else ""
+        tracked_str = f" • tracked since {clan.tracked_since.replace(tzinfo=UTC).astimezone(WARSAW).strftime('%Y-%m-%d')}" if clan.tracked_since else ""
         embed.set_footer(text=f"{clan.tag} • {len(rows)} players{tracked_str}")
         await ctx.followup.send(embed=embed)
 
