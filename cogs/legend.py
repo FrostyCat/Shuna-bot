@@ -249,7 +249,7 @@ def build_legend_table_embeds(title: str, rows: list) -> list[discord.Embed]:
 
 class LegendView(discord.ui.View):
     def __init__(self, player_tag: str, day_offset: int = 0):
-        super().__init__(timeout=None)
+        super().__init__(timeout=3600)
         self.player_tag = player_tag
         self.day_offset = day_offset
         self.message: discord.Message | None = None
@@ -257,6 +257,15 @@ class LegendView(discord.ui.View):
 
     def _update_buttons(self):
         self.next_day.disabled = self.day_offset >= 0
+
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except Exception:
+                pass
 
     @discord.ui.button(label="◀", style=discord.ButtonStyle.secondary)
     async def prev_day(self, _button: discord.ui.Button, interaction: discord.Interaction):
@@ -309,9 +318,18 @@ class LegendView(discord.ui.View):
 
 class SeasonView(discord.ui.View):
     def __init__(self, player_tag: str):
-        super().__init__(timeout=None)
+        super().__init__(timeout=3600)
         self.player_tag = player_tag
         self.message: discord.Message | None = None
+
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except Exception:
+                pass
 
     @discord.ui.button(label="◀ Back", style=discord.ButtonStyle.secondary)
     async def back(self, _button: discord.ui.Button, interaction: discord.Interaction):
