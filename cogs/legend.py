@@ -726,6 +726,69 @@ class LegendCog(discord.Cog):
         embed.set_footer(text=f"{clan.tag} • {len(rows)} players{tracked_str}")
         await ctx.followup.send(embed=embed)
 
+    @discord.slash_command(name="legend_stats_role", description="3⭐ hit rate for all linked accounts of members with a role")
+    async def legend_stats_role(
+        self,
+        ctx: discord.ApplicationContext,
+        role: discord.Option(discord.Role, "Discord role"),
+        season: discord.Option(int, "Season number (1=current, 2=previous...). Empty = all time", required=False, autocomplete=season_autocomplete, default=None),
+    ):
+        await ctx.defer()
+        session = Session()
+
+        from models import DiscordUser
+        season_start, season_end = get_season_window(season) if season else (None, None)
+        season_label_str = season_label(season) if season else "All time"
+
+        rows = []
+        for member in role.members:
+            discord_user = session.query(DiscordUser).filter_by(discord_id=str(member.id)).first()
+            if not discord_user or not discord_user.players:
+                continue
+            for player in discord_user.players:
+                q = session.query(Attack).filter(Attack.player_id == player.id, Attack.is_attack == True)
+                if season_start:
+                    q = q.filter(Attack.created_at >= season_start, Attack.created_at < season_end)
+                total = q.count()
+                triples = q.filter(Attack.stars == 3).count()
+                if total == 0:
+                    continue
+                rows.append((player.name, triples, total, triples / total * 100))
+
+        session.close()
+
+        if not rows:
+            await ctx.followup.send(f"❌ No attack data found for role {role.mention}.")
+            return
+
+        rows.sort(key=lambda r: r[3], reverse=True)
+
+        header = f"‎`{'#':>3} {'RATE':>6} {'HITS':>7} `  **NAME**"
+        lines = [header]
+        for i, (name, triples, total, rate) in enumerate(rows, 1):
+            fraction = f"{triples}/{total}"
+            nums = f"{i:>3} {rate:>5.1f}% {fraction:>7} "
+            clean_name = "".join(c for c in name if c.isascii() or "Ā" <= c <= "ɏ").strip() or name
+            lines.append(f"‎`{nums}` ‎{clean_name}")
+
+        embed = discord.Embed(title=f"⚔️ Legend Stats — {role.name} — {season_label_str}", color=0x8B4513)
+        desc = "\n".join(lines)
+        if len(desc) <= 4000:
+            embed.description = desc
+        else:
+            block = header
+            for line in lines[1:]:
+                if len(block) + len(line) + 1 > 1024:
+                    embed.add_field(name="", value=block, inline=False)
+                    block = line
+                else:
+                    block += "\n" + line
+            if block:
+                embed.add_field(name="", value=block, inline=False)
+
+        embed.set_footer(text=f"{role.name} • {len(rows)} accounts")
+        await ctx.followup.send(embed=embed)
+
 
 def setup(bot: discord.Bot):
     bot.add_cog(LegendCog(bot))
