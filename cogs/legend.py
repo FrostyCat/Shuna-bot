@@ -309,11 +309,17 @@ class LegendView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=season_view)
 
     async def _render(self, interaction: discord.Interaction):
-        session = Session()
-        player = session.query(Player).filter_by(tag=self.player_tag).first()
-        embed = build_legend_embed(player, session, self.day_offset)
-        session.close()
-        await interaction.response.edit_message(embed=embed, view=self)
+        try:
+            session = Session()
+            player = session.query(Player).filter_by(tag=self.player_tag).first()
+            embed = build_legend_embed(player, session, self.day_offset)
+            session.close()
+            await interaction.response.edit_message(embed=embed, view=self)
+        except Exception as e:
+            print(f"[LegendView._render] {e}")
+            import traceback; traceback.print_exc()
+            if not interaction.response.is_done():
+                await interaction.response.send_message(f"❌ Error: {e}", ephemeral=True)
 
 
 class SeasonView(discord.ui.View):
