@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 import discord
 from discord.ext import commands
-from sqlalchemy import func
+from sqlalchemy import case, func
 
 from coc_api import get_clan, get_clan_members, get_player
 from db import Session
@@ -740,20 +740,26 @@ class LegendCog(discord.Cog):
         season_start, season_end = get_season_window(season) if season else (None, None)
         season_label_str = season_label(season) if season else "All time"
 
-        rows = []
-        for member in role.members:
-            discord_user = session.query(DiscordUser).filter_by(discord_id=str(member.id)).first()
-            if not discord_user or not discord_user.players:
-                continue
-            for player in discord_user.players:
-                q = session.query(Attack).filter(Attack.player_id == player.id, Attack.is_attack == True)
-                if season_start:
-                    q = q.filter(Attack.created_at >= season_start, Attack.created_at < season_end)
-                total = q.count()
-                triples = q.filter(Attack.stars == 3).count()
-                if total == 0:
-                    continue
-                rows.append((player.name, triples, total, triples / total * 100))
+        discord_ids = [str(m.id) for m in role.members]
+
+        q = session.query(
+            Player.name,
+            func.sum(case((Attack.stars == 3, 1), else_=0)).label("triples"),
+            func.count().label("total"),
+        ).join(Attack, Attack.player_id == Player.id)\
+         .join(DiscordUser, DiscordUser.id == Player.discord_user_id)\
+         .filter(
+             DiscordUser.discord_id.in_(discord_ids),
+             Attack.is_attack == True,
+         )
+        if season_start:
+            q = q.filter(Attack.created_at >= season_start, Attack.created_at < season_end)
+        q = q.group_by(Player.id, Player.name).having(func.count() > 0)
+
+        rows = [
+            (name, int(triples), int(total), int(triples) / int(total) * 100)
+            for name, triples, total in q.all()
+        ]
 
         session.close()
 
