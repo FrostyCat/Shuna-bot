@@ -774,30 +774,34 @@ class LegendCog(discord.Cog):
         rows.sort(key=lambda r: r[3], reverse=True)
 
         header = f"‎`{'#':>3} {'RATE':>6} {'HITS':>7} `  **NAME**"
-        lines = [header]
+        data_lines = []
         for i, (name, triples, total, rate) in enumerate(rows, 1):
             fraction = f"{triples}/{total}"
             nums = f"{i:>3} {rate:>5.1f}% {fraction:>7} "
             clean_name = "".join(c for c in name if c.isascii() or "Ā" <= c <= "ɏ").strip() or name
-            lines.append(f"‎`{nums}` ‎{clean_name}")
+            data_lines.append(f"‎`{nums}` ‎{clean_name}")
 
-        embed = discord.Embed(title=f"⚔️ Legend Stats — {role.name} — {season_label_str}", color=0x8B4513)
-        desc = "\n".join(lines)
-        if len(desc) <= 4000:
-            embed.description = desc
-        else:
-            block = header
-            for line in lines[1:]:
-                if len(block) + len(line) + 1 > 1024:
-                    embed.add_field(name="", value=block, inline=False)
-                    block = line
-                else:
-                    block += "\n" + line
-            if block:
-                embed.add_field(name="", value=block, inline=False)
+        embeds = []
+        chunk = header
+        for line in data_lines:
+            if len(chunk) + len(line) + 1 > 3800:
+                e = discord.Embed(color=0x8B4513)
+                e.description = chunk
+                embeds.append(e)
+                chunk = header + "\n" + line
+            else:
+                chunk += "\n" + line
+        if chunk:
+            e = discord.Embed(color=0x8B4513)
+            e.description = chunk
+            embeds.append(e)
 
-        embed.set_footer(text=f"{role.name} • {len(rows)} accounts")
-        await ctx.followup.send(embed=embed)
+        if embeds:
+            embeds[0].title = f"⚔️ Legend Stats — {role.name} — {season_label_str}"
+            embeds[-1].set_footer(text=f"{role.name} • {len(rows)} accounts")
+
+        for i in range(0, len(embeds), 10):
+            await ctx.followup.send(embeds=embeds[i:i+10])
 
 
 def setup(bot: discord.Bot):
