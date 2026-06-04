@@ -740,7 +740,10 @@ class LegendCog(discord.Cog):
         season_start, season_end = get_season_window(season) if season else (None, None)
         season_label_str = season_label(season) if season else "All time"
 
+        import time
         discord_ids = [str(m.id) for m in role.members]
+        print(f"[legend_stats_role] {len(discord_ids)} members, season={season}")
+        t0 = time.time()
 
         q = session.query(
             Player.name,
@@ -760,6 +763,7 @@ class LegendCog(discord.Cog):
             (name, int(triples), int(total), int(triples) / int(total) * 100)
             for name, triples, total in q.all()
         ]
+        print(f"[legend_stats_role] query took {time.time() - t0:.2f}s, {len(rows)} rows")
 
         session.close()
 
