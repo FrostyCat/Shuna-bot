@@ -33,6 +33,8 @@ async def fetch_player_attacks(session, player):
         for b in battles:
             if b.get("battleType") != "ranked":
                 continue
+            if not b.get("opponentPlayerTag"):
+                continue
             is_attack = b.get("attack", False)
             stars = b.get("stars", 0)
             destruction = b.get("destructionPercentage", 0)

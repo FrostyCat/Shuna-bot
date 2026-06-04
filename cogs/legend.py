@@ -642,7 +642,7 @@ class LegendCog(discord.Cog):
         self,
         ctx: discord.ApplicationContext,
         tag: discord.Option(str, "Clan tag, e.g. #ABC123", autocomplete=clan_tag_autocomplete),
-        season: discord.Option(int, "Season number (1=current, 2=previous...). Empty = all time", required=False, autocomplete=season_autocomplete, default=None),
+        season: discord.Option(int, "Season number (1=current, 2=previous...). 0 = all time", required=False, autocomplete=season_autocomplete, default=1),
     ):
         await ctx.defer()
         session = Session()
@@ -731,7 +731,7 @@ class LegendCog(discord.Cog):
         self,
         ctx: discord.ApplicationContext,
         role: discord.Option(discord.Role, "Discord role"),
-        season: discord.Option(int, "Season number (1=current, 2=previous...). Empty = all time", required=False, autocomplete=season_autocomplete, default=None),
+        season: discord.Option(int, "Season number (1=current, 2=previous...). 0 = all time", required=False, autocomplete=season_autocomplete, default=1),
     ):
         await ctx.defer()
         session = Session()

@@ -44,6 +44,10 @@ class Attack(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(UTC))
     player = relationship("Player", back_populates="attacks")
 
+    __table_args__ = (
+        UniqueConstraint("player_id", "defender", "stars", "destruction", "is_attack", name="uq_attack"),
+    )
+
 
 class Clan(Base):
     __tablename__ = "clans"
