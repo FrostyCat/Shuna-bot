@@ -785,23 +785,20 @@ class LegendCog(discord.Cog):
         chunk = header
         for line in data_lines:
             if len(chunk) + len(line) + 1 > 3800:
-                e = discord.Embed(color=0x8B4513)
-                e.description = chunk
-                embeds.append(e)
+                embeds.append(chunk)
                 chunk = header + "\n" + line
             else:
                 chunk += "\n" + line
         if chunk:
-            e = discord.Embed(color=0x8B4513)
-            e.description = chunk
-            embeds.append(e)
+            embeds.append(chunk)
 
-        if embeds:
-            embeds[0].title = f"⚔️ Legend Stats — {role.name} — {season_label_str}"
-            embeds[-1].set_footer(text=f"{role.name} • {len(rows)} accounts")
-
-        for i in range(0, len(embeds), 10):
-            await ctx.followup.send(embeds=embeds[i:i+10])
+        for i, desc in enumerate(embeds):
+            e = discord.Embed(color=0x8B4513, description=desc)
+            if i == 0:
+                e.title = f"⚔️ Legend Stats — {role.name} — {season_label_str}"
+            if i == len(embeds) - 1:
+                e.set_footer(text=f"{role.name} • {len(rows)} accounts")
+            await ctx.followup.send(embed=e)
 
 
 def setup(bot: discord.Bot):
