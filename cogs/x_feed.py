@@ -46,10 +46,11 @@ class XFeedCog(discord.Cog):
             return uid, data.get("name", username), data.get("profile_image_url")
 
     async def _get_tweets(self, user_id: str, since_id: str | None = None) -> dict | None:
-        """Fetch only Posts — no expansions, no User: Read cost."""
         params = {
             "max_results": 10,
-            "tweet.fields": "created_at,text",
+            "tweet.fields": "created_at,text,attachments",
+            "expansions": "attachments.media_keys",
+            "media.fields": "url,preview_image_url,type",
         }
         if since_id:
             params["since_id"] = since_id
@@ -109,22 +110,51 @@ class XFeedCog(discord.Cog):
             is_first = not sub.last_tweet_id
             tweets_to_post = [tweets[0]] if is_first else list(reversed(tweets))
 
+            media_map = {
+                m["media_key"]: m
+                for m in (data or {}).get("includes", {}).get("media", [])
+            }
+
             for tweet in tweets_to_post:
                 tweet_url = f"https://x.com/{sub.username}/status/{tweet['id']}"
-                embed = discord.Embed(
+                ts = None
+                if tweet.get("created_at"):
+                    ts = datetime.fromisoformat(tweet["created_at"].replace("Z", "+00:00"))
+
+                media_keys = tweet.get("attachments", {}).get("media_keys", [])
+                image_urls = []
+                for key in media_keys:
+                    m = media_map.get(key, {})
+                    url = m.get("url") or m.get("preview_image_url")
+                    if url:
+                        image_urls.append(url)
+
+                # Build embeds — multiple images need multiple embeds with same URL
+                main_embed = discord.Embed(
                     description=tweet["text"],
                     color=0x000000,
                     url=tweet_url,
                 )
-                embed.set_author(
+                main_embed.set_author(
                     name=f"{sub.display_name} (@{sub.username})",
                     icon_url=sub.avatar_url,
                     url=f"https://x.com/{sub.username}",
                 )
-                if tweet.get("created_at"):
-                    embed.timestamp = datetime.fromisoformat(tweet["created_at"].replace("Z", "+00:00"))
-                embed.set_footer(text="𝕏")
-                await channel.send(embed=embed)
+                if ts:
+                    main_embed.timestamp = ts
+                main_embed.set_footer(text="𝕏")
+
+                if image_urls:
+                    main_embed.set_image(url=image_urls[0])
+                    extra_embeds = []
+                    for img_url in image_urls[1:]:
+                        e = discord.Embed(url=tweet_url, color=0x000000)
+                        e.set_image(url=img_url)
+                        extra_embeds.append(e)
+                    await channel.send(embeds=[main_embed] + extra_embeds)
+                else:
+                    await channel.send(embed=main_embed)
+
                 await asyncio.sleep(0.5)
 
             sub.last_tweet_id = tweets[0]["id"]
