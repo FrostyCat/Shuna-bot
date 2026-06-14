@@ -100,19 +100,16 @@ class XFeedCog(discord.Cog):
             if not tweets:
                 return
 
-            # First poll — save latest ID without posting to avoid flood
-            if not sub.last_tweet_id:
-                sub.last_tweet_id = tweets[0]["id"]
-                session.commit()
-                print(f"[x_feed] @{sub.username} initialized, latest tweet: {tweets[0]['id']}")
-                return
-
             channel = self.bot.get_channel(int(sub.channel_id))
             if not channel:
                 print(f"[x_feed] Channel {sub.channel_id} not found for @{sub.username}")
                 return
 
-            for tweet in reversed(tweets):
+            # First poll — post only the latest tweet as a preview
+            is_first = not sub.last_tweet_id
+            tweets_to_post = [tweets[0]] if is_first else list(reversed(tweets))
+
+            for tweet in tweets_to_post:
                 tweet_url = f"https://x.com/{sub.username}/status/{tweet['id']}"
                 embed = discord.Embed(
                     description=tweet["text"],
