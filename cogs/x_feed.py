@@ -151,9 +151,9 @@ class XFeedCog(discord.Cog):
                         e = discord.Embed(url=tweet_url, color=0x000000)
                         e.set_image(url=img_url)
                         extra_embeds.append(e)
-                    await channel.send(embeds=[main_embed] + extra_embeds)
+                    await channel.send(content=tweet_url, embeds=[main_embed] + extra_embeds)
                 else:
-                    await channel.send(embed=main_embed)
+                    await channel.send(content=tweet_url, embed=main_embed)
 
                 await asyncio.sleep(0.5)
 
