@@ -64,20 +64,22 @@ class XFeedCog(discord.Cog):
 
     @tasks.loop(minutes=15)
     async def poll_x_feeds(self):
+        print("[x_feed] Poll started", flush=True)
         session = Session()
         try:
             sub_data = [(s.id, s.username) for s in session.query(XSubscription).all()]
         except Exception as e:
-            print(f"[x_feed] DB error loading subs: {e}")
+            print(f"[x_feed] DB error loading subs: {e}", flush=True)
             return
         finally:
             session.close()
 
+        print(f"[x_feed] {len(sub_data)} subscription(s) to poll", flush=True)
         for sub_id, username in sub_data:
             try:
                 await self._poll_one(sub_id)
             except Exception as e:
-                print(f"[x_feed] Error polling @{username}: {e}")
+                print(f"[x_feed] Error polling @{username}: {e}", flush=True)
             await asyncio.sleep(2)
 
     async def _poll_one(self, sub_id: int):
