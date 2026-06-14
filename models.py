@@ -209,6 +209,8 @@ class XSubscription(Base):
     channel_id = Column(String, nullable=False)
     username = Column(String, nullable=False)
     user_id = Column(String, nullable=True)
+    display_name = Column(String, nullable=True)
+    avatar_url = Column(String, nullable=True)
     last_tweet_id = Column(String, nullable=True)
 
     __table_args__ = (

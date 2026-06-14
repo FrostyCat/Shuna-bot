@@ -32,20 +32,24 @@ class XFeedCog(discord.Cog):
             )
         return self._http
 
-    async def _get_user_id(self, username: str) -> str | None:
+    async def _fetch_user(self, username: str) -> tuple[str, str, str] | None:
+        """Returns (user_id, display_name, avatar_url) — charged once as User: Read."""
         url = f"{X_API_BASE}/users/by/username/{username}"
-        async with self._get_http().get(url) as resp:
+        params = {"user.fields": "name,profile_image_url"}
+        async with self._get_http().get(url, params=params) as resp:
             if resp.status != 200:
                 return None
-            data = await resp.json()
-            return data.get("data", {}).get("id")
+            data = (await resp.json()).get("data", {})
+            uid = data.get("id")
+            if not uid:
+                return None
+            return uid, data.get("name", username), data.get("profile_image_url")
 
     async def _get_tweets(self, user_id: str, since_id: str | None = None) -> dict | None:
+        """Fetch only Posts — no expansions, no User: Read cost."""
         params = {
             "max_results": 10,
             "tweet.fields": "created_at,text",
-            "expansions": "author_id",
-            "user.fields": "name,username,profile_image_url",
         }
         if since_id:
             params["since_id"] = since_id
@@ -61,8 +65,7 @@ class XFeedCog(discord.Cog):
     async def poll_x_feeds(self):
         session = Session()
         try:
-            subs = session.query(XSubscription).all()
-            sub_data = [(s.id, s.username) for s in subs]
+            sub_data = [(s.id, s.username) for s in session.query(XSubscription).all()]
         except Exception as e:
             print(f"[x_feed] DB error loading subs: {e}")
             return
@@ -83,12 +86,13 @@ class XFeedCog(discord.Cog):
             if not sub:
                 return
 
-            if not sub.user_id:
-                uid = await self._get_user_id(sub.username)
-                if not uid:
+            # Resolve & cache user profile if missing (User: Read — paid once)
+            if not sub.user_id or not sub.display_name:
+                result = await self._fetch_user(sub.username)
+                if not result:
                     print(f"[x_feed] Cannot resolve @{sub.username}")
                     return
-                sub.user_id = uid
+                sub.user_id, sub.display_name, sub.avatar_url = result
                 session.commit()
 
             data = await self._get_tweets(sub.user_id, sub.last_tweet_id)
@@ -96,17 +100,12 @@ class XFeedCog(discord.Cog):
             if not tweets:
                 return
 
-            # First poll — just save latest ID, don't flood channel
+            # First poll — save latest ID without posting to avoid flood
             if not sub.last_tweet_id:
                 sub.last_tweet_id = tweets[0]["id"]
                 session.commit()
                 print(f"[x_feed] @{sub.username} initialized, latest tweet: {tweets[0]['id']}")
                 return
-
-            users = {u["id"]: u for u in (data or {}).get("includes", {}).get("users", [])}
-            author = users.get(sub.user_id, {})
-            display_name = author.get("name", sub.username)
-            avatar_url = author.get("profile_image_url")
 
             channel = self.bot.get_channel(int(sub.channel_id))
             if not channel:
@@ -121,8 +120,8 @@ class XFeedCog(discord.Cog):
                     url=tweet_url,
                 )
                 embed.set_author(
-                    name=f"{display_name} (@{sub.username})",
-                    icon_url=avatar_url,
+                    name=f"{sub.display_name} (@{sub.username})",
+                    icon_url=sub.avatar_url,
                     url=f"https://x.com/{sub.username}",
                 )
                 if tweet.get("created_at"):
@@ -166,10 +165,11 @@ class XFeedCog(discord.Cog):
             return
         username_clean = username.lstrip("@").lower()
 
-        uid = await self._get_user_id(username_clean)
-        if not uid:
+        result = await self._fetch_user(username_clean)
+        if not result:
             await ctx.followup.send(f"❌ Nie znaleziono użytkownika `@{username_clean}` na X.")
             return
+        uid, display_name, avatar_url = result
 
         session = Session()
         try:
@@ -179,6 +179,8 @@ class XFeedCog(discord.Cog):
             if existing:
                 existing.channel_id = str(channel.id)
                 existing.user_id = uid
+                existing.display_name = display_name
+                existing.avatar_url = avatar_url
                 session.commit()
                 await ctx.followup.send(f"✅ Zaktualizowano — `@{username_clean}` → {channel.mention}")
             else:
@@ -187,10 +189,15 @@ class XFeedCog(discord.Cog):
                     channel_id=str(channel.id),
                     username=username_clean,
                     user_id=uid,
+                    display_name=display_name,
+                    avatar_url=avatar_url,
                 )
                 session.add(sub)
                 session.commit()
-                await ctx.followup.send(f"✅ Subskrybujesz `@{username_clean}` → {channel.mention}\nPierwszy post pojawi się przy następnym sprawdzaniu (do 15 min).")
+                await ctx.followup.send(
+                    f"✅ Subskrybujesz `@{username_clean}` → {channel.mention}\n"
+                    f"Pierwsze nowe posty pojawią się przy następnym sprawdzaniu (do 15 min)."
+                )
         except Exception as e:
             session.rollback()
             await ctx.followup.send(f"❌ Błąd: {e}")
