@@ -7,7 +7,7 @@ import discord
 from discord.ext import commands, tasks
 
 from db import Session
-from models import XSubscription
+from models import XSubscription, XGuildConfig
 
 X_BEARER_TOKEN = os.environ.get("X_BEARER_TOKEN", "")
 X_API_BASE = "https://api.twitter.com/2"
@@ -110,6 +110,9 @@ class XFeedCog(discord.Cog):
             is_first = not sub.last_tweet_id
             tweets_to_post = [tweets[0]] if is_first else list(reversed(tweets))
 
+            guild_cfg = session.query(XGuildConfig).filter_by(guild_id=sub.guild_id).first()
+            mention = f"<@&{guild_cfg.mention_role_id}> " if guild_cfg and guild_cfg.mention_role_id else ""
+
             media_map = {
                 m["media_key"]: m
                 for m in (data or {}).get("includes", {}).get("media", [])
@@ -144,6 +147,7 @@ class XFeedCog(discord.Cog):
                     main_embed.timestamp = ts
                 main_embed.set_footer(text="𝕏")
 
+                content = f"{mention}{tweet_url}"
                 if image_urls:
                     main_embed.set_image(url=image_urls[0])
                     extra_embeds = []
@@ -151,9 +155,9 @@ class XFeedCog(discord.Cog):
                         e = discord.Embed(url=tweet_url, color=0x000000)
                         e.set_image(url=img_url)
                         extra_embeds.append(e)
-                    await channel.send(content=tweet_url, embeds=[main_embed] + extra_embeds)
+                    await channel.send(content=content, embeds=[main_embed] + extra_embeds)
                 else:
-                    await channel.send(content=tweet_url, embed=main_embed)
+                    await channel.send(content=content, embed=main_embed)
 
                 await asyncio.sleep(0.5)
 
@@ -254,6 +258,35 @@ class XFeedCog(discord.Cog):
             session.delete(sub)
             session.commit()
             await ctx.followup.send(f"✅ Odsubskrybowano `@{username_clean}`.")
+        except Exception as e:
+            session.rollback()
+            await ctx.followup.send(f"❌ Błąd: {e}")
+        finally:
+            session.close()
+
+    @x_group.command(name="set_role", description="Ustaw rolę tagowaną przy każdym nowym poście X")
+    @discord.default_permissions(manage_guild=True)
+    async def x_set_role(
+        self,
+        ctx: discord.ApplicationContext,
+        role: discord.Option(discord.Role, "Rola do tagowania (zostaw puste aby usunąć)", required=False),
+    ):
+        await ctx.defer(ephemeral=True)
+        if not self._is_allowed(ctx.guild_id):
+            await ctx.followup.send("❌ Ta funkcja nie jest dostępna na tym serwerze.")
+            return
+        session = Session()
+        try:
+            cfg = session.query(XGuildConfig).filter_by(guild_id=str(ctx.guild_id)).first()
+            if not cfg:
+                cfg = XGuildConfig(guild_id=str(ctx.guild_id))
+                session.add(cfg)
+            cfg.mention_role_id = str(role.id) if role else None
+            session.commit()
+            if role:
+                await ctx.followup.send(f"✅ Przy każdym nowym poście X będzie tagowana rola {role.mention}.")
+            else:
+                await ctx.followup.send("✅ Usunięto tagowanie roli.")
         except Exception as e:
             session.rollback()
             await ctx.followup.send(f"❌ Błąd: {e}")

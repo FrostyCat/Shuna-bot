@@ -201,6 +201,13 @@ class CwlRosterSlot(Base):
     )
 
 
+class XGuildConfig(Base):
+    __tablename__ = "x_guild_configs"
+
+    guild_id = Column(String, primary_key=True)
+    mention_role_id = Column(String, nullable=True)
+
+
 class XSubscription(Base):
     __tablename__ = "x_subscriptions"
 
