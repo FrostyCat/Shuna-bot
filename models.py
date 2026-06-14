@@ -201,6 +201,21 @@ class CwlRosterSlot(Base):
     )
 
 
+class XSubscription(Base):
+    __tablename__ = "x_subscriptions"
+
+    id = Column(Integer, primary_key=True)
+    guild_id = Column(String, nullable=False)
+    channel_id = Column(String, nullable=False)
+    username = Column(String, nullable=False)
+    user_id = Column(String, nullable=True)
+    last_tweet_id = Column(String, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("guild_id", "username", name="uq_x_subscription"),
+    )
+
+
 class GuildConfig(Base):
     __tablename__ = "guild_configs"
 

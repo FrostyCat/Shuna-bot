@@ -26,6 +26,7 @@ COGS = [
     "cogs.embeds",
     "cogs.config",
     "cogs.cwl_signup",
+    "cogs.x_feed",
 ]
 
 
