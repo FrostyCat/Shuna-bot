@@ -51,6 +51,7 @@ class XFeedCog(discord.Cog):
             "tweet.fields": "created_at,text,attachments",
             "expansions": "attachments.media_keys",
             "media.fields": "url,preview_image_url,type",
+            "exclude": "replies,retweets",
         }
         if since_id:
             params["since_id"] = since_id
