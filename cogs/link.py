@@ -472,30 +472,33 @@ class LinkCog(discord.Cog):
         session.close()
 
         linked_count = len(role.members) - len(unlinked)
-        embed = discord.Embed(title=f"🔐 Weryfikacja — {role.name}", color=0x8B4513)
-        desc = "\n".join(lines)
-        if len(desc) <= 4000:
-            embed.description = desc
-        else:
-            block = header
-            for line in lines[1:]:
-                if len(block) + len(line) + 1 > 1024:
-                    embed.add_field(name="", value=block, inline=False)
-                    block = line
-                else:
-                    block += "\n" + line
-            if block:
-                embed.add_field(name="", value=block, inline=False)
+        footer_text = f"{linked_count} z kontami · {len(unlinked)} bez kont"
 
-        embed.set_footer(text=f"{linked_count} z kontami · {len(unlinked)} bez kont")
-        await ctx.followup.send(embed=embed)
+        block = header
+        chunks = []
+        for line in lines[1:]:
+            if len(block) + len(line) + 1 > 3800:
+                chunks.append(block)
+                block = header + "\n" + line
+            else:
+                block += "\n" + line
+        chunks.append(block)
+
+        for i, chunk in enumerate(chunks):
+            embed = discord.Embed(color=0x8B4513)
+            if i == 0:
+                embed.title = f"🔐 Weryfikacja — {role.name}"
+            if i == len(chunks) - 1:
+                embed.set_footer(text=footer_text)
+            embed.description = chunk
+            await ctx.followup.send(embed=embed)
 
         if unlinked:
             unlinked_lines = [f"<@{m.id}> (`{m.id}`)" for m in unlinked]
-            unlinked_text = "\n".join(unlinked_lines)
             for chunk_start in range(0, len(unlinked_lines), 30):
                 chunk = "\n".join(unlinked_lines[chunk_start:chunk_start + 30])
-                await ctx.followup.send(f"⚠️ **Bez zlinkowanych kont:**\n{chunk}")
+                prefix = "⚠️ **Bez zlinkowanych kont:**\n" if chunk_start == 0 else ""
+                await ctx.followup.send(f"{prefix}{chunk}")
 
 
 def setup(bot: discord.Bot):
