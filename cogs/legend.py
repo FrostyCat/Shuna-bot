@@ -219,14 +219,13 @@ def build_season_embed(player, session, season_trophies: int | None) -> discord.
 
 
 def build_legend_table_embeds(title: str, rows: list) -> list[discord.Embed]:
-    header = f"‎`{'A/D':<5} {'ATK':>4} {'DEF':>4} {'NET':>4}  {'Reset':>5}  {'Curr':>5}  {'Rnk':>6} `  **NAME**"
+    header = f"‎`{'A/D':<5} {'ATK':>4} {'DEF':>4} {'NET':>4}  {'Reset':>5}  {'Curr':>5} `  **NAME**"
     lines = [header]
-    for name, _tag, atk, deff, net, init, final, rank, atk_n, def_n in rows:
+    for name, _tag, atk, deff, net, init, final, _rank, atk_n, def_n in rows:
         init_str = str(init) if init is not None else "—"
         final_str = str(final) if final is not None else "—"
-        rank_str = f"#{rank}" if rank is not None else "—"
         ad_str = f"{atk_n}/{def_n}"
-        nums = f"{ad_str:<5} {atk:>+4} {deff:>+4} {net:>+4}  {init_str:>5}  {final_str:>5}  {rank_str:>6} "
+        nums = f"{ad_str:<5} {atk:>+4} {deff:>+4} {net:>+4}  {init_str:>5}  {final_str:>5} "
         clean_name = "".join(c for c in name if c.isascii() or "Ā" <= c <= "ɏ").strip() or name
         lines.append(f"‎`{nums}` ‎{clean_name}")
 
