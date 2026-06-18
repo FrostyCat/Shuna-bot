@@ -278,23 +278,6 @@ class LegendView(discord.ui.View):
         self._update_buttons()
         await self._render(interaction)
 
-    @discord.ui.button(label="🔄", style=discord.ButtonStyle.secondary)
-    async def refresh(self, interaction: discord.Interaction, _button: discord.ui.Button):
-        await interaction.response.defer()
-        session = Session()
-        player = session.query(Player).filter_by(tag=self.player_tag).first()
-        try:
-            await fetch_player_attacks(session, player)
-            await asyncio.get_running_loop().run_in_executor(None, session.commit)
-        except Exception:
-            await asyncio.get_running_loop().run_in_executor(None, session.rollback)
-        player_data = await get_player(player.tag)
-        season_trophies = player_data[2] if player_data else None
-        rank = player_data[3] if player_data else None
-        embed = build_legend_embed(player, session, self.day_offset, season_trophies=season_trophies, rank=rank, initial_rank=player.initial_rank)
-        session.close()
-        await interaction.edit_original_response(embed=embed, view=self)
-
     @discord.ui.button(label="📅 Season", style=discord.ButtonStyle.primary)
     async def season_log(self, interaction: discord.Interaction, _button: discord.ui.Button):
         await interaction.response.defer()
