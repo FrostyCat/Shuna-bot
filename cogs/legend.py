@@ -10,7 +10,7 @@ from db import Session
 from models import Attack, Clan, Player
 from helpers import WARSAW, add_player_to_db, fetch_player_attacks
 
-SEASON_EPOCH = datetime(2026, 5, 19, 7, 0, 0, tzinfo=WARSAW)
+SEASON_EPOCH = datetime(2026, 5, 18, 7, 0, 0, tzinfo=WARSAW)
 SEASON_DURATION = timedelta(days=28)
 MONTHS_EN = ["January", "February", "March", "April", "May", "June",
              "July", "August", "September", "October", "November", "December"]
