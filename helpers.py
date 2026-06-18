@@ -31,7 +31,7 @@ async def fetch_player_attacks(session, player):
     def _insert_all():
         count = 0
         for b in battles:
-            if b.get("battleType") != "ranked":
+            if b.get("battleType") != "legend":
                 continue
             if not b.get("opponentPlayerTag"):
                 continue
@@ -41,6 +41,7 @@ async def fetch_player_attacks(session, player):
             trophies = calculate_trophies(stars, destruction)
             if not is_attack:
                 trophies = -trophies
+            created_at = _parse_coc_time(b.get("battleTimestamp")) or datetime.now(UTC)
             stmt = pg_insert(Attack).values(
                 player_id=player.id,
                 defender=b.get("opponentPlayerTag"),
@@ -48,7 +49,7 @@ async def fetch_player_attacks(session, player):
                 destruction=destruction,
                 trophies=trophies,
                 is_attack=is_attack,
-                created_at=datetime.now(UTC),
+                created_at=created_at,
             ).on_conflict_do_nothing(
                 index_elements=["player_id", "defender", "stars", "destruction", "is_attack"]
             )
