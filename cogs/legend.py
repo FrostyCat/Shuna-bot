@@ -42,8 +42,17 @@ def build_first_day_embed(player) -> discord.Embed:
     return embed
 
 
+def current_season_epoch() -> datetime:
+    now = datetime.now(WARSAW)
+    if now < SEASON_EPOCH:
+        return SEASON_EPOCH
+    n = int((now - SEASON_EPOCH) / SEASON_DURATION)
+    return SEASON_EPOCH + SEASON_DURATION * n
+
+
 def season_label(season: int) -> str:
-    end = SEASON_EPOCH - SEASON_DURATION * (season - 1) + SEASON_DURATION
+    epoch = current_season_epoch()
+    end = epoch - SEASON_DURATION * (season - 1) + SEASON_DURATION
     return f"{MONTHS_EN[end.month - 1]} {end.year}"
 
 
@@ -59,7 +68,8 @@ def get_day_window(day_offset: int):
 
 
 def get_season_window(season: int):
-    start = SEASON_EPOCH - SEASON_DURATION * (season - 1)
+    epoch = current_season_epoch()
+    start = epoch - SEASON_DURATION * (season - 1)
     end = start + SEASON_DURATION
     return start, end
 
@@ -366,7 +376,7 @@ async def season_autocomplete(ctx: discord.AutocompleteContext):
     if oldest.tzinfo is None:
         oldest = oldest.replace(tzinfo=UTC)
 
-    max_seasons = max(1, int((SEASON_EPOCH - oldest) / SEASON_DURATION) + 2)
+    max_seasons = max(1, int((current_season_epoch() - oldest) / SEASON_DURATION) + 2)
     current = ctx.value.lower()
     choices = []
     for i in range(1, max_seasons + 1):
