@@ -38,11 +38,11 @@ class PlayerCog(discord.Cog):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
 
-    @discord.slash_command(name="player", description="Profile gracza Clash of Clans")
+    @discord.slash_command(name="player", description="Clash of Clans player profile")
     async def player(
         self,
         ctx: discord.ApplicationContext,
-        tag: discord.Option(str, "Tag gracza, np. #ABC123", autocomplete=tag_autocomplete),
+        tag: discord.Option(str, "Player tag, e.g. #ABC123", autocomplete=tag_autocomplete),
     ):
         await ctx.defer()
 
@@ -52,7 +52,7 @@ class PlayerCog(discord.Cog):
 
         data = await get_player_profile(tag)
         if not data:
-            await ctx.followup.send("❌ Nie znaleziono gracza.")
+            await ctx.followup.send("❌ Player not found.")
             return
 
         session = Session()
@@ -96,19 +96,19 @@ class PlayerCog(discord.Cog):
             color=0x8B4513,
         )
         embed.add_field(name="TH", value=str(th), inline=True)
-        embed.add_field(name="Liga", value=league_name, inline=True)
-        embed.add_field(name="Trofea", value=f"{trophy_display}{rank_display}", inline=True)
+        embed.add_field(name="League", value=league_name, inline=True)
+        embed.add_field(name="Trophies", value=f"{trophy_display}{rank_display}", inline=True)
         if legend_trophies:
-            embed.add_field(name="Trofea Legend", value=f"{legend_trophies} 🏆", inline=True)
-        embed.add_field(name="Najlepsze trofea", value=f"{best} 🏆", inline=True)
-        embed.add_field(name="Gwiazdy wojenne", value=f"{war_stars} ⭐", inline=True)
-        embed.add_field(name="Klan", value=clan_str, inline=False)
-        embed.add_field(name="Herosi", value=hero_str, inline=False)
+            embed.add_field(name="Legend Trophies", value=f"{legend_trophies} 🏆", inline=True)
+        embed.add_field(name="Best Trophies", value=f"{best} 🏆", inline=True)
+        embed.add_field(name="War Stars", value=f"{war_stars} ⭐", inline=True)
+        embed.add_field(name="Clan", value=clan_str, inline=False)
+        embed.add_field(name="Heroes", value=hero_str, inline=False)
 
         if discord_user:
             embed.add_field(name="Discord", value=f"<@{discord_user.discord_id}>", inline=False)
         else:
-            embed.add_field(name="Discord", value="— *(niepodłączone)*", inline=False)
+            embed.add_field(name="Discord", value="— *(not linked)*", inline=False)
 
         await ctx.followup.send(embed=embed)
 

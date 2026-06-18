@@ -444,11 +444,11 @@ class LinkCog(discord.Cog):
             )
 
 
-    @discord.slash_command(name="verified_role", description="Pokaż konta i status weryfikacji dla członków z rolą")
+    @discord.slash_command(name="verified_role", description="Show accounts and verification status for members with a role")
     async def verified_role(
         self,
         ctx: discord.ApplicationContext,
-        role: discord.Option(discord.Role, "Rola Discord"),
+        role: discord.Option(discord.Role, "Discord role"),
     ):
         await ctx.defer()
         session = Session()
@@ -472,7 +472,7 @@ class LinkCog(discord.Cog):
         session.close()
 
         linked_count = len(role.members) - len(unlinked)
-        footer_text = f"{linked_count} z kontami · {len(unlinked)} bez kont"
+        footer_text = f"{linked_count} with accounts · {len(unlinked)} unlinked"
 
         block = header
         chunks = []
@@ -487,7 +487,7 @@ class LinkCog(discord.Cog):
         for i, chunk in enumerate(chunks):
             embed = discord.Embed(color=0x8B4513)
             if i == 0:
-                embed.title = f"🔐 Weryfikacja — {role.name}"
+                embed.title = f"🔐 Verification — {role.name}"
             if i == len(chunks) - 1:
                 embed.set_footer(text=footer_text)
             embed.description = chunk
@@ -497,7 +497,7 @@ class LinkCog(discord.Cog):
             unlinked_lines = [f"<@{m.id}> (`{m.id}`)" for m in unlinked]
             for chunk_start in range(0, len(unlinked_lines), 30):
                 chunk = "\n".join(unlinked_lines[chunk_start:chunk_start + 30])
-                prefix = "⚠️ **Bez zlinkowanych kont:**\n" if chunk_start == 0 else ""
+                prefix = "⚠️ **No linked accounts:**\n" if chunk_start == 0 else ""
                 await ctx.followup.send(f"{prefix}{chunk}")
 
 
