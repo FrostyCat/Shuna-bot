@@ -267,20 +267,19 @@ class LegendView(discord.ui.View):
                 pass
 
     @discord.ui.button(label="◀", style=discord.ButtonStyle.secondary)
-    async def prev_day(self, interaction: discord.Interaction, _button: discord.ui.Button):
+    async def prev_day(self, _button: discord.ui.Button, interaction: discord.Interaction):
         self.day_offset -= 1
         self._update_buttons()
         await self._render(interaction)
 
     @discord.ui.button(label="▶", style=discord.ButtonStyle.secondary)
-    async def next_day(self, interaction: discord.Interaction, _button: discord.ui.Button):
+    async def next_day(self, _button: discord.ui.Button, interaction: discord.Interaction):
         self.day_offset += 1
         self._update_buttons()
         await self._render(interaction)
 
     @discord.ui.button(label="📅 Season", style=discord.ButtonStyle.primary)
-    async def season_log(self, interaction: discord.Interaction, _button: discord.ui.Button):
-        await interaction.response.defer()
+    async def season_log(self, _button: discord.ui.Button, interaction: discord.Interaction):
         session = Session()
         player = session.query(Player).filter_by(tag=self.player_tag).first()
         player_data = await get_player(player.tag)
@@ -289,7 +288,7 @@ class LegendView(discord.ui.View):
         session.close()
         season_view = SeasonView(self.player_tag)
         season_view.message = self.message
-        await interaction.edit_original_response(embed=embed, view=season_view)
+        await interaction.response.edit_message(embed=embed, view=season_view)
 
     async def _render(self, interaction: discord.Interaction):
         try:
@@ -321,7 +320,7 @@ class SeasonView(discord.ui.View):
                 pass
 
     @discord.ui.button(label="◀ Back", style=discord.ButtonStyle.secondary)
-    async def back(self, interaction: discord.Interaction, _button: discord.ui.Button):
+    async def back(self, _button: discord.ui.Button, interaction: discord.Interaction):
         session = Session()
         player = session.query(Player).filter_by(tag=self.player_tag).first()
         embed = build_legend_embed(player, session, day_offset=0)
