@@ -444,5 +444,59 @@ class LinkCog(discord.Cog):
             )
 
 
+    @discord.slash_command(name="verified_role", description="Pokaż konta i status weryfikacji dla członków z rolą")
+    async def verified_role(
+        self,
+        ctx: discord.ApplicationContext,
+        role: discord.Option(discord.Role, "Rola Discord"),
+    ):
+        await ctx.defer()
+        session = Session()
+
+        header = f"‎`{'DISCORD':<22} {'COC NAME':<18} {'TAG':<12} {'VER'}`"
+        lines = [header]
+        unlinked = []
+
+        for member in role.members:
+            discord_user = session.query(DiscordUser).filter_by(discord_id=str(member.id)).first()
+            if not discord_user or not discord_user.players:
+                unlinked.append(member)
+                continue
+            discord_name = member.display_name[:22]
+            for i, player in enumerate(discord_user.players):
+                name_col = discord_name if i == 0 else ""
+                coc_name = "".join(c for c in player.name if c.isascii() or "Ā" <= c <= "ɏ").strip()[:18] or player.name[:18]
+                ver = "✅" if player.is_verified else "❌"
+                lines.append(f"‎`{name_col:<22} {coc_name:<18} {player.tag:<12} {ver}`")
+
+        session.close()
+
+        linked_count = len(role.members) - len(unlinked)
+        embed = discord.Embed(title=f"🔐 Weryfikacja — {role.name}", color=0x8B4513)
+        desc = "\n".join(lines)
+        if len(desc) <= 4000:
+            embed.description = desc
+        else:
+            block = header
+            for line in lines[1:]:
+                if len(block) + len(line) + 1 > 1024:
+                    embed.add_field(name="", value=block, inline=False)
+                    block = line
+                else:
+                    block += "\n" + line
+            if block:
+                embed.add_field(name="", value=block, inline=False)
+
+        embed.set_footer(text=f"{linked_count} z kontami · {len(unlinked)} bez kont")
+        await ctx.followup.send(embed=embed)
+
+        if unlinked:
+            unlinked_lines = [f"<@{m.id}> (`{m.id}`)" for m in unlinked]
+            unlinked_text = "\n".join(unlinked_lines)
+            for chunk_start in range(0, len(unlinked_lines), 30):
+                chunk = "\n".join(unlinked_lines[chunk_start:chunk_start + 30])
+                await ctx.followup.send(f"⚠️ **Bez zlinkowanych kont:**\n{chunk}")
+
+
 def setup(bot: discord.Bot):
     bot.add_cog(LinkCog(bot))

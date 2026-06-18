@@ -21,6 +21,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 COGS = [
     "cogs.legend",
     "cogs.link",
+    "cogs.player",
     "cogs.tasks",
     "cogs.tickets",
     "cogs.embeds",

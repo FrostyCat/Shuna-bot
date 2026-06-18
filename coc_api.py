@@ -33,6 +33,11 @@ async def get_battlelog(tag):
     data = await _get(f"{BASE_URL}/players/{tag}/battlelog")
     return data["items"] if data else []
 
+async def get_player_profile(tag: str) -> dict | None:
+    tag = tag.replace("#", "%23")
+    return await _get(f"{BASE_URL}/players/{tag}")
+
+
 async def get_player(tag):
     tag = tag.replace("#", "%23")
     data = await _get(f"{BASE_URL}/players/{tag}")
