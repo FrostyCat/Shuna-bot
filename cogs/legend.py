@@ -423,7 +423,7 @@ class LegendCog(discord.Cog):
             return
 
         player_data = await get_player(player.tag)
-        if not player_data or player_data[2] is None:
+        if not player_data or player_data[5] != "Legend I":
             session.close()
             await ctx.followup.send("❌ This player is not currently in Legend League.")
             return
@@ -456,7 +456,7 @@ class LegendCog(discord.Cog):
         rows = []
         for player in discord_user.players:
             player_data = await get_player(player.tag)
-            if not player_data or player_data[2] is None:
+            if not player_data or player_data[5] != "Legend I":
                 continue
             season_trophies = player_data[2]
             attacks = session.query(Attack).filter(
@@ -584,7 +584,7 @@ class LegendCog(discord.Cog):
                 first_day_players.append(player.name)
                 continue
             player_data = await get_player(player.tag)
-            if not player_data or player_data[2] is None:
+            if not player_data or player_data[5] != "Legend I":
                 continue
             season_trophies = player_data[2]
             attacks = session.query(Attack).filter(
