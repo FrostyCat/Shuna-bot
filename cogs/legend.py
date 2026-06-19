@@ -16,9 +16,6 @@ MONTHS_EN = ["January", "February", "March", "April", "May", "June",
              "July", "August", "September", "October", "November", "December"]
 
 
-def is_legend1(player_data) -> bool:
-    return bool(player_data and len(player_data) > 5 and player_data[5] == "#0")
-
 
 def is_first_day(player, day_offset: int = 0) -> bool:
     if not player.tracked_since:
@@ -426,9 +423,9 @@ class LegendCog(discord.Cog):
             return
 
         player_data = await get_player(player.tag)
-        if not is_legend1(player_data):
+        if not player_data or player_data[2] is None:
             session.close()
-            await ctx.followup.send("❌ This player is not currently in Legend League 1.")
+            await ctx.followup.send("❌ This player is not currently in Legend League.")
             return
         season_trophies = player_data[2]
         rank = player_data[3]
@@ -459,7 +456,7 @@ class LegendCog(discord.Cog):
         rows = []
         for player in discord_user.players:
             player_data = await get_player(player.tag)
-            if not is_legend1(player_data):
+            if not player_data or player_data[2] is None:
                 continue
             season_trophies = player_data[2]
             attacks = session.query(Attack).filter(
@@ -587,7 +584,7 @@ class LegendCog(discord.Cog):
                 first_day_players.append(player.name)
                 continue
             player_data = await get_player(player.tag)
-            if not is_legend1(player_data):
+            if not player_data or player_data[2] is None:
                 continue
             season_trophies = player_data[2]
             attacks = session.query(Attack).filter(
