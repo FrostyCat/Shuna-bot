@@ -47,6 +47,8 @@ async def get_player(tag):
     season_trophies = current_season.get("trophies")
     rank = current_season.get("rank")
     league_tier = data.get("leagueTier", {}).get("name", "")
+    if season_trophies is None:
+        season_trophies = data.get("trophies")
     return (data["tag"], data["name"], season_trophies, rank, data.get("townHallLevel"), league_tier)
 
 async def get_clan(tag):
