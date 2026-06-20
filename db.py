@@ -30,4 +30,9 @@ def init_db():
                 "ALTER TABLE players ADD COLUMN IF NOT EXISTS league_tier VARCHAR"
             )
         )
+        conn.execute(
+            __import__("sqlalchemy").text(
+                "ALTER TABLE players ADD COLUMN IF NOT EXISTS season_trophies INTEGER"
+            )
+        )
         conn.commit()

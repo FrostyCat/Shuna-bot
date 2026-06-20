@@ -472,8 +472,8 @@ class LegendCog(discord.Cog):
             atk = sum(a.trophies for a in attacks)
             deff = sum(d.trophies for d in defenses)
             net = atk + deff
-            init = (player.current_rank - net) if player.current_rank is not None else None
-            rows.append((player.name, player.tag, atk, deff, net, init, player.current_rank, player.initial_rank, len(attacks), len(defenses)))
+            init = (player.season_trophies - net) if player.season_trophies is not None else None
+            rows.append((player.name, player.tag, atk, deff, net, init, player.season_trophies, player.initial_rank, len(attacks), len(defenses)))
 
         session.close()
         if not rows:
@@ -522,8 +522,8 @@ class LegendCog(discord.Cog):
                 atk = sum(a.trophies for a in attacks)
                 deff = sum(d.trophies for d in defenses)
                 net = atk + deff
-                init = (player.current_rank - net) if player.current_rank is not None else None
-                rows.append((player.name, player.tag, atk, deff, net, init, player.current_rank, player.initial_rank, len(attacks), len(defenses)))
+                init = (player.season_trophies - net) if player.season_trophies is not None else None
+                rows.append((player.name, player.tag, atk, deff, net, init, player.season_trophies, player.initial_rank, len(attacks), len(defenses)))
 
         session.commit()
         session.close()
@@ -596,8 +596,8 @@ class LegendCog(discord.Cog):
             atk = sum(a.trophies for a in attacks)
             deff = sum(d.trophies for d in defenses)
             net = atk + deff
-            init = (player.current_rank - net) if player.current_rank is not None else None
-            rows.append((player.name, player.tag, atk, deff, net, init, player.current_rank, player.initial_rank, len(attacks), len(defenses)))
+            init = (player.season_trophies - net) if player.season_trophies is not None else None
+            rows.append((player.name, player.tag, atk, deff, net, init, player.season_trophies, player.initial_rank, len(attacks), len(defenses)))
 
         session.close()
 

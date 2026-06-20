@@ -41,6 +41,8 @@ class TasksCog(discord.Cog):
                 if not player:
                     return
                 player.current_rank = data[3]
+                if data[2] is not None:
+                    player.season_trophies = data[2]
                 if data[4] is not None:
                     player.th_level = data[4]
                 if len(data) > 5:

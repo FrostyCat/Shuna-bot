@@ -25,6 +25,7 @@ class Player(Base):
     tracked_since = Column(DateTime, nullable=True)
     th_level = Column(Integer, nullable=True)
     league_tier = Column(String, nullable=True)
+    season_trophies = Column(Integer, nullable=True)
     is_verified = Column(Boolean, default=False, nullable=False, server_default="false")
     verified_at = Column(DateTime, nullable=True)
 
