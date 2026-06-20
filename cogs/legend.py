@@ -508,7 +508,7 @@ class LegendCog(discord.Cog):
                 continue
             for player in discord_user.players:
                 player_data = await get_player(player.tag)
-                if not is_legend1(player_data):
+                if not player_data or player_data[5] != "Legend I":
                     continue
                 season_trophies = player_data[2]
                 attacks = session.query(Attack).filter(
