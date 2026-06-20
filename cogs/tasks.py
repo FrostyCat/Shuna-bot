@@ -43,6 +43,8 @@ class TasksCog(discord.Cog):
                 player.current_rank = data[3]
                 if data[4] is not None:
                     player.th_level = data[4]
+                if len(data) > 5:
+                    player.league_tier = data[5]
                 await fetch_player_attacks(session, player)
                 session.commit()
             except Exception as e:

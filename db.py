@@ -24,3 +24,10 @@ Session = sessionmaker(bind=engine, autoflush=False)
 
 def init_db():
     Base.metadata.create_all(engine)
+    with engine.connect() as conn:
+        conn.execute(
+            __import__("sqlalchemy").text(
+                "ALTER TABLE players ADD COLUMN IF NOT EXISTS league_tier VARCHAR"
+            )
+        )
+        conn.commit()

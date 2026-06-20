@@ -455,10 +455,8 @@ class LegendCog(discord.Cog):
         start, end = get_day_window(0)
         rows = []
         for player in discord_user.players:
-            player_data = await get_player(player.tag)
-            if not player_data or player_data[5] != "Legend I":
+            if player.league_tier != "Legend I":
                 continue
-            season_trophies = player_data[2]
             attacks = session.query(Attack).filter(
                 Attack.player_id == player.id,
                 Attack.created_at >= start,
@@ -474,8 +472,8 @@ class LegendCog(discord.Cog):
             atk = sum(a.trophies for a in attacks)
             deff = sum(d.trophies for d in defenses)
             net = atk + deff
-            init = (season_trophies - net) if season_trophies is not None else None
-            rows.append((player.name, player.tag, atk, deff, net, init, season_trophies, player.initial_rank, len(attacks), len(defenses)))
+            init = (player.current_rank - net) if player.current_rank is not None else None
+            rows.append((player.name, player.tag, atk, deff, net, init, player.current_rank, player.initial_rank, len(attacks), len(defenses)))
 
         session.close()
         if not rows:
@@ -507,10 +505,8 @@ class LegendCog(discord.Cog):
                 unlinked.append(member.display_name)
                 continue
             for player in discord_user.players:
-                player_data = await get_player(player.tag)
-                if not player_data or player_data[5] != "Legend I":
+                if player.league_tier != "Legend I":
                     continue
-                season_trophies = player_data[2]
                 attacks = session.query(Attack).filter(
                     Attack.player_id == player.id,
                     Attack.created_at >= start,
@@ -526,8 +522,8 @@ class LegendCog(discord.Cog):
                 atk = sum(a.trophies for a in attacks)
                 deff = sum(d.trophies for d in defenses)
                 net = atk + deff
-                init = (season_trophies - net) if season_trophies is not None else None
-                rows.append((player.name, player.tag, atk, deff, net, init, season_trophies, player.initial_rank, len(attacks), len(defenses)))
+                init = (player.current_rank - net) if player.current_rank is not None else None
+                rows.append((player.name, player.tag, atk, deff, net, init, player.current_rank, player.initial_rank, len(attacks), len(defenses)))
 
         session.commit()
         session.close()
@@ -583,10 +579,8 @@ class LegendCog(discord.Cog):
             if is_first_day(player):
                 first_day_players.append(player.name)
                 continue
-            player_data = await get_player(player.tag)
-            if not player_data or player_data[5] != "Legend I":
+            if player.league_tier != "Legend I":
                 continue
-            season_trophies = player_data[2]
             attacks = session.query(Attack).filter(
                 Attack.player_id == player.id,
                 Attack.created_at >= start,
@@ -602,8 +596,8 @@ class LegendCog(discord.Cog):
             atk = sum(a.trophies for a in attacks)
             deff = sum(d.trophies for d in defenses)
             net = atk + deff
-            init = (season_trophies - net) if season_trophies is not None else None
-            rows.append((player.name, player.tag, atk, deff, net, init, season_trophies, player.initial_rank, len(attacks), len(defenses)))
+            init = (player.current_rank - net) if player.current_rank is not None else None
+            rows.append((player.name, player.tag, atk, deff, net, init, player.current_rank, player.initial_rank, len(attacks), len(defenses)))
 
         session.close()
 
