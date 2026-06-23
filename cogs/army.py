@@ -206,7 +206,7 @@ def parse_army_link(text: str) -> dict:
         return result
 
     # Split into labelled sections: h, u, s, i, d
-    sections = re.findall(r"([husidc])([\w_\-]+)", army_str)
+    sections = re.findall(r"([husidc])([^husidc]+)", army_str)
 
     for section_type, content in sections:
         if section_type == "h":

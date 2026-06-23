@@ -50,6 +50,7 @@ async def fetch_player_attacks(session, player):
                 trophies=trophies,
                 is_attack=is_attack,
                 created_at=created_at,
+                army_share_code=b.get("armyShareCode"),
             ).on_conflict_do_nothing(
                 index_elements=["player_id", "defender", "stars", "destruction", "is_attack"]
             )

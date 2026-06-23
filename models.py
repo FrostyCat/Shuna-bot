@@ -43,6 +43,7 @@ class Attack(Base):
     destruction = Column(Integer)
     trophies = Column(Integer)
     is_attack = Column(Boolean)
+    army_share_code = Column(String, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC))
     player = relationship("Player", back_populates="attacks")
 
