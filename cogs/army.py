@@ -138,12 +138,15 @@ EQUIPMENT_DATA = {
     18: "Eternal Spark",
     19: "Celestial Boots",
     20: "Spiritual Possession",
+    32: "Snake Bracelet",
     34: "Healing Tome",
+    39: "Magic Mirror",
     43: "Dark Orb",
     48: "Action Figure",
     49: "Meteor Staff",
     52: "Fire Heart",
-    59: "Barbarian Puppet (Duke)",
+    56: "Monolith Arrow",
+    59: "Electro Fangs",
 }
 
 
