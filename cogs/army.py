@@ -1,104 +1,145 @@
+import re
 import discord
-from discord.ext import commands
 from collections import defaultdict
+from urllib.parse import urlparse, parse_qs
 
 from db import Session
 from models import Attack
 
 # (name, housing_space, exclude_from_category)
+# IDs from clashofclans.js raw.json — match CoC army link format
 TROOP_DATA = {
     # Elixir troops
-    0:  ("Barbarian",      1,  True),
-    1:  ("Archer",         1,  True),
-    2:  ("Giant",          5,  True),
-    3:  ("Goblin",         1,  True),
-    4:  ("Wall Breaker",   2,  True),
-    5:  ("Balloon",        5,  False),
-    6:  ("Wizard",         4,  True),
-    7:  ("Healer",         14, True),
-    8:  ("Dragon",         20, False),
-    9:  ("P.E.K.K.A",      25, True),
-    10: ("Baby Dragon",    10, True),
-    11: ("Miner",          6,  False),
-    12: ("Electro Dragon", 30, False),
-    13: ("Yeti",           18, False),
-    14: ("Dragon Rider",   25, False),
-    15: ("Electro Titan",  32, False),
-    16: ("Root Rider",     20, False),
+    0:   ("Barbarian",          1,   True),
+    1:   ("Archer",             1,   True),
+    3:   ("Giant",              5,   True),
+    2:   ("Goblin",             1,   True),
+    4:   ("Wall Breaker",       2,   True),
+    5:   ("Balloon",            5,   False),
+    6:   ("Wizard",             4,   True),
+    7:   ("Healer",             14,  True),
+    8:   ("Dragon",             20,  False),
+    9:   ("P.E.K.K.A",          25,  True),
+    23:  ("Baby Dragon",        10,  True),
+    24:  ("Miner",              6,   False),
+    59:  ("Electro Dragon",     30,  False),
+    53:  ("Yeti",               18,  False),
+    65:  ("Dragon Rider",       25,  False),
+    95:  ("Electro Titan",      32,  False),
+    110: ("Root Rider",         20,  False),
+    132: ("Thrower",            15,  False),
+    177: ("Meteor Golem",       30,  False),
     # Dark Elixir troops
-    17: ("Minion",         2,  True),
-    18: ("Hog Rider",      5,  False),
-    19: ("Valkyrie",       8,  True),
-    20: ("Golem",          30, True),
-    21: ("Witch",          12, True),
-    22: ("Lava Hound",     30, True),
-    23: ("Bowler",         6,  True),
-    24: ("Ice Golem",      15, True),
-    25: ("Headhunter",     6,  True),
-    26: ("Apprentice Warden", 20, True),
-    27: ("Druid",          16, False),
+    10:  ("Minion",             2,   True),
+    11:  ("Hog Rider",          5,   False),
+    12:  ("Valkyrie",           8,   True),
+    13:  ("Golem",              30,  True),
+    15:  ("Witch",              12,  True),
+    17:  ("Lava Hound",         30,  True),
+    22:  ("Bowler",             6,   True),
+    58:  ("Ice Golem",          15,  True),
+    82:  ("Headhunter",         6,   True),
+    97:  ("Apprentice Warden",  20,  True),
+    123: ("Druid",              16,  False),
+    150: ("Furnace",            16,  False),
     # Super troops
-    50: ("Super Barbarian",    5,  True),
-    51: ("Super Archer",       12, False),
-    52: ("Sneaky Goblin",      3,  True),
-    53: ("Super Wall Breaker", 8,  True),
-    54: ("Rocket Balloon",     8,  False),
-    55: ("Inferno Dragon",     15, False),
-    56: ("Super Witch",        40, False),
-    57: ("Ice Hound",          40, True),
-    58: ("Super Bowler",       30, False),
-    59: ("Super Dragon",       40, False),
-    60: ("Super Miner",        24, False),
-    61: ("Super Hog Rider",    8,  False),
-    62: ("Super Giant",        10, True),
-    63: ("Super Valkyrie",     20, True),
-    64: ("Super Wizard",       10, True),
-    65: ("Super Minion",       12, True),
-    66: ("Super Yeti",         35, False),
+    26:  ("Super Barbarian",    5,   True),
+    27:  ("Super Archer",       12,  False),
+    29:  ("Super Giant",        10,  True),
+    55:  ("Sneaky Goblin",      3,   True),
+    28:  ("Super Wall Breaker", 8,   True),
+    57:  ("Rocket Balloon",     8,   False),
+    83:  ("Super Wizard",       10,  True),
+    81:  ("Super Dragon",       40,  False),
+    63:  ("Inferno Dragon",     15,  False),
+    56:  ("Super Miner",        24,  False),
+    147: ("Super Yeti",         35,  False),
+    84:  ("Super Minion",       12,  True),
+    98:  ("Super Hog Rider",    8,   False),
+    64:  ("Super Valkyrie",     20,  True),
+    66:  ("Super Witch",        40,  False),
+    76:  ("Ice Hound",          40,  True),
+    80:  ("Super Bowler",       30,  False),
+    # Siege machines
+    51:  ("Wall Wrecker",       1,   False),
+    52:  ("Battle Blimp",       1,   False),
+    62:  ("Stone Slammer",      1,   False),
+    75:  ("Siege Barracks",     1,   False),
+    87:  ("Log Launcher",       1,   False),
+    91:  ("Flame Flinger",      1,   False),
+    92:  ("Battle Drill",       1,   False),
+    135: ("Troop Launcher",     1,   False),
+    188: ("Sky Wagon",          1,   False),
 }
 
 SPELL_DATA = {
-    0:  ("Lightning",    2),
-    1:  ("Healing",      2),
-    2:  ("Rage",         2),
-    3:  ("Freeze",       2),
-    4:  ("Earthquake",   1),
-    5:  ("Haste",        1),
-    6:  ("Clone",        3),
-    7:  ("Invisibility", 1),
-    8:  ("Recall",       2),
-    9:  ("Bat",          1),
-    10: ("Skeleton",     1),
+    0:   ("Lightning",     2),
+    1:   ("Healing",       2),
+    2:   ("Rage",          2),
+    3:   ("Jump",          2),
+    5:   ("Freeze",        1),
+    16:  ("Clone",         3),
+    35:  ("Invisibility",  1),
+    53:  ("Recall",        2),
+    98:  ("Revive",        2),
+    120: ("Totem",         2),
+    9:   ("Poison",        1),
+    10:  ("Earthquake",    1),
+    11:  ("Haste",         1),
+    17:  ("Skeleton",      1),
+    28:  ("Bat",           1),
+    70:  ("Overgrowth",    2),
+    109: ("Ice Block",     1),
 }
 
 
-def parse_army_code(code: str) -> dict[str, int]:
-    if not code:
-        return {}
-
-    troops: dict[str, int] = {}
-
-    if "s" in code:
-        troops_str, _ = code.split("s", 1)
+def parse_army_link(text: str) -> tuple[list[tuple[int, str]], list[tuple[int, str]]]:
+    """
+    Accepts either a full army link URL or just the army code string.
+    Returns (troops, spells) where each is a list of (count, name) tuples.
+    """
+    if text.startswith("http"):
+        qs = parse_qs(urlparse(text).query)
+        army_str = qs.get("army", [""])[0]
     else:
-        troops_str = code
+        army_str = text
 
-    troops_str = troops_str.lstrip("u")
+    if not army_str:
+        return [], []
 
-    for part in troops_str.split("-"):
-        if "x" not in part:
+    troops: list[tuple[int, str]] = []
+    spells: list[tuple[int, str]] = []
+
+    for section_type, section_content in re.findall(r"([us])([\dx\-]+)", army_str):
+        for entry in section_content.split("-"):
+            if "x" not in entry:
+                continue
+            try:
+                qty, uid = map(int, entry.split("x", 1))
+            except ValueError:
+                continue
+            if section_type == "u":
+                name = TROOP_DATA.get(uid, (f"Troop#{uid}", 1, False))[0]
+                troops.append((qty, name))
+            else:
+                name = SPELL_DATA.get(uid, (f"Spell#{uid}", 1))[0]
+                spells.append((qty, name))
+
+    return troops, spells
+
+
+def parse_army_code(code: str) -> dict[str, int]:
+    """Returns {category_name: total_housing_space} for the army (troops only)."""
+    troops, _ = parse_army_link(code)
+    result: dict[str, int] = {}
+    for qty, name in troops:
+        uid = next((k for k, v in TROOP_DATA.items() if v[0] == name), None)
+        if uid is None:
             continue
-        count_str, uid_str = part.split("x", 1)
-        try:
-            count = int(count_str)
-            uid = int(uid_str)
-        except ValueError:
-            continue
-        name, space, excluded = TROOP_DATA.get(uid, (f"Troop#{uid}", 1, False))
+        _, space, excluded = TROOP_DATA[uid]
         if not excluded:
-            troops[name] = troops.get(name, 0) + count * space
-
-    return troops
+            result[name] = result.get(name, 0) + qty * space
+    return result
 
 
 def categorize(code: str) -> str:
@@ -111,6 +152,31 @@ def categorize(code: str) -> str:
 class ArmyCog(discord.Cog):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
+
+    @discord.slash_command(name="army", description="Show army composition from a CoC army link")
+    async def army(
+        self,
+        ctx: discord.ApplicationContext,
+        link: discord.Option(str, "CoC army link or army code"),
+    ):
+        await ctx.defer()
+
+        troops, spells = parse_army_link(link.strip())
+        if not troops and not spells:
+            await ctx.followup.send("❌ Could not parse this army link.")
+            return
+
+        embed = discord.Embed(title="⚔️ Army Composition", color=0x8B4513)
+
+        if troops:
+            troop_lines = [f"`{qty}x` {name}" for qty, name in troops]
+            embed.add_field(name="🗡️ Troops", value="\n".join(troop_lines), inline=True)
+
+        if spells:
+            spell_lines = [f"`{qty}x` {name}" for qty, name in spells]
+            embed.add_field(name="🧪 Spells", value="\n".join(spell_lines), inline=True)
+
+        await ctx.followup.send(embed=embed)
 
     @discord.slash_command(name="army_stats", description="Overall army composition stats across all players")
     async def army_stats(self, ctx: discord.ApplicationContext):
