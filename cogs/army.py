@@ -92,11 +92,101 @@ SPELL_DATA = {
     109: ("Ice Block",     1),
 }
 
+HERO_DATA = {
+    0: "Barbarian King",
+    1: "Archer Queen",
+    2: "Grand Warden",
+    4: "Royal Champion",
+    6: "Minion Prince",
+    7: "Dragon Duke",
+}
 
-def parse_army_link(text: str) -> tuple[list[tuple[int, str]], list[tuple[int, str]]]:
+PET_DATA = {
+    0:  "L.A.S.S.I",
+    1:  "Mighty Yak",
+    2:  "Electro Owl",
+    3:  "Unicorn",
+    4:  "Phoenix",
+    7:  "Poison Lizard",
+    8:  "Diggy",
+    9:  "Frosty",
+    10: "Spirit Fox",
+    11: "Angry Jelly",
+    16: "Sneezy",
+    17: "Greedy Raven",
+}
+
+EQUIPMENT_DATA = {
+    0:  "Barbarian Puppet",
+    1:  "Rage Vial",
+    2:  "Archer Puppet",
+    3:  "Invisibility Vial",
+    4:  "Eternal Tome",
+    5:  "Life Gem",
+    6:  "Seeking Shield",
+    7:  "Royal Gem",
+    8:  "Earthquake Boots",
+    9:  "Hog Rider Puppet",
+    10: "Giant Gauntlet",
+    11: "Vampstache",
+    12: "Haste Vial",
+    13: "Rocket Spear",
+    14: "Spiky Ball",
+    15: "Frozen Arrow",
+    16: "Monolith Arrow",
+    17: "Giant Arrow",
+    18: "Eternal Spark",
+    19: "Celestial Boots",
+    20: "Spiritual Possession",
+    34: "Healing Tome",
+    43: "Dark Orb",
+    48: "Action Figure",
+    49: "Meteor Staff",
+    52: "Fire Heart",
+    59: "Barbarian Puppet (Duke)",
+}
+
+
+def _parse_entries(section: str) -> list[tuple[int, int]]:
+    """Parse '{qty}x{id}-{qty}x{id}' into list of (qty, id)."""
+    result = []
+    for entry in section.split("-"):
+        if "x" not in entry:
+            continue
+        try:
+            qty, uid = map(int, entry.split("x", 1))
+            result.append((qty, uid))
+        except ValueError:
+            continue
+    return result
+
+
+def _parse_heroes(section: str) -> list[dict]:
     """
-    Accepts either a full army link URL or just the army code string.
-    Returns (troops, spells) where each is a list of (count, name) tuples.
+    Parse hero section like '1p9e17_48-2m1p16e4_34-6p17e43_49-7p4e59_52'
+    Each hero: {hero_id}[m{mastery}]p{pet_id}e{equip1}_{equip2}
+    """
+    heroes = []
+    for part in re.split(r"(?<=[0-9])-(?=[0-9])", section):
+        m = re.match(r"(\d+)(?:m\d+)?p(\d+)e(\d+)_(\d+)", part)
+        if not m:
+            continue
+        hero_id, pet_id, eq1, eq2 = int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4))
+        heroes.append({
+            "hero":  HERO_DATA.get(hero_id, f"Hero#{hero_id}"),
+            "pet":   PET_DATA.get(pet_id, f"Pet#{pet_id}"),
+            "equip": [
+                EQUIPMENT_DATA.get(eq1, f"Equipment#{eq1}"),
+                EQUIPMENT_DATA.get(eq2, f"Equipment#{eq2}"),
+            ],
+        })
+    return heroes
+
+
+def parse_army_link(text: str) -> dict:
+    """
+    Accepts a full army link URL or just the army code string.
+    Returns dict with keys: troops, spells, heroes, cc_troops, cc_spells.
     """
     if text.startswith("http"):
         qs = parse_qs(urlparse(text).query)
@@ -104,35 +194,44 @@ def parse_army_link(text: str) -> tuple[list[tuple[int, str]], list[tuple[int, s
     else:
         army_str = text
 
+    result = {
+        "troops":    [],
+        "spells":    [],
+        "heroes":    [],
+        "cc_troops": [],
+        "cc_spells": [],
+    }
+
     if not army_str:
-        return [], []
+        return result
 
-    troops: list[tuple[int, str]] = []
-    spells: list[tuple[int, str]] = []
+    # Split into labelled sections: h, u, s, i, d
+    sections = re.findall(r"([husidc])([\w_\-]+)", army_str)
 
-    for section_type, section_content in re.findall(r"([us])([\dx\-]+)", army_str):
-        for entry in section_content.split("-"):
-            if "x" not in entry:
-                continue
-            try:
-                qty, uid = map(int, entry.split("x", 1))
-            except ValueError:
-                continue
-            if section_type == "u":
-                name = TROOP_DATA.get(uid, (f"Troop#{uid}", 1, False))[0]
-                troops.append((qty, name))
-            else:
-                name = SPELL_DATA.get(uid, (f"Spell#{uid}", 1))[0]
-                spells.append((qty, name))
+    for section_type, content in sections:
+        if section_type == "h":
+            result["heroes"] = _parse_heroes(content)
+        elif section_type == "u":
+            for qty, uid in _parse_entries(content):
+                result["troops"].append((qty, TROOP_DATA.get(uid, (f"Troop#{uid}", 1, False))[0]))
+        elif section_type == "s":
+            for qty, uid in _parse_entries(content):
+                result["spells"].append((qty, SPELL_DATA.get(uid, (f"Spell#{uid}", 1))[0]))
+        elif section_type == "i":
+            for qty, uid in _parse_entries(content):
+                result["cc_troops"].append((qty, TROOP_DATA.get(uid, (f"Troop#{uid}", 1, False))[0]))
+        elif section_type == "d":
+            for qty, uid in _parse_entries(content):
+                result["cc_spells"].append((qty, SPELL_DATA.get(uid, (f"Spell#{uid}", 1))[0]))
 
-    return troops, spells
+    return result
 
 
 def parse_army_code(code: str) -> dict[str, int]:
     """Returns {category_name: total_housing_space} for the army (troops only)."""
-    troops, _ = parse_army_link(code)
+    parsed = parse_army_link(code)
     result: dict[str, int] = {}
-    for qty, name in troops:
+    for qty, name in parsed["troops"]:
         uid = next((k for k, v in TROOP_DATA.items() if v[0] == name), None)
         if uid is None:
             continue
@@ -161,20 +260,39 @@ class ArmyCog(discord.Cog):
     ):
         await ctx.defer()
 
-        troops, spells = parse_army_link(link.strip())
-        if not troops and not spells:
+        parsed = parse_army_link(link.strip())
+        has_data = any([parsed["troops"], parsed["spells"], parsed["heroes"], parsed["cc_troops"], parsed["cc_spells"]])
+        if not has_data:
             await ctx.followup.send("❌ Could not parse this army link.")
             return
 
         embed = discord.Embed(title="⚔️ Army Composition", color=0x8B4513)
 
-        if troops:
-            troop_lines = [f"`{qty}x` {name}" for qty, name in troops]
-            embed.add_field(name="🗡️ Troops", value="\n".join(troop_lines), inline=True)
+        if parsed["troops"]:
+            embed.add_field(
+                name="🗡️ Troops",
+                value="\n".join(f"`{q}x` {n}" for q, n in parsed["troops"]),
+                inline=True,
+            )
 
-        if spells:
-            spell_lines = [f"`{qty}x` {name}" for qty, name in spells]
-            embed.add_field(name="🧪 Spells", value="\n".join(spell_lines), inline=True)
+        if parsed["spells"]:
+            embed.add_field(
+                name="🧪 Spells",
+                value="\n".join(f"`{q}x` {n}" for q, n in parsed["spells"]),
+                inline=True,
+            )
+
+        if parsed["heroes"]:
+            lines = []
+            for h in parsed["heroes"]:
+                lines.append(f"**{h['hero']}** — {h['pet']}")
+                lines.append(f"  {h['equip'][0]} · {h['equip'][1]}")
+            embed.add_field(name="👑 Heroes", value="\n".join(lines), inline=False)
+
+        if parsed["cc_troops"] or parsed["cc_spells"]:
+            cc_lines = [f"`{q}x` {n}" for q, n in parsed["cc_troops"]]
+            cc_lines += [f"`{q}x` {n}" for q, n in parsed["cc_spells"]]
+            embed.add_field(name="🏰 Clan Castle", value="\n".join(cc_lines), inline=False)
 
         await ctx.followup.send(embed=embed)
 
