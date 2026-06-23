@@ -51,6 +51,10 @@ async def get_player(tag):
         season_trophies = data.get("trophies")
     return (data["tag"], data["name"], season_trophies, rank, data.get("townHallLevel"), league_tier)
 
+async def get_top_clans(limit: int = 200) -> list[dict]:
+    data = await _get(f"{BASE_URL}/locations/global/rankings/clans?limit={limit}")
+    return data.get("items", []) if data else []
+
 async def get_clan(tag):
     tag = tag.replace("#", "%23")
     data = await _get(f"{BASE_URL}/clans/{tag}")

@@ -5,7 +5,7 @@ from datetime import time as dt_time
 import discord
 from discord.ext import commands, tasks
 
-from coc_api import get_clan_members, get_player
+from coc_api import get_clan_members, get_player, get_top_clans
 from db import Session
 from models import Clan, Player, GuildClan, GuildConfig
 from helpers import WARSAW, add_player_to_db, fetch_player_attacks, fetch_war_attacks, fetch_cwl_attacks
@@ -22,6 +22,7 @@ class TasksCog(discord.Cog):
         self.snapshot_ranks.start()
         self.refresh_wars.start()
         self.pre_reset_sweep.start()
+        self.sync_top_clans.start()
 
     def cog_unload(self):
         self.refresh_players.cancel()
@@ -29,6 +30,7 @@ class TasksCog(discord.Cog):
         self.snapshot_ranks.cancel()
         self.refresh_wars.cancel()
         self.pre_reset_sweep.cancel()
+        self.sync_top_clans.cancel()
 
     async def _refresh_one_player(self, tag: str, sem: asyncio.Semaphore = None, sleep: float = 0.3):
         async with (sem or self._api_sem):
@@ -176,6 +178,51 @@ class TasksCog(discord.Cog):
     async def before_refresh_clans(self):
         await self.bot.wait_until_ready()
         await asyncio.sleep(30)
+
+    async def _sync_top_clans(self) -> int:
+        clans = await get_top_clans(200)
+        if not clans:
+            return 0
+        loop = asyncio.get_running_loop()
+        session = Session()
+        added = 0
+        try:
+            def _insert():
+                nonlocal added
+                for c in clans:
+                    tag = c.get("tag")
+                    name = c.get("name", "")
+                    if not tag:
+                        continue
+                    existing = session.query(Clan).filter_by(tag=tag).first()
+                    if not existing:
+                        session.add(Clan(tag=tag, name=name, tracked_since=__import__("datetime").datetime.now(__import__("datetime").timezone.utc)))
+                        added += 1
+                    else:
+                        existing.name = name
+                session.commit()
+            await loop.run_in_executor(None, _insert)
+        except Exception as e:
+            await loop.run_in_executor(None, session.rollback)
+            print(f"[sync_top_clans] error: {e}")
+        finally:
+            session.close()
+        return added
+
+    @tasks.loop(hours=168)
+    async def sync_top_clans(self):
+        added = await self._sync_top_clans()
+        print(f"[sync_top_clans] synced top 200 clans, {added} new")
+
+    @sync_top_clans.before_loop
+    async def before_sync_top_clans(self):
+        await self.bot.wait_until_ready()
+
+    @discord.slash_command(name="import_top_clans", description="Import top 200 global clans into tracking")
+    async def import_top_clans(self, ctx: discord.ApplicationContext):
+        await ctx.defer()
+        added = await self._sync_top_clans()
+        await ctx.followup.send(f"✅ Top 200 clans synced. {added} new clans added to tracking.")
 
     @tasks.loop(minutes=30)
     async def refresh_wars(self):
