@@ -22,6 +22,7 @@ COGS = [
     "cogs.legend",
     "cogs.link",
     "cogs.player",
+    "cogs.army",
     "cogs.tasks",
     "cogs.tickets",
     "cogs.embeds",
