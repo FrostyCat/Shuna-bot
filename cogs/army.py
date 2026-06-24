@@ -136,7 +136,7 @@ EQUIPMENT_DATA = {
     16: "Monolith Arrow",
     17: "Giant Arrow",
     18: "Eternal Spark",
-    19: "Celestial Boots",
+    19: "Heroic Torch",
     20: "Spiritual Possession",
     32: "Snake Bracelet",
     34: "Healing Tome",

@@ -40,4 +40,9 @@ def init_db():
                 "ALTER TABLE attacks ADD COLUMN IF NOT EXISTS army_share_code VARCHAR"
             )
         )
+        conn.execute(
+            __import__("sqlalchemy").text(
+                "ALTER TABLE guild_configs ADD COLUMN IF NOT EXISTS stats_channel_id VARCHAR"
+            )
+        )
         conn.commit()

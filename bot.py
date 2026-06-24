@@ -29,6 +29,7 @@ COGS = [
     "cogs.config",
     "cogs.cwl_signup",
     "cogs.x_feed",
+    "cogs.stats",
 ]
 
 
