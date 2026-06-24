@@ -140,16 +140,22 @@ class StatsCog(discord.Cog):
                 print(f"[stats] {msg}")
             return
 
+        print("[stats] fetching top 200 players...")
         top_players = await get_top_players(200)
         top200_tags = {p["tag"] for p in top_players}
+        print(f"[stats] got {len(top200_tags)} top players")
 
+        print("[stats] collecting attack stats...")
         top200_data, other_data = await _collect_stats(top200_tags)
+        print(f"[stats] top200={len(top200_data)} categories, others={len(other_data)} categories")
 
         date_label = datetime.now(WARSAW).strftime('%Y-%m-%d')
+        print("[stats] building chart...")
         loop = asyncio.get_running_loop()
         buf  = await loop.run_in_executor(
             None, _build_chart, top200_data, other_data, date_label
         )
+        print("[stats] chart built")
 
         session = Session()
         try:
@@ -209,7 +215,12 @@ class StatsCog(discord.Cog):
     @discord.slash_command(name="stats_now", description="Wyślij statystyki armii Legend League teraz")
     async def stats_now(self, ctx: discord.ApplicationContext):
         await ctx.defer()
-        await self._post_stats(ctx=ctx)
+        try:
+            await self._post_stats(ctx=ctx)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            await ctx.followup.send(f"❌ Błąd: `{e}`")
 
 
 def setup(bot: discord.Bot):
