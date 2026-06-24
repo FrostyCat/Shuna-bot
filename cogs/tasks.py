@@ -16,7 +16,7 @@ _NOTIFY_GUILD_ID = os.getenv("NOTIFY_GUILD_ID", "")
 class TasksCog(discord.Cog):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
-        self._api_sem = asyncio.Semaphore(3)
+        self._api_sem = asyncio.Semaphore(10)
         self.refresh_players.start()
         self.refresh_clans.start()
         self.snapshot_ranks.start()
@@ -32,7 +32,7 @@ class TasksCog(discord.Cog):
         self.pre_reset_sweep.cancel()
         self.sync_top_clans.cancel()
 
-    async def _refresh_one_player(self, tag: str, sem: asyncio.Semaphore = None, sleep: float = 0.3):
+    async def _refresh_one_player(self, tag: str, sem: asyncio.Semaphore = None, sleep: float = 0.1):
         async with (sem or self._api_sem):
             session = Session()
             try:
@@ -49,7 +49,8 @@ class TasksCog(discord.Cog):
                     player.th_level = data[4]
                 if len(data) > 5:
                     player.league_tier = data[5]
-                await fetch_player_attacks(session, player)
+                if player.league_tier == "Legend I":
+                    await fetch_player_attacks(session, player)
                 session.commit()
             except Exception as e:
                 session.rollback()
@@ -166,7 +167,7 @@ class TasksCog(discord.Cog):
                     result = await add_player_to_db(tag, session, commit=False, fetch_attacks=False)
                     if result.get("is_new"):
                         await self._notify_new_player(session, clan.tag, result["name"], result["tag"])
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(0.1)
             except Exception as e:
                 await loop.run_in_executor(None, session.rollback)
                 print(f"Error for clan {clan.tag}: {e}")
