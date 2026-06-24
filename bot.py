@@ -87,4 +87,6 @@ if __name__ == "__main__":
     init_db()
     for cog in COGS:
         bot.load_extension(cog)
+    from cogs.army import load_clusters
+    load_clusters()
     bot.run(os.getenv("DISCORD_TOKEN"))

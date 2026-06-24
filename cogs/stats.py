@@ -9,6 +9,7 @@ try:
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
     HAS_MATPLOTLIB = True
 except ImportError:
     HAS_MATPLOTLIB = False
@@ -17,34 +18,34 @@ from coc_api import get_top_players
 from db import Session
 from helpers import WARSAW
 from models import Attack, GuildConfig, Player
-from cogs.army import categorize
+from cogs.army import categorize_ml as categorize
 
 
-def _build_chart(top200_data: list, other_data: list, date_label: str) -> BytesIO:
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 9))
+def _build_single_chart(data: list, title: str, date_label: str) -> BytesIO:
+    """Build a chart for one group (Top 200 or Others) and return as BytesIO."""
+    fig, ax = plt.subplots(figsize=(12, 8))
     fig.patch.set_facecolor('#2b2d31')
+    ax.set_facecolor('#383a40')
+    ax.set_title(f'{title}\n{date_label}', color='white', fontsize=13, fontweight='bold', pad=12)
+    for spine in ('top', 'right'):
+        ax.spines[spine].set_visible(False)
+    for spine in ('bottom', 'left'):
+        ax.spines[spine].set_color('#4e5058')
 
-    def draw(ax, data, title):
-        ax.set_facecolor('#383a40')
-        ax.set_title(title, color='white', fontsize=13, fontweight='bold', pad=12)
-        for spine in ('top', 'right'):
-            ax.spines[spine].set_visible(False)
-        for spine in ('bottom', 'left'):
-            ax.spines[spine].set_color('#4e5058')
-
-        if not data:
-            ax.text(0.5, 0.5, 'Brak danych', ha='center', va='center',
-                    color='#b5bac1', transform=ax.transAxes, fontsize=13)
-            ax.set_xticks([])
-            ax.set_yticks([])
-            return
-
-        total = sum(c for _, c, _ in data)
-        data  = sorted(data, key=lambda x: x[1], reverse=True)[:15]
+    data = [d for d in data if d[0] not in ('Unknown', 'Other')]
+    if not data:
+        ax.text(0.5, 0.5, 'No data', ha='center', va='center',
+                color='#b5bac1', transform=ax.transAxes, fontsize=13)
+        ax.set_xticks([])
+        ax.set_yticks([])
+    else:
+        total  = sum(d[1] for d in data)
+        data   = sorted(data, key=lambda x: x[1], reverse=True)[:15]
         cats   = [d[0] for d in data]
         counts = [d[1] for d in data]
         pcts   = [c / total * 100 for c in counts]
         stars  = [d[2] for d in data]
+        tri    = [d[3] for d in data]
 
         colors = [
             '#57f287' if s >= 2.7 else
@@ -53,30 +54,31 @@ def _build_chart(top200_data: list, other_data: list, date_label: str) -> BytesI
             for s in stars
         ]
 
-        bars = ax.barh(range(len(cats)), pcts, color=colors,
-                       edgecolor='#1e1f22', linewidth=0.5, height=0.7)
+        ax.barh(range(len(cats)), pcts, color=colors,
+                edgecolor='#1e1f22', linewidth=0.5, height=0.7)
         ax.set_yticks(range(len(cats)))
-        ax.set_yticklabels(cats, color='white', fontsize=9)
-        ax.set_xlabel('% ataków', color='#b5bac1', fontsize=10)
+        ax.set_yticklabels(cats, color='white', fontsize=10)
+        ax.set_xlabel('% of attacks', color='#b5bac1', fontsize=10)
         ax.tick_params(colors='#b5bac1', length=0)
         ax.invert_yaxis()
-        ax.set_xlim(0, max(pcts) * 1.65)
+        ax.set_xlim(0, max(pcts) * 1.75)
 
-        for i, (pct, n, s) in enumerate(zip(pcts, counts, stars)):
-            ax.text(pct + 0.4, i, f'{pct:.1f}%  ({n})  {s:.2f}⭐',
-                    va='center', color='#dcddde', fontsize=8.5)
+        for i, (pct, n, s, t) in enumerate(zip(pcts, counts, stars, tri)):
+            ax.text(pct + 0.3, i, f'{pct:.1f}%  ({n})   avg {s:.2f}*   3* {t:.0f}%',
+                    va='center', color='#dcddde', fontsize=9)
 
-    n_top = sum(c for _, c, _ in top200_data) if top200_data else 0
-    n_oth = sum(c for _, c, _ in other_data)  if other_data  else 0
-    draw(ax1, top200_data, f'🏆 Top 200 Global  ({n_top} ataków)')
-    draw(ax2, other_data,  f'👥 Pozostali  ({n_oth} ataków)')
+        patches = [
+            mpatches.Patch(color='#57f287', label='avg >= 2.70*'),
+            mpatches.Patch(color='#fee75c', label='avg >= 2.30*'),
+            mpatches.Patch(color='#ed4245', label='avg < 2.30*'),
+        ]
+        ax.legend(handles=patches, loc='lower right', fontsize=9,
+                  facecolor='#2b2d31', edgecolor='#4e5058',
+                  labelcolor='white', framealpha=0.8)
 
-    fig.suptitle(f'Legend League — Statystyki Armii  {date_label}',
-                 color='white', fontsize=15, fontweight='bold', y=1.01)
     plt.tight_layout()
-
     buf = BytesIO()
-    plt.savefig(buf, format='png', dpi=120, bbox_inches='tight',
+    plt.savefig(buf, format='png', dpi=130, bbox_inches='tight',
                 facecolor=fig.get_facecolor())
     plt.close(fig)
     buf.seek(0)
@@ -84,8 +86,8 @@ def _build_chart(top200_data: list, other_data: list, date_label: str) -> BytesI
 
 
 async def _collect_stats(top200_tags: set[str]):
-    loop    = asyncio.get_running_loop()
-    cutoff  = datetime.now(timezone.utc) - timedelta(hours=24)
+    loop   = asyncio.get_running_loop()
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
 
     def _query():
         session = Session()
@@ -106,6 +108,7 @@ async def _collect_stats(top200_tags: set[str]):
 
     rows = await loop.run_in_executor(None, _query)
 
+    # {cat: [count, stars_sum, three_star_count]}
     top200: dict[str, list] = {}
     others: dict[str, list] = {}
 
@@ -113,12 +116,16 @@ async def _collect_stats(top200_tags: set[str]):
         cat    = categorize(code)
         bucket = top200 if tag in top200_tags else others
         if cat not in bucket:
-            bucket[cat] = [0, 0]
+            bucket[cat] = [0, 0, 0]
         bucket[cat][0] += 1
         bucket[cat][1] += stars
+        bucket[cat][2] += 1 if stars == 3 else 0
 
     def to_list(d):
-        return [(cat, v[0], v[1] / v[0]) for cat, v in d.items()]
+        return [
+            (cat, v[0], v[1] / v[0], v[2] / v[0] * 100)
+            for cat, v in d.items()
+        ]
 
     return to_list(top200), to_list(others)
 
@@ -133,7 +140,7 @@ class StatsCog(discord.Cog):
 
     async def _post_stats(self, ctx=None):
         if not HAS_MATPLOTLIB:
-            msg = "❌ matplotlib nie jest zainstalowane. Uruchom: `pip install matplotlib`"
+            msg = "❌ matplotlib is not installed. Run: `pip install matplotlib`"
             if ctx:
                 await ctx.followup.send(msg)
             else:
@@ -150,12 +157,20 @@ class StatsCog(discord.Cog):
         print(f"[stats] top200={len(top200_data)} categories, others={len(other_data)} categories")
 
         date_label = datetime.now(WARSAW).strftime('%Y-%m-%d')
-        print("[stats] building chart...")
+        n_top = sum(d[1] for d in top200_data) if top200_data else 0
+        n_oth = sum(d[1] for d in other_data)  if other_data  else 0
+
+        print("[stats] building charts...")
         loop = asyncio.get_running_loop()
-        buf  = await loop.run_in_executor(
-            None, _build_chart, top200_data, other_data, date_label
+        buf_top = await loop.run_in_executor(
+            None, _build_single_chart, top200_data,
+            f"Top 200 Global  ({n_top:,} attacks)", date_label
         )
-        print("[stats] chart built")
+        buf_oth = await loop.run_in_executor(
+            None, _build_single_chart, other_data,
+            f"Others  ({n_oth:,} attacks)", date_label
+        )
+        print("[stats] charts built")
 
         session = Session()
         try:
@@ -173,15 +188,17 @@ class StatsCog(discord.Cog):
             ch = self.bot.get_channel(int(config.stats_channel_id))
             if not ch:
                 continue
-            buf.seek(0)
             try:
-                await ch.send(file=discord.File(buf, filename=f"legend_stats_{date_label}.png"))
+                buf_top.seek(0)
+                await ch.send(file=discord.File(buf_top, filename=f"top200_{date_label}.png"))
+                buf_oth.seek(0)
+                await ch.send(file=discord.File(buf_oth, filename=f"others_{date_label}.png"))
                 sent += 1
             except Exception as e:
                 print(f"[stats] failed to post to guild {config.guild_id}: {e}")
 
         if ctx:
-            await ctx.followup.send(f"✅ Statystyki wysłane na {sent} kanał(ów).")
+            await ctx.followup.send(f"✅ Stats posted to {sent} channel(s).")
 
     @tasks.loop(time=dt_time(hour=7, minute=5, tzinfo=WARSAW))
     async def daily_stats(self):
@@ -192,7 +209,7 @@ class StatsCog(discord.Cog):
     async def before_daily_stats(self):
         await self.bot.wait_until_ready()
 
-    @discord.slash_command(name="set_stats_channel", description="Ustaw kanał na codzienne statystyki armii Legend League")
+    @discord.slash_command(name="set_stats_channel", description="Set channel for daily Legend League army stats")
     async def set_stats_channel(self, ctx: discord.ApplicationContext):
         await ctx.defer(ephemeral=True)
         loop    = asyncio.get_running_loop()
@@ -209,10 +226,10 @@ class StatsCog(discord.Cog):
         finally:
             session.close()
         await ctx.followup.send(
-            f"✅ Codzienne statystyki armii będą wysyłane na <#{ctx.channel_id}>.", ephemeral=True
+            f"✅ Daily army stats will be posted in <#{ctx.channel_id}>.", ephemeral=True
         )
 
-    @discord.slash_command(name="stats_now", description="Wyślij statystyki armii Legend League teraz")
+    @discord.slash_command(name="stats_now", description="Post Legend League army stats now")
     async def stats_now(self, ctx: discord.ApplicationContext):
         await ctx.defer()
         try:
@@ -220,7 +237,7 @@ class StatsCog(discord.Cog):
         except Exception as e:
             import traceback
             traceback.print_exc()
-            await ctx.followup.send(f"❌ Błąd: `{e}`")
+            await ctx.followup.send(f"❌ Error: `{e}`")
 
 
 def setup(bot: discord.Bot):

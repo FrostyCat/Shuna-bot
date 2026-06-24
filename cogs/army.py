@@ -1,4 +1,6 @@
 import re
+import os
+import json
 import discord
 from collections import defaultdict
 from urllib.parse import urlparse, parse_qs
@@ -150,6 +152,106 @@ EQUIPMENT_DATA = {
 }
 
 
+TROOP_IDS = sorted(TROOP_DATA.keys())
+SPELL_IDS = sorted(SPELL_DATA.keys())
+EQUIP_IDS = sorted(EQUIPMENT_DATA.keys())
+
+_CLUSTERS_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "army_clusters.json")
+
+# Loaded cluster centroids: list of {"label": str, "centroid": list[float]}
+_clusters: list[dict] | None = None
+
+
+def load_clusters() -> bool:
+    global _clusters
+    if not os.path.exists(_CLUSTERS_PATH):
+        return False
+    try:
+        with open(_CLUSTERS_PATH, "r") as f:
+            data = json.load(f)
+        _clusters = data["clusters"]
+        print(f"[army] loaded {len(_clusters)} clusters from army_clusters.json")
+        return True
+    except Exception as e:
+        print(f"[army] failed to load army_clusters.json: {e}")
+        return False
+
+
+def army_to_vector(code: str):
+    """Convert army code to feature vector (troops 65% + spells 15% + equipment 20%)."""
+    try:
+        import numpy as np
+    except ImportError:
+        return None
+    try:
+        parsed = parse_army_link(code)
+    except Exception:
+        return None
+
+    troop_vec = np.zeros(len(TROOP_IDS))
+    total_troop = 0
+    for qty, name in parsed["troops"]:
+        uid = next((k for k, v in TROOP_DATA.items() if v[0] == name), None)
+        if uid is None:
+            continue
+        space = qty * TROOP_DATA[uid][1]
+        troop_vec[TROOP_IDS.index(uid)] += space
+        total_troop += space
+
+    spell_vec = np.zeros(len(SPELL_IDS))
+    total_spell = 0
+    for qty, name in parsed["spells"]:
+        uid = next((k for k, v in SPELL_DATA.items() if v[0] == name), None)
+        if uid is None:
+            continue
+        slots = qty * SPELL_DATA[uid][1]
+        spell_vec[SPELL_IDS.index(uid)] += slots
+        total_spell += slots
+
+    equip_vec = np.zeros(len(EQUIP_IDS))
+    total_equip = 0
+    for hero in parsed["heroes"]:
+        for equip_name in hero["equip"]:
+            uid = next((k for k, v in EQUIPMENT_DATA.items() if v == equip_name), None)
+            if uid is None:
+                continue
+            equip_vec[EQUIP_IDS.index(uid)] += 1
+            total_equip += 1
+
+    if total_troop == 0:
+        return None
+
+    troop_norm = troop_vec / total_troop
+    spell_norm = spell_vec / total_spell if total_spell > 0 else spell_vec
+    equip_norm = equip_vec / total_equip if total_equip > 0 else equip_vec
+
+    return np.concatenate([troop_norm * 0.65, spell_norm * 0.15, equip_norm * 0.20])
+
+
+_MIN_SIM = 0.70  # minimum cosine similarity to assign a known cluster label
+
+
+def categorize_ml(code: str) -> str:
+    """Classify army using K-means centroids if loaded, else fall back to heuristic."""
+    if _clusters:
+        try:
+            import numpy as np
+            vec = army_to_vector(code)
+            if vec is not None:
+                centroids = [np.array(c["centroid"]) for c in _clusters]
+                sims = [
+                    np.dot(vec, c) / (np.linalg.norm(vec) * np.linalg.norm(c) + 1e-9)
+                    for c in centroids
+                ]
+                best_sim = max(sims)
+                if best_sim < _MIN_SIM:
+                    return "Other"
+                return _clusters[int(np.argmax(sims))]["label"]
+        except Exception:
+            pass
+    return categorize(code)
+
+
 def _parse_entries(section: str) -> list[tuple[int, int]]:
     """Parse '{qty}x{id}-{qty}x{id}' into list of (qty, id)."""
     result = []
@@ -298,6 +400,15 @@ class ArmyCog(discord.Cog):
             embed.add_field(name="🏰 Clan Castle", value="\n".join(cc_lines), inline=False)
 
         await ctx.followup.send(embed=embed)
+
+    @discord.slash_command(name="reload_clusters", description="Reload army_clusters.json without restarting the bot")
+    async def reload_clusters_cmd(self, ctx: discord.ApplicationContext):
+        await ctx.defer(ephemeral=True)
+        ok = load_clusters()
+        if ok:
+            await ctx.followup.send(f"✅ Loaded {len(_clusters)} clusters.", ephemeral=True)
+        else:
+            await ctx.followup.send("❌ `army_clusters.json` not found.", ephemeral=True)
 
     @discord.slash_command(name="army_stats", description="Overall army composition stats across all players")
     async def army_stats(self, ctx: discord.ApplicationContext):
