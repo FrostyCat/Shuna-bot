@@ -100,7 +100,11 @@ class TasksCog(discord.Cog):
         finally:
             session.close()
 
+        import time
+        t0 = time.monotonic()
+        print(f"[refresh_players] starting {len(tags)} players")
         await asyncio.gather(*[self._refresh_one_player(tag) for tag in tags])
+        print(f"[refresh_players] done in {time.monotonic() - t0:.1f}s")
 
     @refresh_players.before_loop
     async def before_refresh_players(self):

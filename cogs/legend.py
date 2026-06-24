@@ -339,28 +339,30 @@ class SeasonView(discord.ui.View):
 
 async def tag_autocomplete(ctx: discord.AutocompleteContext):
     session = Session()
-    players = session.query(Player).all()
-    current = ctx.value.lower()
-    choices = [
-        discord.OptionChoice(name=f"{p.name} ({p.tag})", value=p.tag)
-        for p in players
-        if current in p.tag.lower() or current in p.name.lower()
-    ]
+    current = f"%{ctx.value}%"
+    players = (
+        session.query(Player)
+        .filter(Player.name.ilike(current) | Player.tag.ilike(current))
+        .limit(25)
+        .all()
+    )
+    choices = [discord.OptionChoice(name=f"{p.name} ({p.tag})", value=p.tag) for p in players]
     session.close()
-    return choices[:25]
+    return choices
 
 
 async def clan_tag_autocomplete(ctx: discord.AutocompleteContext):
     session = Session()
-    clans = session.query(Clan).all()
-    current = ctx.value.lower()
-    choices = [
-        discord.OptionChoice(name=f"{c.name} ({c.tag})", value=c.tag)
-        for c in clans
-        if current in c.tag.lower() or current in c.name.lower()
-    ]
+    current = f"%{ctx.value}%"
+    clans = (
+        session.query(Clan)
+        .filter(Clan.name.ilike(current) | Clan.tag.ilike(current))
+        .limit(25)
+        .all()
+    )
+    choices = [discord.OptionChoice(name=f"{c.name} ({c.tag})", value=c.tag) for c in clans]
     session.close()
-    return choices[:25]
+    return choices
 
 
 async def season_autocomplete(ctx: discord.AutocompleteContext):
