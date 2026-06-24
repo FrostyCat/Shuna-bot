@@ -229,6 +229,30 @@ class TasksCog(discord.Cog):
         added = await self._sync_top_clans()
         await ctx.followup.send(f"✅ Top 200 clans synced. {added} new clans added to tracking.")
 
+    @discord.slash_command(name="db_stats", description="Show database stats: players, clans, attacks")
+    async def db_stats(self, ctx: discord.ApplicationContext):
+        await ctx.defer()
+        loop = __import__("asyncio").get_running_loop()
+        session = Session()
+        try:
+            def _query():
+                total_players  = session.query(Player).count()
+                legend_players = session.query(Player).filter_by(league_tier="Legend I").count()
+                total_clans    = session.query(Clan).count()
+                from models import Attack
+                total_attacks  = session.query(Attack).count()
+                return total_players, legend_players, total_clans, total_attacks
+            total_players, legend_players, total_clans, total_attacks = await loop.run_in_executor(None, _query)
+        finally:
+            session.close()
+
+        embed = discord.Embed(title="📊 Database Stats", color=0x8B4513)
+        embed.add_field(name="🏰 Clans tracked",   value=str(total_clans),                              inline=True)
+        embed.add_field(name="👤 Players tracked", value=f"{total_players:,}",                          inline=True)
+        embed.add_field(name="👑 Legend I",         value=f"{legend_players:,} ({legend_players*100//max(total_players,1)}%)", inline=True)
+        embed.add_field(name="⚔️ Attacks stored",  value=f"{total_attacks:,}",                          inline=True)
+        await ctx.followup.send(embed=embed)
+
     @tasks.loop(minutes=30)
     async def refresh_wars(self):
         loop = asyncio.get_running_loop()
