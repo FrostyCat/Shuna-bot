@@ -34,9 +34,13 @@ class FrostyCog(discord.Cog):
         await ctx.defer()
 
         messages = []
-        async for msg in ctx.channel.history(limit=50):
-            if msg.content:
-                messages.append(f"{msg.author.display_name}: {msg.content}")
+        try:
+            async for msg in ctx.channel.history(limit=50):
+                if msg.content:
+                    messages.append(f"{msg.author.display_name}: {msg.content}")
+        except discord.Forbidden:
+            await ctx.followup.send("❌ Bot doesn't have permission to read message history in this channel.")
+            return
         messages.reverse()
 
         if not messages:
