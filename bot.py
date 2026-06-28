@@ -30,6 +30,7 @@ COGS = [
     "cogs.cwl_signup",
     "cogs.x_feed",
     "cogs.stats",
+    "cogs.frosty",
 ]
 
 
