@@ -89,13 +89,15 @@ class FrostyCog(discord.Cog):
         embed.set_footer(text=f"Based on last {len(messages)} messages")
         await ctx.followup.send(embed=embed)
 
-    async def _run_tool(self, name: str, tool_input: dict) -> str:
+    async def _run_tool(self, name: str, tool_input: dict, guild_id: int) -> str:
         if name == "get_channel_messages":
             channel_id = int(tool_input["channel_id"])
             limit = min(int(tool_input.get("limit", 50)), 100)
             channel = self.bot.get_channel(channel_id)
             if channel is None:
                 return "Error: channel not found or bot has no access."
+            if channel.guild.id != guild_id:
+                return "Error: that channel belongs to a different server."
             try:
                 msgs = []
                 async for msg in channel.history(limit=limit):
@@ -133,7 +135,7 @@ class FrostyCog(discord.Cog):
                 tool_results = []
                 for block in response.content:
                     if block.type == "tool_use":
-                        result = await self._run_tool(block.name, block.input)
+                        result = await self._run_tool(block.name, block.input, ctx.guild_id)
                         tool_results.append({
                             "type": "tool_result",
                             "tool_use_id": block.id,
