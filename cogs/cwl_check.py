@@ -8,10 +8,30 @@ import discord
 from db import Session
 from models import Clan, DiscordUser, Player, WarAttack
 
-# Months with 2 CWLs: (year, month) -> [(start, end), (start, end)]
+_LEAGUE_ORDER = {
+    "Champion League I":   0,
+    "Champion League II":  1,
+    "Champion League III": 2,
+    "Master League I":     3,
+    "Master League II":    4,
+    "Master League III":   5,
+    "Crystal League I":    6,
+    "Crystal League II":   7,
+    "Crystal League III":  8,
+    "Gold League I":       9,
+    "Gold League II":      10,
+    "Gold League III":     11,
+    "Silver League I":     12,
+    "Silver League II":    13,
+    "Silver League III":   14,
+    "Bronze League I":     15,
+    "Bronze League II":    16,
+    "Bronze League III":   17,
+}
+
 _SPLIT_MONTHS: dict[tuple, list] = {
     (2026, 6): [
-        (datetime(2026, 6, 1), datetime(2026, 6, 14, 23, 59, 59)),
+        (datetime(2026, 6, 1),  datetime(2026, 6, 14, 23, 59, 59)),
         (datetime(2026, 6, 15), datetime(2026, 6, 30, 23, 59, 59)),
     ],
 }
@@ -26,6 +46,10 @@ def _get_seasons(year: int, month: int, part: int | None) -> list[tuple[datetime
         return seasons
     last = calendar.monthrange(year, month)[1]
     return [(datetime(year, month, 1), datetime(year, month, last, 23, 59, 59))]
+
+
+def _clean(name: str) -> str:
+    return "".join(c for c in name if c.isascii() or "Ā" <= c <= "ɏ").strip() or name
 
 
 def _query(discord_ids: list[str], seasons: list[tuple]) -> list[dict]:
@@ -60,8 +84,12 @@ def _query(discord_ids: list[str], seasons: list[tuple]) -> list[dict]:
             )
 
             stars_map: dict[tuple, int] = defaultdict(int)
+            league_map: dict[tuple, str] = {}
             for a in attacks:
-                stars_map[(a.attacker_tag, a.clan_tag)] += a.stars or 0
+                key = (a.attacker_tag, a.clan_tag)
+                stars_map[key] += a.stars or 0
+                if a.league and key not in league_map:
+                    league_map[key] = a.league
 
             for (tag, clan_tag), stars in stars_map.items():
                 if stars >= 21:
@@ -70,7 +98,8 @@ def _query(discord_ids: list[str], seasons: list[tuple]) -> list[dict]:
                         "player_name": name_by_tag[tag],
                         "clan_tag": clan_tag,
                         "stars": stars,
-                        "season": f"CWL {idx + 1}" if multi else "CWL",
+                        "league": league_map.get((tag, clan_tag), ""),
+                        "season_idx": idx + 1 if multi else None,
                     })
 
         clan_tags = {r["clan_tag"] for r in results}
@@ -82,6 +111,77 @@ def _query(discord_ids: list[str], seasons: list[tuple]) -> list[dict]:
         return results
     finally:
         session.close()
+
+
+def _league_short(league: str) -> str:
+    mapping = {
+        "Champion League I":   "Champ I",
+        "Champion League II":  "Champ II",
+        "Champion League III": "Champ III",
+        "Master League I":     "Master I",
+        "Master League II":    "Master II",
+        "Master League III":   "Master III",
+        "Crystal League I":    "Crystal I",
+        "Crystal League II":   "Crystal II",
+        "Crystal League III":  "Crystal III",
+        "Gold League I":       "Gold I",
+        "Gold League II":      "Gold II",
+        "Gold League III":     "Gold III",
+        "Silver League I":     "Silver I",
+        "Silver League II":    "Silver II",
+        "Silver League III":   "Silver III",
+        "Bronze League I":     "Bronze I",
+        "Bronze League II":    "Bronze II",
+        "Bronze League III":   "Bronze III",
+    }
+    return mapping.get(league, league[:10] if league else "?")
+
+
+def _build_embeds(title: str, results: list[dict], member_by_id: dict) -> list[discord.Embed]:
+    multi = any(r["season_idx"] is not None for r in results)
+
+    if multi:
+        header = f"‎`{'#':>3} {'★':>3} {'League':<10} {'Clan':<16} CWL`  **Player — Discord**"
+    else:
+        header = f"‎`{'#':>3} {'★':>3} {'League':<10} {'Clan':<16}`  **Player — Discord**"
+
+    lines = [header]
+    for i, r in enumerate(results, 1):
+        member = member_by_id.get(r["discord_id"])
+        discord_name = _clean(member.display_name) if member else r["discord_id"]
+        player_name = _clean(r["player_name"])
+        clan_name = _clean(r["clan_name"])[:16]
+        league_str = _league_short(r.get("league", ""))
+
+        if multi:
+            nums = f"{i:>3} {r['stars']:>3} {league_str:<10} {clan_name:<16} CWL{r['season_idx']}"
+        else:
+            nums = f"{i:>3} {r['stars']:>3} {league_str:<10} {clan_name:<16}"
+
+        lines.append(f"‎`{nums}` ‎{player_name} — {discord_name}")
+
+    embeds = []
+    chunk = ""
+    for line in lines:
+        if len(chunk) + len(line) + 1 > 3800:
+            e = discord.Embed(color=0x8B4513)
+            if not embeds:
+                e.title = title
+            e.description = chunk
+            embeds.append(e)
+            chunk = header + "\n" + line
+        else:
+            chunk += ("\n" if chunk else "") + line
+
+    if chunk:
+        e = discord.Embed(color=0x8B4513)
+        if not embeds:
+            e.title = title
+        e.description = chunk
+        e.set_footer(text=f"{len(results)} account(s) with 21+ stars")
+        embeds.append(e)
+
+    return embeds
 
 
 class CwlCheckCog(discord.Cog):
@@ -102,7 +202,6 @@ class CwlCheckCog(discord.Cog):
         now = datetime.now(timezone.utc)
         month = month or now.month
         year = year or now.year
-
         seasons = _get_seasons(year, month, part)
 
         members = [m for m in ctx.guild.members if role in m.roles and not m.bot]
@@ -116,44 +215,24 @@ class CwlCheckCog(discord.Cog):
         loop = asyncio.get_running_loop()
         results = await loop.run_in_executor(None, _query, discord_ids, seasons)
 
-        season_label = f"{year}-{month:02d}" + (f" część {part}" if part else "")
+        month_names = ["January", "February", "March", "April", "May", "June",
+                       "July", "August", "September", "October", "November", "December"]
+        season_label = f"{month_names[month - 1]} {year}" + (f" — Part {part}" if part else "")
 
         if not results:
             await ctx.followup.send(f"No members with role {role.mention} have 21+ CWL stars ({season_label}).")
             return
 
-        results.sort(key=lambda r: (member_by_id.get(r["discord_id"]) or type("", (), {"display_name": ""})()).display_name)
+        results.sort(key=lambda r: (
+            r["season_idx"] or 0,
+            _LEAGUE_ORDER.get(r.get("league", ""), 99),
+            _clean(r["clan_name"]),
+            _clean(r["player_name"]),
+        ))
 
-        multi = len(seasons) > 1
-        header = f"{'Discord':<20} {'Konto':<16} {'Klan':<20} {'★':>3}" + (f" {'Sezon':>6}" if multi else "")
-        sep = "-" * len(header)
-        lines = [header, sep]
-
-        for r in results:
-            member = member_by_id.get(r["discord_id"])
-            discord_name = member.display_name if member else r["discord_id"]
-            line = f"{discord_name[:20]:<20} {r['player_name'][:16]:<16} {r['clan_name'][:20]:<20} {r['stars']:>3}"
-            if multi:
-                line += f" {r['season']:>6}"
-            lines.append(line)
-
-        chunks, current = [], ""
-        for line in lines:
-            if len(current) + len(line) + 1 > 3900:
-                chunks.append(current)
-                current = line + "\n"
-            else:
-                current += line + "\n"
-        if current:
-            chunks.append(current)
-
-        for i, chunk in enumerate(chunks):
-            embed = discord.Embed(
-                title=f"CWL 21★ — {role.name} ({season_label})" + (f" ({i+1}/{len(chunks)})" if len(chunks) > 1 else ""),
-                description=f"```\n{chunk}```",
-                color=0xFFD700,
-            )
-            await ctx.followup.send(embed=embed)
+        title = f"⚔️ CWL 21★ — {role.name} — {season_label}"
+        embeds = _build_embeds(title, results, member_by_id)
+        await ctx.followup.send(embeds=embeds[:10])
 
 
 def setup(bot: discord.Bot):
