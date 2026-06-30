@@ -32,6 +32,7 @@ COGS = [
     "cogs.stats",
     "cogs.frosty",
     "cogs.cwl_check",
+    "cogs.clans",
 ]
 
 

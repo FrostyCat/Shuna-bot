@@ -7,7 +7,7 @@ from sqlalchemy import case, func
 
 from coc_api import get_clan, get_clan_members, get_player
 from db import Session
-from models import Attack, Clan, Player
+from models import Attack, Clan, GuildClan, Player
 from helpers import WARSAW, add_player_to_db, fetch_player_attacks
 
 SEASON_EPOCH = datetime(2026, 5, 18, 7, 0, 0, tzinfo=WARSAW)
@@ -353,13 +353,31 @@ async def tag_autocomplete(ctx: discord.AutocompleteContext):
 
 async def clan_tag_autocomplete(ctx: discord.AutocompleteContext):
     session = Session()
+    guild_id = str(ctx.interaction.guild_id) if ctx.interaction.guild_id else None
     current = f"%{ctx.value}%"
-    clans = (
-        session.query(Clan)
-        .filter(Clan.name.ilike(current) | Clan.tag.ilike(current))
-        .limit(25)
-        .all()
-    )
+
+    clans = []
+    if guild_id:
+        clans = (
+            session.query(Clan)
+            .join(GuildClan, GuildClan.clan_tag == Clan.tag)
+            .filter(
+                GuildClan.guild_id == guild_id,
+                Clan.name.ilike(current) | Clan.tag.ilike(current),
+            )
+            .order_by(GuildClan.sort_order)
+            .limit(25)
+            .all()
+        )
+
+    if not clans:
+        clans = (
+            session.query(Clan)
+            .filter(Clan.name.ilike(current) | Clan.tag.ilike(current))
+            .limit(25)
+            .all()
+        )
+
     choices = [discord.OptionChoice(name=f"{c.name} ({c.tag})", value=c.tag) for c in clans]
     session.close()
     return choices
