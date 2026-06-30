@@ -31,6 +31,7 @@ COGS = [
     "cogs.x_feed",
     "cogs.stats",
     "cogs.frosty",
+    "cogs.cwl_check",
 ]
 
 
