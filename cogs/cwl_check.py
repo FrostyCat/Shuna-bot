@@ -198,13 +198,14 @@ class CwlCheckCog(discord.Cog):
         part: discord.Option(int, "CWL part 1 or 2 (for months with 2 CWLs)", min_value=1, max_value=2, required=False) = None,
     ):
         await ctx.defer()
+        await ctx.guild.chunk()
 
         now = datetime.now(timezone.utc)
         month = month or now.month
         year = year or now.year
         seasons = _get_seasons(year, month, part)
 
-        members = [m for m in ctx.guild.members if role in m.roles and not m.bot]
+        members = [m for m in role.members if not m.bot]
         if not members:
             await ctx.followup.send(f"No members with role {role.mention}.")
             return

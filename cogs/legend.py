@@ -509,6 +509,7 @@ class LegendCog(discord.Cog):
         role: discord.Option(discord.Role, "Discord role"),
     ):
         await ctx.defer()
+        await ctx.guild.chunk()
         session = Session()
         start, end = get_day_window(0)
 
@@ -737,6 +738,7 @@ class LegendCog(discord.Cog):
         season: discord.Option(int, "Season number (1=current, 2=previous...). Empty = all time", required=False, autocomplete=season_autocomplete, default=None),
     ):
         await ctx.defer()
+        await ctx.guild.chunk()
         session = Session()
 
         from models import DiscordUser
