@@ -33,6 +33,7 @@ COGS = [
     "cogs.frosty",
     "cogs.cwl_check",
     "cogs.clans",
+    "cogs.status",
 ]
 
 
@@ -44,6 +45,8 @@ async def watchdog():
 
 @bot.event
 async def on_ready():
+    if not hasattr(bot, "launch_time"):
+        bot.launch_time = datetime.now()
     print(f"Logged in as {bot.user}")
     for guild in bot.guilds:
         print(f"  - {guild.name} ({guild.id})")
