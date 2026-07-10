@@ -1,3 +1,4 @@
+import asyncio
 import io
 import os
 from datetime import datetime, UTC
@@ -6,6 +7,7 @@ import discord
 from discord.ext import commands
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
+from sqlalchemy import or_
 
 from coc_api import get_player, verify_player_token
 from db import Session
@@ -15,30 +17,30 @@ from helpers import add_player_to_db
 _NOTIFY_GUILD_ID = os.getenv("NOTIFY_GUILD_ID", "")
 
 
-async def player_tag_autocomplete(ctx: discord.AutocompleteContext):
+def _player_tag_choices(current: str, linked_only: bool):
     session = Session()
-    players = session.query(Player).all()
-    current = ctx.value.lower()
-    choices = [
-        discord.OptionChoice(name=f"{p.name} ({p.tag})", value=p.tag)
-        for p in players
-        if current in p.tag.lower() or current in p.name.lower()
-    ]
-    session.close()
-    return choices[:25]
+    try:
+        query = session.query(Player)
+        if linked_only:
+            query = query.filter(Player.discord_user_id.isnot(None))
+        if current:
+            like = f"%{current}%"
+            query = query.filter(or_(Player.tag.ilike(like), Player.name.ilike(like)))
+        players = query.order_by(Player.name).limit(25).all()
+        return [
+            discord.OptionChoice(name=f"{p.name} ({p.tag})", value=p.tag)
+            for p in players
+        ]
+    finally:
+        session.close()
+
+
+async def player_tag_autocomplete(ctx: discord.AutocompleteContext):
+    return await asyncio.to_thread(_player_tag_choices, ctx.value.lower(), False)
 
 
 async def linked_tag_autocomplete(ctx: discord.AutocompleteContext):
-    session = Session()
-    players = session.query(Player).filter(Player.discord_user_id.isnot(None)).all()
-    current = ctx.value.lower()
-    choices = [
-        discord.OptionChoice(name=f"{p.name} ({p.tag})", value=p.tag)
-        for p in players
-        if current in p.tag.lower() or current in p.name.lower()
-    ]
-    session.close()
-    return choices[:25]
+    return await asyncio.to_thread(_player_tag_choices, ctx.value.lower(), True)
 
 
 async def _notify_new_player_link(bot, guild_id: int, name: str, tag: str):
@@ -91,7 +93,7 @@ class LinkCog(discord.Cog):
             return
 
         session = Session()
-        player = session.query(Player).filter_by(tag=tag).first()
+        player = await asyncio.to_thread(session.query(Player).filter_by(tag=tag).first)
         is_new = False
         if not player:
             result = await add_player_to_db(tag, session)
@@ -100,13 +102,13 @@ class LinkCog(discord.Cog):
                 session.close()
                 return
             is_new = result.get("is_new", False)
-            player = session.query(Player).filter_by(tag=result["tag"]).first()
+            player = await asyncio.to_thread(session.query(Player).filter_by(tag=result["tag"]).first)
 
-        discord_user = session.query(DiscordUser).filter_by(discord_id=str(user.id)).first()
+        discord_user = await asyncio.to_thread(session.query(DiscordUser).filter_by(discord_id=str(user.id)).first)
         if not discord_user:
             discord_user = DiscordUser(discord_id=str(user.id))
             session.add(discord_user)
-            session.flush()
+            await asyncio.to_thread(session.flush)
 
         if player.discord_user_id == discord_user.id:
             session.close()
@@ -117,7 +119,7 @@ class LinkCog(discord.Cog):
         player.is_verified = True
         player.verified_at = datetime.now(UTC)
         player_name = player.name
-        session.commit()
+        await asyncio.to_thread(session.commit)
         session.close()
 
         if is_new and ctx.guild:
@@ -143,7 +145,7 @@ class LinkCog(discord.Cog):
             tag = "#" + tag
 
         session = Session()
-        player = session.query(Player).filter_by(tag=tag).first()
+        player = await asyncio.to_thread(session.query(Player).filter_by(tag=tag).first)
         is_new = False
         if not player:
             result = await add_player_to_db(tag, session)
@@ -152,13 +154,13 @@ class LinkCog(discord.Cog):
                 session.close()
                 return
             is_new = result.get("is_new", False)
-            player = session.query(Player).filter_by(tag=result["tag"]).first()
+            player = await asyncio.to_thread(session.query(Player).filter_by(tag=result["tag"]).first)
 
-        discord_user = session.query(DiscordUser).filter_by(discord_id=str(user.id)).first()
+        discord_user = await asyncio.to_thread(session.query(DiscordUser).filter_by(discord_id=str(user.id)).first)
         if not discord_user:
             discord_user = DiscordUser(discord_id=str(user.id))
             session.add(discord_user)
-            session.flush()
+            await asyncio.to_thread(session.flush)
 
         if player.discord_user_id == discord_user.id:
             session.close()
@@ -167,7 +169,7 @@ class LinkCog(discord.Cog):
 
         player.discord_user_id = discord_user.id
         player_name = player.name
-        session.commit()
+        await asyncio.to_thread(session.commit)
         session.close()
 
         if is_new and ctx.guild:
@@ -195,7 +197,7 @@ class LinkCog(discord.Cog):
             return
 
         session = Session()
-        player = session.query(Player).filter_by(tag=tag).first()
+        player = await asyncio.to_thread(session.query(Player).filter_by(tag=tag).first)
 
         if not player or not player.discord_user or player.discord_user.discord_id != str(user.id):
             session.close()
@@ -206,7 +208,7 @@ class LinkCog(discord.Cog):
         player.discord_user_id = None
         player.is_verified = False
         player.verified_at = None
-        session.commit()
+        await asyncio.to_thread(session.commit)
         session.close()
         await ctx.followup.send(f"✅ Unlinked **{player_name}** ({tag}) from {user.mention}.", ephemeral=True)
 
@@ -227,7 +229,7 @@ class LinkCog(discord.Cog):
             tag = "#" + tag
 
         session = Session()
-        player = session.query(Player).filter_by(tag=tag).first()
+        player = await asyncio.to_thread(session.query(Player).filter_by(tag=tag).first)
 
         if not player or player.discord_user_id is None:
             session.close()
@@ -238,7 +240,7 @@ class LinkCog(discord.Cog):
         player.discord_user_id = None
         player.is_verified = False
         player.verified_at = None
-        session.commit()
+        await asyncio.to_thread(session.commit)
         session.close()
         await ctx.followup.send(f"✅ Unlinked **{player_name}** ({tag}).", ephemeral=True)
 
@@ -265,19 +267,21 @@ class LinkCog(discord.Cog):
 
         session = Session()
         try:
-            player = session.query(Player).filter_by(tag=tag).first()
+            player = await asyncio.to_thread(session.query(Player).filter_by(tag=tag).first)
             if not player:
                 result = await add_player_to_db(tag, session)
                 if not result["success"]:
                     await ctx.followup.send("❌ " + result["error"], ephemeral=True)
                     return
-                player = session.query(Player).filter_by(tag=result["tag"]).first()
+                player = await asyncio.to_thread(session.query(Player).filter_by(tag=result["tag"]).first)
 
-            discord_user = session.query(DiscordUser).filter_by(discord_id=str(ctx.author.id)).first()
+            discord_user = await asyncio.to_thread(
+                session.query(DiscordUser).filter_by(discord_id=str(ctx.author.id)).first
+            )
             if not discord_user:
                 discord_user = DiscordUser(discord_id=str(ctx.author.id))
                 session.add(discord_user)
-                session.flush()
+                await asyncio.to_thread(session.flush)
 
             if player.discord_user_id and player.discord_user_id != discord_user.id:
                 await ctx.followup.send(
@@ -290,7 +294,7 @@ class LinkCog(discord.Cog):
             player.is_verified = True
             player.verified_at = datetime.now(UTC)
             player_name = player.name
-            session.commit()
+            await asyncio.to_thread(session.commit)
         finally:
             session.close()
 
@@ -305,12 +309,13 @@ class LinkCog(discord.Cog):
         ctx: discord.ApplicationContext,
         user: discord.Option(discord.Member, "Discord user (defaults to you)", required=False, default=None),
     ):
+        await ctx.defer(ephemeral=True)
         target = user or ctx.author
         session = Session()
 
-        discord_user = session.query(DiscordUser).filter_by(discord_id=str(target.id)).first()
+        discord_user = await asyncio.to_thread(session.query(DiscordUser).filter_by(discord_id=str(target.id)).first)
         if not discord_user or not discord_user.players:
-            await ctx.respond(f"❌ {target.mention} has no linked CoC accounts.", ephemeral=True)
+            await ctx.followup.send(f"❌ {target.mention} has no linked CoC accounts.", ephemeral=True)
             session.close()
             return
 
@@ -326,7 +331,7 @@ class LinkCog(discord.Cog):
         )
         embed.set_thumbnail(url=target.display_avatar.url)
         session.close()
-        await ctx.respond(embed=embed)
+        await ctx.followup.send(embed=embed)
 
 
     @discord.slash_command(name="member_role_export", description="Export linked CoC accounts for members with a role to Excel")
