@@ -34,12 +34,13 @@ class TasksCog(discord.Cog):
 
     async def _refresh_one_player(self, tag: str, sem: asyncio.Semaphore = None, sleep: float = 0.1):
         async with (sem or self._api_sem):
+            loop = asyncio.get_running_loop()
             session = Session()
             try:
                 data = await get_player(tag)
                 if not data:
                     return
-                player = session.query(Player).filter_by(tag=tag).first()
+                player = await loop.run_in_executor(None, session.query(Player).filter_by(tag=tag).first)
                 if not player:
                     return
                 player.current_rank = data[3]
@@ -51,12 +52,12 @@ class TasksCog(discord.Cog):
                     player.league_tier = data[5]
                 if player.league_tier == "Legend I":
                     await fetch_player_attacks(session, player)
-                session.commit()
+                await loop.run_in_executor(None, session.commit)
             except Exception as e:
-                session.rollback()
+                await loop.run_in_executor(None, session.rollback)
                 print(f"Error for {tag}: {e}")
             finally:
-                session.close()
+                await loop.run_in_executor(None, session.close)
             await asyncio.sleep(sleep)
 
     async def _notify_new_player(self, session, clan_tag: str, name: str, tag: str):
@@ -88,17 +89,18 @@ class TasksCog(discord.Cog):
             except Exception as e:
                 print(f"Notify error for {tag}: {e}")
 
-    @tasks.loop(minutes=10)
+    @tasks.loop(hours=4)
     async def refresh_players(self):
+        loop = asyncio.get_running_loop()
         session = Session()
         try:
-            tags = [p.tag for p in session.query(Player).all()]
+            players = await loop.run_in_executor(None, session.query(Player).all)
+            tags = [p.tag for p in players]
         except Exception as e:
             print(f"DB error loading players: {e}")
-            session.close()
             return
         finally:
-            session.close()
+            await loop.run_in_executor(None, session.close)
 
         import time
         t0 = time.monotonic()
@@ -133,15 +135,16 @@ class TasksCog(discord.Cog):
 
     @tasks.loop(time=dt_time(hour=6, minute=55, tzinfo=WARSAW))
     async def pre_reset_sweep(self):
+        loop = asyncio.get_running_loop()
         session = Session()
         try:
-            tags = [p.tag for p in session.query(Player).all()]
+            players = await loop.run_in_executor(None, session.query(Player).all)
+            tags = [p.tag for p in players]
         except Exception as e:
             print(f"[pre_reset_sweep] DB error: {e}")
-            session.close()
             return
         finally:
-            session.close()
+            await loop.run_in_executor(None, session.close)
 
         sweep_sem = asyncio.Semaphore(5)
         print(f"[pre_reset_sweep] Starting sweep for {len(tags)} players...")
