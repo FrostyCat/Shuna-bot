@@ -233,7 +233,8 @@ def build_legend_table_embeds(title: str, rows: list) -> list[discord.Embed]:
         final_str = str(final) if final is not None else "—"
         ad_str = f"{atk_n}/{def_n}"
         nums = f"{ad_str:<5} {atk:>+4} {deff:>+4} {net:>+4}  {init_str:>5}  {final_str:>5} "
-        clean_name = "".join(c for c in name if c.isascii() or "Ā" <= c <= "ɏ").strip() or name
+        safe_name = name or "?"
+        clean_name = "".join(c for c in safe_name if c.isascii() or "Ā" <= c <= "ɏ").strip() or safe_name
         lines.append(f"‎`{nums}` ‎{clean_name}")
 
     embed = discord.Embed(title=title, color=0x8B4513)
@@ -708,7 +709,8 @@ class LegendCog(discord.Cog):
         for i, (name, triples, total, rate) in enumerate(rows, 1):
             fraction = f"{triples}/{total}"
             nums = f"{i:>3} {rate:>5.1f}% {fraction:>7} "
-            clean_name = "".join(c for c in name if c.isascii() or "Ā" <= c <= "ɏ").strip() or name
+            safe_name = name or "?"
+            clean_name = "".join(c for c in safe_name if c.isascii() or "Ā" <= c <= "ɏ").strip() or safe_name
             lines.append(f"‎`{nums}` ‎{clean_name}")
 
         embed = discord.Embed(title=f"⚔️ Legend Stats — {clan.name} — {season_label_str}", color=0x8B4513)
@@ -783,7 +785,8 @@ class LegendCog(discord.Cog):
         for i, (name, triples, total, rate) in enumerate(rows, 1):
             fraction = f"{triples}/{total}"
             nums = f"{i:>3} {rate:>5.1f}% {fraction:>7} "
-            clean_name = "".join(c for c in name if c.isascii() or "Ā" <= c <= "ɏ").strip() or name
+            safe_name = name or "?"
+            clean_name = "".join(c for c in safe_name if c.isascii() or "Ā" <= c <= "ɏ").strip() or safe_name
             data_lines.append(f"‎`{nums}` ‎{clean_name}")
 
         embeds = []

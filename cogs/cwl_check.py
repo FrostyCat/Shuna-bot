@@ -49,6 +49,7 @@ def _get_seasons(year: int, month: int, part: int | None) -> list[tuple[datetime
 
 
 def _clean(name: str) -> str:
+    name = name or "?"
     return "".join(c for c in name if c.isascii() or "Ā" <= c <= "ɏ").strip() or name
 
 

@@ -420,7 +420,8 @@ class LinkCog(discord.Cog):
             discord_name = member.display_name[:22]
             for i, player in enumerate(discord_user.players):
                 name_col = discord_name if i == 0 else ""
-                coc_name = "".join(c for c in player.name if c.isascii() or "Ā" <= c <= "ɏ").strip()[:18] or player.name[:18]
+                safe_player_name = player.name or "?"
+                coc_name = "".join(c for c in safe_player_name if c.isascii() or "Ā" <= c <= "ɏ").strip()[:18] or safe_player_name[:18]
                 th = str(player.th_level) if player.th_level else "—"
                 lines.append(f"‎`{name_col:<22} {coc_name:<18} {player.tag:<12} {th:>2}`")
 
@@ -473,7 +474,8 @@ class LinkCog(discord.Cog):
             discord_name = member.display_name[:22]
             for i, player in enumerate(discord_user.players):
                 name_col = discord_name if i == 0 else ""
-                coc_name = "".join(c for c in player.name if c.isascii() or "Ā" <= c <= "ɏ").strip()[:18] or player.name[:18]
+                safe_player_name = player.name or "?"
+                coc_name = "".join(c for c in safe_player_name if c.isascii() or "Ā" <= c <= "ɏ").strip()[:18] or safe_player_name[:18]
                 ver = "✅" if player.is_verified else "❌"
                 lines.append(f"‎`{name_col:<22} {coc_name:<18} {player.tag:<12} {ver}`")
 
