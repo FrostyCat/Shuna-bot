@@ -404,6 +404,69 @@ async def season_autocomplete(ctx: discord.AutocompleteContext):
     return choices[:25]
 
 
+def _legend_day_role_rows(discord_ids: list[str], start, end):
+    from models import DiscordUser
+
+    session = Session()
+    try:
+        if not discord_ids:
+            return [], set()
+
+        existing = session.query(DiscordUser).filter(DiscordUser.discord_id.in_(discord_ids)).all()
+        existing_ids = {du.discord_id for du in existing}
+        for discord_id in discord_ids:
+            if discord_id not in existing_ids:
+                session.add(DiscordUser(discord_id=discord_id))
+        session.commit()
+
+        discord_users = (
+            session.query(DiscordUser)
+            .filter(DiscordUser.discord_id.in_(discord_ids))
+            .all()
+        )
+
+        unlinked_ids = set()
+        legend_players = []
+        for du in discord_users:
+            if not du.players:
+                unlinked_ids.add(du.discord_id)
+                continue
+            for player in du.players:
+                if player.league_tier == "Legend I":
+                    legend_players.append(player)
+
+        player_ids = [p.id for p in legend_players]
+        attacks_by_player = {}
+        if player_ids:
+            all_attacks = (
+                session.query(Attack)
+                .filter(
+                    Attack.player_id.in_(player_ids),
+                    Attack.created_at >= start,
+                    Attack.created_at < end,
+                )
+                .order_by(Attack.created_at.asc())
+                .all()
+            )
+            for a in all_attacks:
+                attacks_by_player.setdefault(a.player_id, []).append(a)
+
+        rows = []
+        for player in legend_players:
+            player_attacks = attacks_by_player.get(player.id, [])
+            attacks = [a for a in player_attacks if a.is_attack][-8:]
+            defenses = [a for a in player_attacks if not a.is_attack][-8:]
+            atk = sum(a.trophies for a in attacks)
+            deff = sum(d.trophies for d in defenses)
+            net = atk + deff
+            init = (player.season_trophies - net) if player.season_trophies is not None else None
+            rows.append((player.name, player.tag, atk, deff, net, init, player.season_trophies, player.initial_rank, len(attacks), len(defenses)))
+
+        return rows, unlinked_ids
+    finally:
+        session.close()
+
+
 class LegendCog(discord.Cog):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
@@ -511,44 +574,11 @@ class LegendCog(discord.Cog):
     ):
         await ctx.defer()
         await ctx.guild.chunk()
-        session = Session()
         start, end = get_day_window(0)
 
-        from models import DiscordUser
-        rows = []
-        unlinked = []
-        for member in role.members:
-            discord_user = session.query(DiscordUser).filter_by(discord_id=str(member.id)).first()
-            if not discord_user:
-                discord_user = DiscordUser(discord_id=str(member.id))
-                session.add(discord_user)
-                session.flush()
-            if not discord_user.players:
-                unlinked.append(member.display_name)
-                continue
-            for player in discord_user.players:
-                if player.league_tier != "Legend I":
-                    continue
-                attacks = session.query(Attack).filter(
-                    Attack.player_id == player.id,
-                    Attack.created_at >= start,
-                    Attack.created_at < end,
-                    Attack.is_attack == True,
-                ).order_by(Attack.created_at.asc()).all()[-8:]
-                defenses = session.query(Attack).filter(
-                    Attack.player_id == player.id,
-                    Attack.created_at >= start,
-                    Attack.created_at < end,
-                    Attack.is_attack == False,
-                ).order_by(Attack.created_at.asc()).all()[-8:]
-                atk = sum(a.trophies for a in attacks)
-                deff = sum(d.trophies for d in defenses)
-                net = atk + deff
-                init = (player.season_trophies - net) if player.season_trophies is not None else None
-                rows.append((player.name, player.tag, atk, deff, net, init, player.season_trophies, player.initial_rank, len(attacks), len(defenses)))
-
-        session.commit()
-        session.close()
+        discord_ids = [str(m.id) for m in role.members]
+        rows, unlinked_ids = await asyncio.to_thread(_legend_day_role_rows, discord_ids, start, end)
+        unlinked = [m.display_name for m in role.members if str(m.id) in unlinked_ids]
 
         if not rows:
             await ctx.followup.send(f"❌ No linked CoC accounts found for role {role.mention}.")

@@ -35,6 +35,21 @@ def _player_tag_choices(current: str, linked_only: bool):
         session.close()
 
 
+def _players_by_discord_id(session, discord_ids: list[str]) -> dict[str, list[Player]]:
+    if not discord_ids:
+        return {}
+    rows = (
+        session.query(DiscordUser.discord_id, Player)
+        .join(Player, Player.discord_user_id == DiscordUser.id)
+        .filter(DiscordUser.discord_id.in_(discord_ids))
+        .all()
+    )
+    result: dict[str, list[Player]] = {}
+    for discord_id, player in rows:
+        result.setdefault(discord_id, []).append(player)
+    return result
+
+
 async def player_tag_autocomplete(ctx: discord.AutocompleteContext):
     return await asyncio.to_thread(_player_tag_choices, ctx.value.lower(), False)
 
@@ -360,14 +375,18 @@ class LinkCog(discord.Cog):
             cell.alignment = Alignment(horizontal="center")
             ws.column_dimensions[cell.column_letter].width = w
 
+        discord_ids = [str(m.id) for m in role.members]
+        players_by_discord_id = await asyncio.to_thread(_players_by_discord_id, session, discord_ids)
+        session.close()
+
         row = 2
         unlinked = []
         for member in role.members:
-            discord_user = session.query(DiscordUser).filter_by(discord_id=str(member.id)).first()
-            if not discord_user or not discord_user.players:
+            players = players_by_discord_id.get(str(member.id))
+            if not players:
                 unlinked.append(member.display_name)
                 continue
-            for player in discord_user.players:
+            for player in players:
                 ws.append([
                     str(member.id),
                     member.display_name,
@@ -384,8 +403,6 @@ class LinkCog(discord.Cog):
             ws_unlinked.column_dimensions["A"].width = 25
             for name in unlinked:
                 ws_unlinked.append([name])
-
-        session.close()
 
         buf = io.BytesIO()
         wb.save(buf)
@@ -412,20 +429,22 @@ class LinkCog(discord.Cog):
         lines = [header]
         unlinked = []
 
+        discord_ids = [str(m.id) for m in role.members]
+        players_by_discord_id = await asyncio.to_thread(_players_by_discord_id, session, discord_ids)
+        session.close()
+
         for member in role.members:
-            discord_user = session.query(DiscordUser).filter_by(discord_id=str(member.id)).first()
-            if not discord_user or not discord_user.players:
+            players = players_by_discord_id.get(str(member.id))
+            if not players:
                 unlinked.append(member.display_name)
                 continue
             discord_name = member.display_name[:22]
-            for i, player in enumerate(discord_user.players):
+            for i, player in enumerate(players):
                 name_col = discord_name if i == 0 else ""
                 safe_player_name = player.name or "?"
                 coc_name = "".join(c for c in safe_player_name if c.isascii() or "Ā" <= c <= "ɏ").strip()[:18] or safe_player_name[:18]
                 th = str(player.th_level) if player.th_level else "—"
                 lines.append(f"‎`{name_col:<22} {coc_name:<18} {player.tag:<12} {th:>2}`")
-
-        session.close()
 
         embed = discord.Embed(title=f"👥 Members — {role.name}", color=0x8B4513)
         desc = "\n".join(lines)
@@ -466,20 +485,22 @@ class LinkCog(discord.Cog):
         lines = [header]
         unlinked = []
 
+        discord_ids = [str(m.id) for m in role.members]
+        players_by_discord_id = await asyncio.to_thread(_players_by_discord_id, session, discord_ids)
+        session.close()
+
         for member in role.members:
-            discord_user = session.query(DiscordUser).filter_by(discord_id=str(member.id)).first()
-            if not discord_user or not discord_user.players:
+            players = players_by_discord_id.get(str(member.id))
+            if not players:
                 unlinked.append(member)
                 continue
             discord_name = member.display_name[:22]
-            for i, player in enumerate(discord_user.players):
+            for i, player in enumerate(players):
                 name_col = discord_name if i == 0 else ""
                 safe_player_name = player.name or "?"
                 coc_name = "".join(c for c in safe_player_name if c.isascii() or "Ā" <= c <= "ɏ").strip()[:18] or safe_player_name[:18]
                 ver = "✅" if player.is_verified else "❌"
                 lines.append(f"‎`{name_col:<22} {coc_name:<18} {player.tag:<12} {ver}`")
-
-        session.close()
 
         linked_count = len(role.members) - len(unlinked)
         footer_text = f"{linked_count} with accounts · {len(unlinked)} unlinked"
