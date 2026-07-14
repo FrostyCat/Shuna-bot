@@ -356,7 +356,6 @@ class LinkCog(discord.Cog):
         role: discord.Option(discord.Role, "Discord role"),
     ):
         await ctx.defer()
-        await ctx.guild.chunk()
         session = Session()
 
         wb = openpyxl.Workbook()
@@ -422,7 +421,6 @@ class LinkCog(discord.Cog):
         role: discord.Option(discord.Role, "Discord role"),
     ):
         await ctx.defer()
-        await ctx.guild.chunk()
         session = Session()
 
         header = f"‎`{'DISCORD':<22} {'COC NAME':<18} {'TAG':<12} {'TH':>2}`"
@@ -478,7 +476,6 @@ class LinkCog(discord.Cog):
         role: discord.Option(discord.Role, "Discord role"),
     ):
         await ctx.defer()
-        await ctx.guild.chunk()
         session = Session()
 
         header = f"‎`{'DISCORD':<22} {'COC NAME':<18} {'TAG':<12} {'VER'}`"

@@ -199,7 +199,6 @@ class CwlCheckCog(discord.Cog):
         part: discord.Option(int, "CWL part 1 or 2 (for months with 2 CWLs)", min_value=1, max_value=2, required=False) = None,
     ):
         await ctx.defer()
-        await ctx.guild.chunk()
 
         now = datetime.now(timezone.utc)
         month = month or now.month

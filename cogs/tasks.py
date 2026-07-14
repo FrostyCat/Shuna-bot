@@ -235,7 +235,7 @@ class TasksCog(discord.Cog):
     @discord.slash_command(name="db_stats", description="Show database stats: players, clans, attacks")
     async def db_stats(self, ctx: discord.ApplicationContext):
         await ctx.defer()
-        loop = __import__("asyncio").get_running_loop()
+        loop = asyncio.get_running_loop()
         session = Session()
         try:
             def _query():
