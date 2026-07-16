@@ -1,0 +1,14 @@
+[Unit]
+Description=Shuna Bot web dashboard (Flask via gunicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/Shuna-bot
+ExecStart=/home/ubuntu/Shuna-bot/venv/bin/gunicorn -w 1 -b 127.0.0.1:5000 web:app
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
