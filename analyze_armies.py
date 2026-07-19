@@ -7,12 +7,14 @@ Usage:
   python analyze_armies.py --k 15       # custom cluster count
   python analyze_armies.py --save       # label clusters interactively and save army_clusters.json
   python analyze_armies.py --plot       # also show PCA scatter plot
+  python analyze_armies.py --days 1     # only attacks from the last 24h
 """
 
 import sys
 import os
 import json
 import argparse
+from datetime import UTC, datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -140,16 +142,18 @@ def main():
     parser.add_argument("--k",    type=int, default=12)
     parser.add_argument("--save", action="store_true", help="Label clusters and save army_clusters.json")
     parser.add_argument("--plot", action="store_true", help="Show PCA scatter plot")
+    parser.add_argument("--days", type=int, default=None, help="Only include attacks from the last N days")
     args = parser.parse_args()
     K = args.k
 
     print("Loading army data from database...")
     session = Session()
-    records = (
-        session.query(Attack)
-        .filter(Attack.army_share_code.isnot(None), Attack.is_attack == True)
-        .all()
-    )
+    query = session.query(Attack).filter(Attack.army_share_code.isnot(None), Attack.is_attack == True)
+    if args.days is not None:
+        since = datetime.now(UTC) - timedelta(days=args.days)
+        query = query.filter(Attack.created_at >= since)
+        print(f"Filtering to attacks since {since.isoformat()}")
+    records = query.all()
     session.close()
     print(f"Found {len(records):,} attacks with army data")
 

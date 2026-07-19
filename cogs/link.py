@@ -324,13 +324,13 @@ class LinkCog(discord.Cog):
         ctx: discord.ApplicationContext,
         user: discord.Option(discord.Member, "Discord user (defaults to you)", required=False, default=None),
     ):
-        await ctx.defer(ephemeral=True)
+        await ctx.defer()
         target = user or ctx.author
         session = Session()
 
         discord_user = await asyncio.to_thread(session.query(DiscordUser).filter_by(discord_id=str(target.id)).first)
         if not discord_user or not discord_user.players:
-            await ctx.followup.send(f"❌ {target.mention} has no linked CoC accounts.", ephemeral=True)
+            await ctx.followup.send(f"❌ {target.mention} has no linked CoC accounts.")
             session.close()
             return
 
