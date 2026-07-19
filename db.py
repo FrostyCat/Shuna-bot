@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from models import Base
 
@@ -22,27 +22,20 @@ engine = create_engine(
 Session = sessionmaker(bind=engine, autoflush=False)
 
 
+_MIGRATIONS = [
+    "ALTER TABLE players ADD COLUMN IF NOT EXISTS league_tier VARCHAR",
+    "ALTER TABLE players ADD COLUMN IF NOT EXISTS season_trophies INTEGER",
+    "ALTER TABLE attacks ADD COLUMN IF NOT EXISTS army_share_code VARCHAR",
+    "ALTER TABLE guild_configs ADD COLUMN IF NOT EXISTS stats_channel_id VARCHAR",
+]
+
+
 def init_db():
     Base.metadata.create_all(engine)
-    with engine.connect() as conn:
-        conn.execute(
-            __import__("sqlalchemy").text(
-                "ALTER TABLE players ADD COLUMN IF NOT EXISTS league_tier VARCHAR"
-            )
-        )
-        conn.execute(
-            __import__("sqlalchemy").text(
-                "ALTER TABLE players ADD COLUMN IF NOT EXISTS season_trophies INTEGER"
-            )
-        )
-        conn.execute(
-            __import__("sqlalchemy").text(
-                "ALTER TABLE attacks ADD COLUMN IF NOT EXISTS army_share_code VARCHAR"
-            )
-        )
-        conn.execute(
-            __import__("sqlalchemy").text(
-                "ALTER TABLE guild_configs ADD COLUMN IF NOT EXISTS stats_channel_id VARCHAR"
-            )
-        )
-        conn.commit()
+    for stmt in _MIGRATIONS:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text(stmt))
+                conn.commit()
+        except Exception as e:
+            print(f"[init_db] migration failed, skipping: {stmt!r} -> {e}")

@@ -118,16 +118,19 @@ class TasksCog(discord.Cog):
         def _do_snapshot():
             session = Session()
             try:
-                players = session.query(Player).all()
-                for p in players:
-                    if p.current_rank is not None:
+                players = session.query(Player).filter(Player.current_rank.isnot(None)).all()
+                batch_size = 500
+                for i in range(0, len(players), batch_size):
+                    batch = players[i:i + batch_size]
+                    for p in batch:
                         p.initial_rank = p.current_rank
-                session.commit()
+                    session.commit()
+                return len(players)
             finally:
                 session.close()
 
-        await asyncio.get_running_loop().run_in_executor(None, _do_snapshot)
-        print("Rank snapshot saved.")
+        count = await asyncio.get_running_loop().run_in_executor(None, _do_snapshot)
+        print(f"Rank snapshot saved for {count} players.")
 
     @snapshot_ranks.before_loop
     async def before_snapshot_ranks(self):
