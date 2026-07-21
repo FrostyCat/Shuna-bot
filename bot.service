@@ -1,0 +1,14 @@
+[Unit]
+Description=Discord Bot
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/Shuna-bot
+ExecStart=/root/Shuna-bot/venv/bin/python bot.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
