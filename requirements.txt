@@ -1,4 +1,4 @@
-py-cord==2.6.1
+py-cord==2.8.0
 audioop-lts; python_version >= "3.13"
 SQLAlchemy==2.0.48
 psycopg2-binary
