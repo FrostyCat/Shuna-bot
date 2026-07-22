@@ -177,6 +177,20 @@ class CwlSignupPanel(Base):
     is_open = Column(Boolean, default=True, nullable=False, server_default="true")
 
 
+class LegendDayRolePanel(Base):
+    __tablename__ = "legend_day_role_panels"
+
+    id = Column(Integer, primary_key=True)
+    guild_id = Column(String, nullable=False)
+    role_id = Column(String, nullable=False)
+    channel_id = Column(String, nullable=False)
+    message_id = Column(String, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("guild_id", "role_id", name="uq_legend_day_role_panel"),
+    )
+
+
 class CwlParticipantClan(Base):
     __tablename__ = "cwl_participant_clans"
 

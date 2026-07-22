@@ -2,12 +2,12 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from sqlalchemy import case, func
 
 from coc_api import get_clan, get_clan_members, get_player
 from db import Session
-from models import Attack, Clan, GuildClan, Player
+from models import Attack, Clan, GuildClan, LegendDayRolePanel, Player
 from helpers import WARSAW, add_player_to_db, fetch_player_attacks
 
 SEASON_EPOCH = datetime(2026, 5, 18, 7, 0, 0, tzinfo=WARSAW)
@@ -467,9 +467,71 @@ def _legend_day_role_rows(discord_ids: list[str], start, end):
         session.close()
 
 
+def _filter_sort_rows(rows: list) -> list:
+    rows = [r for r in rows if r[6] is not None and r[6] > 0]
+    rows.sort(key=lambda r: (r[5] if r[5] is not None else 0, r[4]), reverse=True)
+    return rows
+
+
+def _get_panels(guild_id: str | None = None) -> list[dict]:
+    session = Session()
+    try:
+        q = session.query(LegendDayRolePanel)
+        if guild_id is not None:
+            q = q.filter_by(guild_id=guild_id)
+        return [
+            {"id": p.id, "guild_id": p.guild_id, "role_id": p.role_id,
+             "channel_id": p.channel_id, "message_id": p.message_id}
+            for p in q.all()
+        ]
+    finally:
+        session.close()
+
+
+def _add_panel(guild_id: str, role_id: str, channel_id: str) -> tuple[bool, str]:
+    session = Session()
+    try:
+        existing = session.query(LegendDayRolePanel).filter_by(guild_id=guild_id, role_id=role_id).first()
+        if existing:
+            return False, "A panel for this role already exists."
+        session.add(LegendDayRolePanel(guild_id=guild_id, role_id=role_id, channel_id=channel_id))
+        session.commit()
+        return True, ""
+    finally:
+        session.close()
+
+
+def _remove_panel(guild_id: str, role_id: str) -> bool:
+    session = Session()
+    try:
+        existing = session.query(LegendDayRolePanel).filter_by(guild_id=guild_id, role_id=role_id).first()
+        if not existing:
+            return False
+        session.delete(existing)
+        session.commit()
+        return True
+    finally:
+        session.close()
+
+
+def _set_panel_message_id(panel_id: int, message_id: str | None):
+    session = Session()
+    try:
+        panel = session.query(LegendDayRolePanel).filter_by(id=panel_id).first()
+        if panel:
+            panel.message_id = message_id
+            session.commit()
+    finally:
+        session.close()
+
+
 class LegendCog(discord.Cog):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
+        self.update_legend_day_role_panels.start()
+
+    def cog_unload(self):
+        self.update_legend_day_role_panels.cancel()
 
     @discord.slash_command(name="legend_day", description="Legend league stats for a player")
     async def legend_day(
@@ -583,14 +645,111 @@ class LegendCog(discord.Cog):
             await ctx.followup.send(f"❌ No linked CoC accounts found for role {role.mention}.")
             return
 
-        rows = [r for r in rows if r[6] is not None and r[6] > 0]
-        rows.sort(key=lambda r: (r[5] if r[5] is not None else 0, r[4]), reverse=True)
+        rows = _filter_sort_rows(rows)
 
         embeds = build_legend_table_embeds(f"📊 Legend Day — {role.name}", rows)
         await ctx.followup.send(embeds=embeds)
 
         if unlinked:
             await ctx.followup.send(f"⚠️ No linked accounts: {', '.join(unlinked)}")
+
+    legend_day_role_panel = discord.SlashCommandGroup(
+        "legend_day_role_panel", "Auto-updating Legend Day embed for a role (refreshes every 30 min)",
+        default_member_permissions=discord.Permissions(administrator=True),
+    )
+
+    @legend_day_role_panel.command(name="add", description="Post an auto-updating Legend Day panel for a role in a channel")
+    async def panel_add(
+        self,
+        ctx: discord.ApplicationContext,
+        role: discord.Option(discord.Role, "Discord role"),
+        channel: discord.Option(discord.TextChannel, "Channel to post the panel in"),
+    ):
+        await ctx.defer(ephemeral=True)
+        ok, error = await asyncio.to_thread(_add_panel, str(ctx.guild_id), str(role.id), str(channel.id))
+        if not ok:
+            await ctx.followup.send(f"❌ {error}", ephemeral=True)
+            return
+        await ctx.followup.send(
+            f"✅ Panel created for {role.mention} in {channel.mention}. It will post shortly and refresh every 30 minutes.",
+            ephemeral=True,
+        )
+        await self._refresh_panels(guild_id=str(ctx.guild_id))
+
+    @legend_day_role_panel.command(name="remove", description="Remove an auto-updating Legend Day panel for a role")
+    async def panel_remove(
+        self,
+        ctx: discord.ApplicationContext,
+        role: discord.Option(discord.Role, "Discord role"),
+    ):
+        await ctx.defer(ephemeral=True)
+        removed = await asyncio.to_thread(_remove_panel, str(ctx.guild_id), str(role.id))
+        if removed:
+            await ctx.followup.send(f"✅ Panel for {role.mention} removed.", ephemeral=True)
+        else:
+            await ctx.followup.send(f"❌ No panel found for {role.mention}.", ephemeral=True)
+
+    @legend_day_role_panel.command(name="list", description="List auto-updating Legend Day panels on this server")
+    async def panel_list(self, ctx: discord.ApplicationContext):
+        await ctx.defer(ephemeral=True)
+        panels = await asyncio.to_thread(_get_panels, str(ctx.guild_id))
+        if not panels:
+            await ctx.followup.send("No panels configured on this server.", ephemeral=True)
+            return
+        lines = [f"<@&{p['role_id']}> — <#{p['channel_id']}>" for p in panels]
+        await ctx.followup.send("\n".join(lines), ephemeral=True)
+
+    async def _refresh_panels(self, guild_id: str | None = None):
+        panels = await asyncio.to_thread(_get_panels, guild_id)
+        if not panels:
+            return
+        start, end = get_day_window(0)
+
+        for panel in panels:
+            guild = self.bot.get_guild(int(panel["guild_id"]))
+            if not guild:
+                continue
+            role = guild.get_role(int(panel["role_id"]))
+            channel = guild.get_channel(int(panel["channel_id"]))
+            if not role or not channel:
+                continue
+
+            discord_ids = [str(m.id) for m in role.members]
+            rows, _unlinked_ids = await asyncio.to_thread(_legend_day_role_rows, discord_ids, start, end)
+            rows = _filter_sort_rows(rows)
+
+            if rows:
+                embeds = build_legend_table_embeds(f"📊 Legend Day — {role.name}", rows)
+            else:
+                embeds = [discord.Embed(
+                    title=f"📊 Legend Day — {role.name}",
+                    description="No Legend League I accounts with attacks yet today.",
+                    color=0x8B4513,
+                )]
+
+            message = None
+            if panel["message_id"]:
+                try:
+                    message = await channel.fetch_message(int(panel["message_id"]))
+                except (discord.NotFound, discord.Forbidden):
+                    message = None
+
+            try:
+                if message:
+                    await message.edit(embeds=embeds)
+                else:
+                    new_message = await channel.send(embeds=embeds)
+                    await asyncio.to_thread(_set_panel_message_id, panel["id"], str(new_message.id))
+            except discord.HTTPException as e:
+                print(f"[legend_day_role_panel] failed to update panel {panel['id']}: {e}")
+
+    @tasks.loop(minutes=30)
+    async def update_legend_day_role_panels(self):
+        await self._refresh_panels()
+
+    @update_legend_day_role_panels.before_loop
+    async def before_update_legend_day_role_panels(self):
+        await self.bot.wait_until_ready()
 
     @discord.slash_command(name="legend_day_clan", description="Legend day stats for all members of a clan")
     async def legend_day_clan(
