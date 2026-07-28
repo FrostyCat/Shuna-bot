@@ -98,7 +98,24 @@ def get_filled_defense_trophies(session, player, day_offset: int, real_def_count
     return round(avg * missing)
 
 
-def build_legend_embed(player, session, day_offset: int, season_trophies=None, rank=None, initial_rank=None):
+async def _fetch_opponent_names(tags: list[str]) -> dict[str, str]:
+    unique_tags = list(dict.fromkeys(tags))
+    if not unique_tags:
+        return {}
+    results = await asyncio.gather(*[get_player_profile(t) for t in unique_tags], return_exceptions=True)
+    names = {}
+    for tag, result in zip(unique_tags, results):
+        if isinstance(result, dict) and result.get("name"):
+            names[tag] = result["name"]
+    return names
+
+
+def _format_opponent_line(tag: str, name: str | None, icon: str, stars: int, destruction: int, trophies: int) -> str:
+    label = (name or tag)[:14]
+    return f"{icon} [{label:<14}]({player_profile_url(tag)}) `{stars}⭐ {destruction:>3}% {trophies:>+4}`"
+
+
+async def build_legend_embed(player, session, day_offset: int, season_trophies=None, rank=None, initial_rank=None):
     start, end = get_day_window(day_offset)
 
     attacks = session.query(Attack).filter(
@@ -133,16 +150,18 @@ def build_legend_embed(player, session, day_offset: int, season_trophies=None, r
     else:
         day_label = f"{abs(day_offset)} days ago"
 
+    opponent_names = await _fetch_opponent_names([a.defender for a in last_8] + [d.defender for d in last_8_def])
+
     attacks_text = "\n".join(
-        f"[{a.defender}]({player_profile_url(a.defender)}) — {a.stars}⭐ {a.destruction:>3}% {a.trophies:+}"
+        _format_opponent_line(a.defender, opponent_names.get(a.defender), "⚔️", a.stars, a.destruction, a.trophies)
         for a in last_8
     ) or "—"
     def_lines = [
-        f"[{d.defender}]({player_profile_url(d.defender)}) — {d.stars}⭐ {d.destruction:>3}% {d.trophies:+}"
+        _format_opponent_line(d.defender, opponent_names.get(d.defender), "🛡️", d.stars, d.destruction, d.trophies)
         for d in last_8_def
     ]
     if filled_count > 0:
-        def_lines.append(f"(filled) — {filled_trophies:+} x{filled_count}")
+        def_lines.append(f"🛡️ `{'(filled)':<14} {filled_trophies:>+4} x{filled_count}`")
     defenses_text = "\n".join(def_lines) or "—"
 
     net = total_trophies + total_trophies_def_net
@@ -184,11 +203,13 @@ def build_legend_embed(player, session, day_offset: int, season_trophies=None, r
     for a in last_8:
         if a.defender not in seen_tags:
             seen_tags.add(a.defender)
-            opponents.append((a.defender, f"⚔️ {a.stars}⭐ {a.destruction}% {a.trophies:+}"))
+            label = opponent_names.get(a.defender, a.defender)
+            opponents.append((a.defender, label, f"⚔️ {a.stars}⭐ {a.destruction}% {a.trophies:+} ({a.defender})"))
     for d in last_8_def:
         if d.defender not in seen_tags:
             seen_tags.add(d.defender)
-            opponents.append((d.defender, f"🛡️ {d.stars}⭐ {d.destruction}% {d.trophies:+}"))
+            label = opponent_names.get(d.defender, d.defender)
+            opponents.append((d.defender, label, f"🛡️ {d.stars}⭐ {d.destruction}% {d.trophies:+} ({d.defender})"))
 
     return embed, opponents
 
@@ -291,8 +312,8 @@ class LegendView(discord.ui.View):
         if not opponents:
             return
         self.opponent_select.options = [
-            discord.SelectOption(label=tag, description=desc[:100])
-            for tag, desc in opponents[:25]
+            discord.SelectOption(label=label[:100], value=tag, description=desc[:100])
+            for tag, label, desc in opponents[:25]
         ]
         self.opponent_select.disabled = False
         self.add_item(self.opponent_select)
@@ -347,12 +368,13 @@ class LegendView(discord.ui.View):
 
     async def _render(self, interaction: discord.Interaction):
         try:
+            await interaction.response.defer()
             session = Session()
             player = session.query(Player).filter_by(tag=self.player_tag).first()
-            embed, opponents = build_legend_embed(player, session, self.day_offset)
+            embed, opponents = await build_legend_embed(player, session, self.day_offset)
             session.close()
             self._update_opponent_select(opponents)
-            await interaction.response.edit_message(embed=embed, view=self)
+            await interaction.edit_original_response(embed=embed, view=self)
         except Exception as e:
             print(f"[LegendView._render] {e}")
             import traceback; traceback.print_exc()
@@ -379,7 +401,7 @@ class SeasonView(discord.ui.View):
     async def back(self, _button: discord.ui.Button, interaction: discord.Interaction):
         session = Session()
         player = session.query(Player).filter_by(tag=self.player_tag).first()
-        embed, opponents = build_legend_embed(player, session, day_offset=0)
+        embed, opponents = await build_legend_embed(player, session, day_offset=0)
         session.close()
         legend_view = LegendView(self.player_tag, opponents=opponents)
         legend_view.message = self.message
@@ -636,7 +658,7 @@ class LegendCog(discord.Cog):
         season_trophies = player_data[2]
         rank = player_data[3]
 
-        embed, opponents = build_legend_embed(player, session, day_offset=0, season_trophies=season_trophies, rank=rank, initial_rank=player.initial_rank)
+        embed, opponents = await build_legend_embed(player, session, day_offset=0, season_trophies=season_trophies, rank=rank, initial_rank=player.initial_rank)
         session.close()
         view = LegendView(player.tag, opponents=opponents)
         view.message = await ctx.followup.send(embed=embed, view=view)

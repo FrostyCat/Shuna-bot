@@ -16,7 +16,16 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+
+class ShunaBot(commands.Bot):
+    async def close(self):
+        x_feed = self.get_cog("XFeedCog")
+        if x_feed is not None and x_feed._http is not None and not x_feed._http.closed:
+            await x_feed._http.close()
+        await super().close()
+
+
+bot = ShunaBot(command_prefix="!", intents=intents)
 
 COGS = [
     "cogs.legend",
