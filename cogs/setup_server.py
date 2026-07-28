@@ -163,7 +163,7 @@ class SetupServerCog(discord.Cog):
 
     @discord.slash_command(
         name="setup_server",
-        description="Use Claude to propose a server structure (categories, channels, roles) — asks for confirmation before creating anything",
+        description="Use Claude to propose a server structure (categories, channels, roles) for confirmation",
         default_member_permissions=discord.Permissions(administrator=True),
     )
     async def setup_server(
