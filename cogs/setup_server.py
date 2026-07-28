@@ -9,11 +9,24 @@ load_dotenv()
 _client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 _STRUCTURE_TOOL = {
-    "name": "propose_server_structure",
-    "description": "Propose a Discord server structure of categories, channels, and roles based on the user's request.",
+    "name": "propose_server_changes",
+    "description": (
+        "Propose changes to a Discord server: categories/channels/roles to delete, "
+        "and categories/channels/roles to create, based on the user's request."
+    ),
     "input_schema": {
         "type": "object",
         "properties": {
+            "delete_channel_ids": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "IDs of existing channels or categories to delete, taken from the provided server listing. Deleting a category does not delete its channels — list them separately if they should also be deleted.",
+            },
+            "delete_role_ids": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "IDs of existing roles to delete, taken from the provided server listing.",
+            },
             "categories": {
                 "type": "array",
                 "items": {
@@ -48,7 +61,7 @@ _STRUCTURE_TOOL = {
                 },
             },
         },
-        "required": ["categories", "roles"],
+        "required": ["delete_channel_ids", "delete_role_ids", "categories", "roles"],
     },
 }
 
@@ -62,25 +75,66 @@ def _hex_to_color(hex_str: str | None) -> discord.Color:
         return discord.Color.default()
 
 
-def _summarize_structure(structure: dict) -> str:
+def _describe_guild(guild: discord.Guild) -> str:
+    lines = ["Existing categories and channels (id: name):"]
+    for category in guild.categories:
+        lines.append(f"　📁 {category.id}: {category.name}")
+        for ch in category.channels:
+            icon = "🔊" if isinstance(ch, discord.VoiceChannel) else "#"
+            lines.append(f"　　{icon} {ch.id}: {ch.name}")
+    uncategorized = [ch for ch in guild.channels if ch.category is None and not isinstance(ch, discord.CategoryChannel)]
+    if uncategorized:
+        lines.append("　(no category)")
+        for ch in uncategorized:
+            icon = "🔊" if isinstance(ch, discord.VoiceChannel) else "#"
+            lines.append(f"　　{icon} {ch.id}: {ch.name}")
+
+    lines.append("\nExisting roles (id: name):")
+    for role in guild.roles:
+        if role.is_default():
+            continue
+        lines.append(f"　🎭 {role.id}: {role.name}")
+
+    return "\n".join(lines)
+
+
+def _summarize_changes(guild: discord.Guild, structure: dict) -> str:
     lines = []
-    for cat in structure.get("categories", []):
-        lines.append(f"**📁 {cat['name']}**")
-        for ch in cat.get("channels", []):
-            icon = "🔊" if ch.get("type") == "voice" else "#"
-            lines.append(f"　{icon} {ch['name']}")
-    roles = structure.get("roles", [])
-    if roles:
+
+    delete_channel_ids = set(structure.get("delete_channel_ids", []))
+    delete_role_ids = set(structure.get("delete_role_ids", []))
+    if delete_channel_ids or delete_role_ids:
+        lines.append("**🗑️ To delete**")
+        for cid in delete_channel_ids:
+            obj = guild.get_channel(int(cid)) if cid.isdigit() else None
+            name = obj.name if obj else f"(unknown id {cid})"
+            icon = "📁" if isinstance(obj, discord.CategoryChannel) else "#"
+            lines.append(f"　{icon} {name}")
+        for rid in delete_role_ids:
+            role = guild.get_role(int(rid)) if rid.isdigit() else None
+            name = role.name if role else f"(unknown id {rid})"
+            lines.append(f"　🎭 {name}")
         lines.append("")
-        lines.append("**🎭 Roles**")
+
+    categories = structure.get("categories", [])
+    roles = structure.get("roles", [])
+    if categories or roles:
+        lines.append("**✨ To create**")
+        for cat in categories:
+            lines.append(f"　📁 {cat['name']}")
+            for ch in cat.get("channels", []):
+                icon = "🔊" if ch.get("type") == "voice" else "#"
+                lines.append(f"　　{icon} {ch['name']}")
         for r in roles:
-            lines.append(f"　• {r['name']}")
-    return "\n".join(lines) or "*(empty proposal)*"
+            lines.append(f"　🎭 {r['name']}")
+
+    return "\n".join(lines) or "*(no changes proposed)*"
 
 
 class ConfirmSetupView(discord.ui.View):
-    def __init__(self, structure: dict, author_id: int):
+    def __init__(self, guild: discord.Guild, structure: dict, author_id: int):
         super().__init__(timeout=300)
+        self.guild = guild
         self.structure = structure
         self.author_id = author_id
         self.decided = False
@@ -101,18 +155,44 @@ class ConfirmSetupView(discord.ui.View):
             return False
         return True
 
-    @discord.ui.button(label="✅ Create", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="✅ Apply", style=discord.ButtonStyle.success)
     async def confirm(self, _button: discord.ui.Button, interaction: discord.Interaction):
         self.decided = True
         for child in self.children:
             child.disabled = True
-        await interaction.response.edit_message(content="⏳ Creating structure...", embed=None, view=self)
+        await interaction.response.edit_message(content="⏳ Applying changes...", embed=None, view=self)
 
-        guild = interaction.guild
+        guild = self.guild
+        deleted_channels = 0
+        deleted_roles = 0
         created_categories = 0
         created_channels = 0
         created_roles = 0
         errors = []
+
+        for cid in self.structure.get("delete_channel_ids", []):
+            if not cid.isdigit():
+                continue
+            channel = guild.get_channel(int(cid))
+            if channel is None:
+                continue
+            try:
+                await channel.delete()
+                deleted_channels += 1
+            except discord.HTTPException as e:
+                errors.append(f"Delete '{channel.name}': {e}")
+
+        for rid in self.structure.get("delete_role_ids", []):
+            if not rid.isdigit():
+                continue
+            role = guild.get_role(int(rid))
+            if role is None:
+                continue
+            try:
+                await role.delete()
+                deleted_roles += 1
+            except discord.HTTPException as e:
+                errors.append(f"Delete role '{role.name}': {e}")
 
         for cat_data in self.structure.get("categories", []):
             try:
@@ -143,7 +223,8 @@ class ConfirmSetupView(discord.ui.View):
                 errors.append(f"Role '{role_data['name']}': {e}")
 
         result = (
-            f"✅ Done — created {created_categories} categories, {created_channels} channels, {created_roles} roles."
+            f"✅ Done — deleted {deleted_channels} channels/categories, {deleted_roles} roles. "
+            f"Created {created_categories} categories, {created_channels} channels, {created_roles} roles."
         )
         if errors:
             result += "\n\n⚠️ Some items failed:\n" + "\n".join(f"• {e}" for e in errors[:10])
@@ -154,7 +235,7 @@ class ConfirmSetupView(discord.ui.View):
         self.decided = True
         for child in self.children:
             child.disabled = True
-        await interaction.response.edit_message(content="❌ Cancelled — nothing was created.", embed=None, view=self)
+        await interaction.response.edit_message(content="❌ Cancelled — nothing was changed.", embed=None, view=self)
 
 
 class SetupServerCog(discord.Cog):
@@ -163,27 +244,32 @@ class SetupServerCog(discord.Cog):
 
     @discord.slash_command(
         name="setup_server",
-        description="Use Claude to propose a server structure (categories, channels, roles) for confirmation",
+        description="Use Claude to propose server changes (create/delete channels, roles) for confirmation",
         default_member_permissions=discord.Permissions(administrator=True),
     )
     async def setup_server(
         self,
         ctx: discord.ApplicationContext,
-        description: discord.Option(str, "Describe what kind of server structure you want"),
+        description: discord.Option(str, "Describe what changes you want (e.g. 'delete X and Y, then create...')"),
     ):
         await ctx.defer()
+
+        guild_listing = _describe_guild(ctx.guild)
 
         response = await _client.messages.create(
             model="claude-haiku-4-5",
             max_tokens=2048,
             tools=[_STRUCTURE_TOOL],
-            tool_choice={"type": "tool", "name": "propose_server_structure"},
+            tool_choice={"type": "tool", "name": "propose_server_changes"},
             messages=[{
                 "role": "user",
                 "content": (
-                    "Propose a Discord server structure for the following request. "
-                    "Keep it reasonably sized (max ~8 categories, ~6 channels per category, ~10 roles) "
+                    "Propose changes to this Discord server based on the user's request. "
+                    "Only include delete_channel_ids/delete_role_ids for items the user explicitly asked to remove, "
+                    "using the exact IDs from the listing below — never invent IDs. "
+                    "Keep new structure reasonably sized (max ~8 categories, ~6 channels per category, ~10 roles) "
                     "unless the request clearly needs more.\n\n"
+                    f"{guild_listing}\n\n"
                     f"Request: {description}"
                 ),
             }],
@@ -191,20 +277,20 @@ class SetupServerCog(discord.Cog):
 
         tool_use = next((b for b in response.content if b.type == "tool_use"), None)
         if not tool_use:
-            await ctx.followup.send("❌ Claude didn't return a valid structure. Try rephrasing your request.")
+            await ctx.followup.send("❌ Claude didn't return a valid proposal. Try rephrasing your request.")
             return
 
         structure = tool_use.input
-        summary = _summarize_structure(structure)
+        summary = _summarize_changes(ctx.guild, structure)
 
         embed = discord.Embed(
-            title="📋 Proposed Server Structure",
+            title="📋 Proposed Server Changes",
             description=summary[:4000],
             color=0x5865F2,
         )
-        embed.set_footer(text="Review carefully — this will create real channels and roles on your server.")
+        embed.set_footer(text="Review carefully — deletions are permanent and creations are real.")
 
-        view = ConfirmSetupView(structure, ctx.author.id)
+        view = ConfirmSetupView(ctx.guild, structure, ctx.author.id)
         view.message = await ctx.followup.send(embed=embed, view=view)
 
 
