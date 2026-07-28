@@ -39,6 +39,17 @@ class Config(commands.Cog):
         guild_config.set_value(ctx.guild_id, "log_channel_id", channel.id)
         await ctx.respond(f"✅ Log channel set to {channel.mention}.", ephemeral=True)
 
+    @config_group.command(name="notify_webhook", description="Set the channel for new-player tracking notifications")
+    async def set_notify_webhook(
+        self,
+        ctx: discord.ApplicationContext,
+        channel: discord.Option(discord.TextChannel, "Notification channel"),
+    ):
+        await ctx.defer(ephemeral=True)
+        webhook = await channel.create_webhook(name="Shuna Tracking")
+        guild_config.set_value(ctx.guild_id, "notify_webhook_url", webhook.url)
+        await ctx.followup.send(f"✅ New-player notifications will be sent to {channel.mention}.", ephemeral=True)
+
     @config_group.command(name="show", description="Show current server configuration")
     async def show_config(self, ctx: discord.ApplicationContext):
         settings = guild_config.get_all(ctx.guild_id)
@@ -56,6 +67,7 @@ class Config(commands.Cog):
         embed.add_field(name="Staff Role", value=fmt_role(settings["staff_role_id"]), inline=False)
         embed.add_field(name="Ticket Category", value=fmt_channel(settings["ticket_category_id"]), inline=False)
         embed.add_field(name="Log Channel", value=fmt_channel(settings["log_channel_id"]), inline=False)
+        embed.add_field(name="Notify Webhook", value="Set" if settings["notify_webhook_url"] else "Not set", inline=False)
         await ctx.respond(embed=embed, ephemeral=True)
 
 

@@ -5,6 +5,7 @@ DEFAULTS = {
     "staff_role_id": None,
     "ticket_category_id": None,
     "log_channel_id": None,
+    "notify_webhook_url": None,
     "ticket_types": None,
     "ticket_msg_title": None,
     "ticket_msg_description": None,

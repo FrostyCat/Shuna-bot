@@ -1,14 +1,53 @@
 import asyncio
+import os
 from zoneinfo import ZoneInfo
 from datetime import UTC, datetime
 
+import aiohttp
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from coc_api import get_battlelog, get_player, get_current_war, get_cwl_group, get_cwl_war, get_clan_war_league
+from coc_api import (
+    get_battlelog, get_player, get_current_war, get_cwl_group, get_cwl_war,
+    get_clan_war_league, get_clan_members, get_top_clans,
+)
 from db import Session
-from models import Attack, Player, WarAttack
+from models import Attack, Clan, GuildClan, GuildConfig, Player, WarAttack
 
 WARSAW = ZoneInfo("Europe/Warsaw")
+
+_NOTIFY_GUILD_ID = os.getenv("NOTIFY_GUILD_ID", "")
+
+
+async def notify_new_player_via_webhook(session, clan_tag: str, name: str, tag: str):
+    def _get_webhook_urls():
+        guild_clans = session.query(GuildClan).filter_by(clan_tag=clan_tag).all()
+        urls = []
+        for gc in guild_clans:
+            if _NOTIFY_GUILD_ID and str(gc.guild_id) != _NOTIFY_GUILD_ID:
+                continue
+            config = session.query(GuildConfig).filter_by(guild_id=gc.guild_id).first()
+            if config and config.notify_webhook_url:
+                urls.append(config.notify_webhook_url)
+        return urls
+
+    webhook_urls = await asyncio.to_thread(_get_webhook_urls)
+    if not webhook_urls:
+        return
+
+    embed = {
+        "title": "New Player Tracking Started",
+        "description": (
+            f"**{name}** (`{tag}`) has been added to the tracking system.\n"
+            f"Stats collection starts now — first-day data will be skipped to ensure accuracy."
+        ),
+        "color": 0xf472b6,
+    }
+    async with aiohttp.ClientSession() as http:
+        for url in webhook_urls:
+            try:
+                await http.post(url, json={"embeds": [embed]})
+            except Exception as e:
+                print(f"Webhook notify error for {tag}: {e}")
 
 
 def calculate_trophies(stars, destruction):
@@ -184,3 +223,144 @@ async def add_player_to_db(tag: str, session, commit=True, fetch_attacks=True):
             await asyncio.get_running_loop().run_in_executor(None, session.commit)
 
     return {"success": True, "name": name, "tag": tag_api, "added_attacks": added, "is_new": is_new}
+
+
+async def refresh_one_player(tag: str, sem: asyncio.Semaphore, sleep: float = 0.1):
+    async with sem:
+        session = Session()
+        try:
+            data = await get_player(tag)
+            if not data:
+                return
+            player = await asyncio.to_thread(session.query(Player).filter_by(tag=tag).first)
+            if not player:
+                return
+            player.current_rank = data[3]
+            if data[2] is not None:
+                player.season_trophies = data[2]
+            if data[4] is not None:
+                player.th_level = data[4]
+            if len(data) > 5:
+                player.league_tier = data[5]
+            if player.league_tier == "Legend I":
+                await fetch_player_attacks(session, player)
+            await asyncio.to_thread(session.commit)
+        except Exception as e:
+            await asyncio.to_thread(session.rollback)
+            print(f"Error for {tag}: {e}")
+        finally:
+            await asyncio.to_thread(session.close)
+        await asyncio.sleep(sleep)
+
+
+async def refresh_all_players(concurrency: int = 10, sleep: float = 0.1):
+    session = Session()
+    try:
+        players = await asyncio.to_thread(session.query(Player).all)
+        tags = [p.tag for p in players]
+    finally:
+        await asyncio.to_thread(session.close)
+
+    sem = asyncio.Semaphore(concurrency)
+    print(f"[refresh_players] starting {len(tags)} players")
+    import time
+    t0 = time.monotonic()
+    await asyncio.gather(*[refresh_one_player(tag, sem, sleep) for tag in tags])
+    print(f"[refresh_players] done in {time.monotonic() - t0:.1f}s")
+
+
+async def snapshot_ranks():
+    def _do_snapshot():
+        session = Session()
+        try:
+            players = session.query(Player).filter(Player.current_rank.isnot(None)).all()
+            batch_size = 500
+            for i in range(0, len(players), batch_size):
+                batch = players[i:i + batch_size]
+                for p in batch:
+                    p.initial_rank = p.current_rank
+                session.commit()
+            return len(players)
+        finally:
+            session.close()
+
+    count = await asyncio.to_thread(_do_snapshot)
+    print(f"Rank snapshot saved for {count} players.")
+
+
+async def refresh_all_clans():
+    session = Session()
+    try:
+        clans = await asyncio.to_thread(session.query(Clan).all)
+    except Exception as e:
+        print(f"DB error loading clans: {e}")
+        await asyncio.to_thread(session.close)
+        return
+
+    for clan in clans:
+        try:
+            members = await get_clan_members(clan.tag)
+            for member in members:
+                tag = member if isinstance(member, str) else member["tag"]
+                result = await add_player_to_db(tag, session, commit=False, fetch_attacks=False)
+                if result.get("is_new"):
+                    await notify_new_player_via_webhook(session, clan.tag, result["name"], result["tag"])
+                await asyncio.sleep(0.1)
+        except Exception as e:
+            await asyncio.to_thread(session.rollback)
+            print(f"Error for clan {clan.tag}: {e}")
+
+    await asyncio.to_thread(session.commit)
+    await asyncio.to_thread(session.close)
+
+
+async def refresh_all_wars():
+    session = Session()
+    try:
+        clan_tags = await asyncio.to_thread(lambda: [c.tag for c in session.query(Clan).all()])
+    finally:
+        await asyncio.to_thread(session.close)
+
+    for tag in clan_tags:
+        session = Session()
+        try:
+            war_count = await fetch_war_attacks(session, tag)
+            cwl_count = await fetch_cwl_attacks(session, tag)
+            if war_count or cwl_count:
+                print(f"War attacks saved for {tag}: {war_count} war, {cwl_count} CWL")
+        except Exception as e:
+            await asyncio.to_thread(session.rollback)
+            print(f"War fetch error for {tag}: {e}")
+        finally:
+            await asyncio.to_thread(session.close)
+        await asyncio.sleep(1.0)
+
+
+async def sync_top_clans() -> int:
+    clans = await get_top_clans(200)
+    if not clans:
+        return 0
+    session = Session()
+    added = 0
+    try:
+        def _insert():
+            nonlocal added
+            for c in clans:
+                tag = c.get("tag")
+                name = c.get("name", "")
+                if not tag:
+                    continue
+                existing = session.query(Clan).filter_by(tag=tag).first()
+                if not existing:
+                    session.add(Clan(tag=tag, name=name, tracked_since=datetime.now(UTC)))
+                    added += 1
+                else:
+                    existing.name = name
+            session.commit()
+        await asyncio.to_thread(_insert)
+    except Exception as e:
+        await asyncio.to_thread(session.rollback)
+        print(f"[sync_top_clans] error: {e}")
+    finally:
+        await asyncio.to_thread(session.close)
+    return added

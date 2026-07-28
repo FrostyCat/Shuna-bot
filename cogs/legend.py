@@ -533,7 +533,19 @@ class LegendCog(discord.Cog):
     def cog_unload(self):
         self.update_legend_day_role_panels.cancel()
 
-    @discord.slash_command(name="legend_day", description="Legend league stats for a player")
+    @discord.slash_command(
+        name="legend_day",
+        description="Legend league stats for a player",
+        integration_types={
+            discord.IntegrationType.guild_install,
+            discord.IntegrationType.user_install,
+        },
+        contexts={
+            discord.InteractionContextType.guild,
+            discord.InteractionContextType.bot_dm,
+            discord.InteractionContextType.private_channel,
+        },
+    )
     async def legend_day(
         self,
         ctx: discord.ApplicationContext,

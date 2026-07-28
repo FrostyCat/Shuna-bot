@@ -27,6 +27,7 @@ _MIGRATIONS = [
     "ALTER TABLE players ADD COLUMN IF NOT EXISTS season_trophies INTEGER",
     "ALTER TABLE attacks ADD COLUMN IF NOT EXISTS army_share_code VARCHAR",
     "ALTER TABLE guild_configs ADD COLUMN IF NOT EXISTS stats_channel_id VARCHAR",
+    "ALTER TABLE guild_configs ADD COLUMN IF NOT EXISTS notify_webhook_url VARCHAR",
 ]
 
 
