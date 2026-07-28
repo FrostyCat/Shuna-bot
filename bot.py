@@ -43,6 +43,7 @@ COGS = [
     "cogs.cwl_check",
     "cogs.clans",
     "cogs.status",
+    "cogs.setup_server",
 ]
 
 

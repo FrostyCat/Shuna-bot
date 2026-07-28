@@ -111,8 +111,8 @@ async def _fetch_opponent_names(tags: list[str]) -> dict[str, str]:
 
 
 def _format_opponent_line(tag: str, name: str | None, icon: str, stars: int, destruction: int, trophies: int) -> str:
-    label = (name or tag)[:14]
-    return f"{icon} [{label:<14}]({player_profile_url(tag)}) `{stars}⭐ {destruction:>3}% {trophies:>+4}`"
+    label = name or tag
+    return f"{icon} `{stars}⭐ {destruction:>3}% {trophies:>+4}` [{label}]({player_profile_url(tag)})"
 
 
 async def build_legend_embed(player, session, day_offset: int, season_trophies=None, rank=None, initial_rank=None):
@@ -161,7 +161,7 @@ async def build_legend_embed(player, session, day_offset: int, season_trophies=N
         for d in last_8_def
     ]
     if filled_count > 0:
-        def_lines.append(f"🛡️ `{'(filled)':<14} {filled_trophies:>+4} x{filled_count}`")
+        def_lines.append(f"🛡️ `{filled_trophies:>+4} x{filled_count}` (filled)")
     defenses_text = "\n".join(def_lines) or "—"
 
     net = total_trophies + total_trophies_def_net
