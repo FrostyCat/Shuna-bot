@@ -20,7 +20,7 @@ _STRUCTURE_TOOL = {
             "delete_channel_ids": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "IDs of existing channels or categories to delete, taken from the provided server listing. Deleting a category does not delete its channels — list them separately if they should also be deleted.",
+                "description": "IDs of existing channels or categories to delete, taken from the provided server listing. Deleting a category ID automatically deletes all channels inside it too — no need to list them separately.",
             },
             "delete_role_ids": {
                 "type": "array",
@@ -110,6 +110,10 @@ def _summarize_changes(guild: discord.Guild, structure: dict) -> str:
             name = obj.name if obj else f"(unknown id {cid})"
             icon = "📁" if isinstance(obj, discord.CategoryChannel) else "#"
             lines.append(f"　{icon} {name}")
+            if isinstance(obj, discord.CategoryChannel) and obj.channels:
+                for sub_channel in obj.channels:
+                    sub_icon = "🔊" if isinstance(sub_channel, discord.VoiceChannel) else "#"
+                    lines.append(f"　　{sub_icon} {sub_channel.name} *(inside category)*")
         for rid in delete_role_ids:
             role = guild.get_role(int(rid)) if rid.isdigit() else None
             name = role.name if role else f"(unknown id {rid})"
@@ -170,12 +174,20 @@ class ConfirmSetupView(discord.ui.View):
         created_roles = 0
         errors = []
 
+        to_delete = {}
         for cid in self.structure.get("delete_channel_ids", []):
             if not cid.isdigit():
                 continue
             channel = guild.get_channel(int(cid))
             if channel is None:
                 continue
+            to_delete[channel.id] = channel
+            if isinstance(channel, discord.CategoryChannel):
+                for sub_channel in channel.channels:
+                    to_delete[sub_channel.id] = sub_channel
+
+        # delete non-category channels first, then empty categories
+        for channel in sorted(to_delete.values(), key=lambda c: isinstance(c, discord.CategoryChannel)):
             try:
                 await channel.delete()
                 deleted_channels += 1
