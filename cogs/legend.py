@@ -6,13 +6,52 @@ from discord.ext import commands, tasks
 from sqlalchemy import case, func
 
 from coc_api import get_clan, get_clan_members, get_player, get_player_profile
-from cogs.player import build_player_profile_embed
 from db import Session
 from models import Attack, Clan, GuildClan, LegendDayRolePanel, Player
 from helpers import WARSAW, add_player_to_db, fetch_player_attacks
 
 def player_profile_url(tag: str) -> str:
     return f"https://link.clashofclans.com/en?action=OpenPlayerProfile&tag={tag.replace('#', '%23')}"
+
+
+async def render_legend_day_for_tag(tag: str) -> tuple[discord.Embed, "LegendView | None", str | None]:
+    session = Session()
+
+    tag = tag.upper().replace("O", "0")
+    if not tag.startswith("#"):
+        tag = "#" + tag
+
+    player = session.query(Player).filter_by(tag=tag).first()
+    if not player:
+        result = await add_player_to_db(tag, session)
+        if not result["success"]:
+            session.close()
+            return None, None, "❌ " + result["error"]
+        player = session.query(Player).filter_by(tag=result["tag"]).first()
+
+    try:
+        await fetch_player_attacks(session, player)
+        await asyncio.get_running_loop().run_in_executor(None, session.commit)
+    except Exception as e:
+        print(f"[legend_day] fetch failed for {player.tag}: {e}")
+        await asyncio.get_running_loop().run_in_executor(None, session.rollback)
+
+    if is_first_day(player):
+        embed = build_first_day_embed(player)
+        session.close()
+        return embed, None, None
+
+    player_data = await get_player(player.tag)
+    if not player_data or player_data[5] != "Legend I":
+        session.close()
+        return None, None, "❌ This player is not currently in Legend League."
+    season_trophies = player_data[2]
+    rank = player_data[3]
+
+    embed, opponents = await build_legend_embed(player, session, day_offset=0, season_trophies=season_trophies, rank=rank, initial_rank=player.initial_rank)
+    session.close()
+    view = LegendView(player.tag, opponents=opponents)
+    return embed, view, None
 
 
 SEASON_EPOCH = datetime(2026, 5, 18, 7, 0, 0, tzinfo=WARSAW)
@@ -355,16 +394,13 @@ class LegendView(discord.ui.View):
     async def opponent_select(self, select: discord.ui.Select, interaction: discord.Interaction):
         tag = select.values[0]
         await interaction.response.defer(ephemeral=True)
-        data = await get_player_profile(tag)
-        if not data:
-            await interaction.followup.send("❌ Player not found.", ephemeral=True)
+        embed, view, error = await render_legend_day_for_tag(tag)
+        if error:
+            await interaction.followup.send(error, ephemeral=True)
             return
-        session = Session()
-        player = session.query(Player).filter_by(tag=tag).first()
-        discord_user = player.discord_user if player else None
-        session.close()
-        embed = build_player_profile_embed(tag, data, discord_user)
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        message = await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        if view:
+            view.message = message
 
     async def _render(self, interaction: discord.Interaction):
         try:
@@ -622,46 +658,13 @@ class LegendCog(discord.Cog):
         tag: discord.Option(str, "Player tag, e.g. #ABC123", autocomplete=tag_autocomplete),
     ):
         await ctx.defer()
-        session = Session()
-
-        tag = tag.upper().replace("O", "0")
-        if not tag.startswith("#"):
-            tag = "#" + tag
-
-        player = session.query(Player).filter_by(tag=tag).first()
-        if not player:
-            result = await add_player_to_db(tag, session)
-            if not result["success"]:
-                await ctx.followup.send("❌ " + result["error"])
-                session.close()
-                return
-            player = session.query(Player).filter_by(tag=result["tag"]).first()
-
-        try:
-            await fetch_player_attacks(session, player)
-            await asyncio.get_running_loop().run_in_executor(None, session.commit)
-        except Exception as e:
-            print(f"[legend_day] fetch failed for {player.tag}: {e}")
-            await asyncio.get_running_loop().run_in_executor(None, session.rollback)
-
-        if is_first_day(player):
-            embed = build_first_day_embed(player)
-            session.close()
-            await ctx.followup.send(embed=embed)
+        embed, view, error = await render_legend_day_for_tag(tag)
+        if error:
+            await ctx.followup.send(error)
             return
-
-        player_data = await get_player(player.tag)
-        if not player_data or player_data[5] != "Legend I":
-            session.close()
-            await ctx.followup.send("❌ This player is not currently in Legend League.")
-            return
-        season_trophies = player_data[2]
-        rank = player_data[3]
-
-        embed, opponents = await build_legend_embed(player, session, day_offset=0, season_trophies=season_trophies, rank=rank, initial_rank=player.initial_rank)
-        session.close()
-        view = LegendView(player.tag, opponents=opponents)
-        view.message = await ctx.followup.send(embed=embed, view=view)
+        message = await ctx.followup.send(embed=embed, view=view)
+        if view:
+            view.message = message
 
     @discord.slash_command(name="legend_day_user", description="Legend day stats for all linked accounts of a user")
     async def legend_day_user(
