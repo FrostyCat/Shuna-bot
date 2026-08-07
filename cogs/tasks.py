@@ -11,7 +11,11 @@ class TasksCog(discord.Cog):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
 
-    @discord.slash_command(name="import_top_clans", description="Import top 200 global clans into tracking")
+    @discord.slash_command(
+        name="import_top_clans",
+        description="Import top 200 global clans into tracking",
+        default_member_permissions=discord.Permissions(administrator=True),
+    )
     async def import_top_clans(self, ctx: discord.ApplicationContext):
         await ctx.defer()
         added = await sync_top_clans()

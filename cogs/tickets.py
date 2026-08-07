@@ -392,10 +392,12 @@ class Tickets(commands.Cog):
             f"Your ticket has been opened: {channel.mention}", ephemeral=True
         )
 
-    ticket = discord.SlashCommandGroup("ticket", "Ticket system commands")
+    ticket = discord.SlashCommandGroup(
+        "ticket", "Ticket system commands",
+        default_member_permissions=discord.Permissions(manage_channels=True),
+    )
 
     @ticket.command(name="setup", description="Sends the ticket panel to the current channel")
-    @commands.has_permissions(administrator=True)
     async def setup(self, ctx: discord.ApplicationContext):
         settings = guild_config.get_all(ctx.guild_id)
         missing = [k for k in ("staff_role_id", "ticket_category_id") if not settings.get(k)]
@@ -439,7 +441,6 @@ class Tickets(commands.Cog):
         await ctx.respond(f"✅ Ticket panel set up! ID: `{panel_msg.id}`", ephemeral=True)
 
     @ticket.command(name="types", description="Set ticket types shown on the panel (comma-separated)")
-    @commands.has_permissions(administrator=True)
     async def types(
         self,
         ctx: discord.ApplicationContext,
@@ -453,7 +454,6 @@ class Tickets(commands.Cog):
         await ctx.respond(f"✅ Ticket types set: **{', '.join(type_list)}**\nRun `/ticket setup` again to update the panel.", ephemeral=True)
 
     @ticket.command(name="message", description="Set the welcome message for a specific ticket panel")
-    @commands.has_permissions(administrator=True)
     async def message(
         self,
         ctx: discord.ApplicationContext,
@@ -472,7 +472,6 @@ class Tickets(commands.Cog):
         await ctx.send_modal(TicketMessageModal(panel))
 
     @ticket.command(name="edit_panel", description="Edits the ticket panel embed (by message ID)")
-    @commands.has_permissions(administrator=True)
     async def edit_panel(
         self,
         ctx: discord.ApplicationContext,
@@ -491,7 +490,6 @@ class Tickets(commands.Cog):
         await ctx.send_modal(TicketPanelEditModal(msg, msg.embeds[0]))
 
     @ticket.command(name="add", description="Adds a user to the ticket channel")
-    @commands.has_permissions(manage_channels=True)
     async def add(self, ctx: discord.ApplicationContext, user: discord.Member):
         if not re.match(r"^[a-z]+-[^-]+-\d+$", ctx.channel.name):
             await ctx.respond("This command only works inside ticket channels!", ephemeral=True)
@@ -506,7 +504,6 @@ class Tickets(commands.Cog):
         await ctx.respond("User added.", ephemeral=True)
 
     @ticket.command(name="remove", description="Removes a user from the ticket channel")
-    @commands.has_permissions(manage_channels=True)
     async def remove(self, ctx: discord.ApplicationContext, user: discord.Member):
         if not re.match(r"^[a-z]+-[^-]+-\d+$", ctx.channel.name):
             await ctx.respond("This command only works inside ticket channels!", ephemeral=True)

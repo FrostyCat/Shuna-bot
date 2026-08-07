@@ -8,13 +8,6 @@ from helpers import fetch_cwl_attacks
 from models import Clan, GuildClan
 
 
-def _require_admin(ctx: discord.ApplicationContext) -> bool:
-    return (
-        ctx.author.guild_permissions.administrator
-        or ctx.author.guild_permissions.manage_guild
-    )
-
-
 async def _guild_clan_autocomplete(ctx: discord.AutocompleteContext):
     session = Session()
     guild_id = str(ctx.interaction.guild_id)
@@ -40,7 +33,10 @@ class ClansCog(discord.Cog):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
 
-    clan = discord.SlashCommandGroup("clan", "Clan registration for this server")
+    clan = discord.SlashCommandGroup(
+        "clan", "Clan registration for this server",
+        default_member_permissions=discord.Permissions(manage_guild=True),
+    )
 
     @clan.command(name="add", description="Register a clan so the bot tracks its CWL and war data")
     async def add(
@@ -48,10 +44,6 @@ class ClansCog(discord.Cog):
         ctx: discord.ApplicationContext,
         tag: discord.Option(str, "Clan tag, e.g. #ABC123"),
     ):
-        if not _require_admin(ctx):
-            await ctx.respond("❌ You need Manage Server permission.", ephemeral=True)
-            return
-
         await ctx.defer()
 
         tag = tag.upper().strip().replace("O", "0")
@@ -115,10 +107,6 @@ class ClansCog(discord.Cog):
         ctx: discord.ApplicationContext,
         tag: discord.Option(str, "Clan tag", autocomplete=_guild_clan_autocomplete),
     ):
-        if not _require_admin(ctx):
-            await ctx.respond("❌ You need Manage Server permission.", ephemeral=True)
-            return
-
         await ctx.defer()
 
         tag = tag.upper().strip().replace("O", "0")

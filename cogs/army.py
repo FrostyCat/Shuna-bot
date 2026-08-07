@@ -401,7 +401,11 @@ class ArmyCog(discord.Cog):
 
         await ctx.followup.send(embed=embed)
 
-    @discord.slash_command(name="reload_clusters", description="Reload army_clusters.json without restarting the bot")
+    @discord.slash_command(
+        name="reload_clusters",
+        description="Reload army_clusters.json without restarting the bot",
+        default_member_permissions=discord.Permissions(administrator=True),
+    )
     async def reload_clusters_cmd(self, ctx: discord.ApplicationContext):
         await ctx.defer(ephemeral=True)
         ok = load_clusters()

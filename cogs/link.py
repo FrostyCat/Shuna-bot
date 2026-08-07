@@ -88,7 +88,11 @@ class LinkCog(discord.Cog):
     def __init__(self, bot: discord.Bot):
         self.bot = bot
 
-    @discord.slash_command(name="link", description="Link a Clash of Clans account to Discord")
+    @discord.slash_command(
+        name="link",
+        description="Link a Clash of Clans account to Discord",
+        default_member_permissions=discord.Permissions(administrator=True),
+    )
     async def link(
         self,
         ctx: discord.ApplicationContext,
@@ -192,7 +196,11 @@ class LinkCog(discord.Cog):
 
         await ctx.followup.send(f"✅ Linked **{player_name}** ({tag}) to {user.mention}.", ephemeral=True)
 
-    @discord.slash_command(name="unlink", description="Unlink a Clash of Clans account from Discord")
+    @discord.slash_command(
+        name="unlink",
+        description="Unlink a Clash of Clans account from Discord",
+        default_member_permissions=discord.Permissions(administrator=True),
+    )
     async def unlink(
         self,
         ctx: discord.ApplicationContext,
@@ -349,7 +357,11 @@ class LinkCog(discord.Cog):
         await ctx.followup.send(embed=embed)
 
 
-    @discord.slash_command(name="member_role_export", description="Export linked CoC accounts for members with a role to Excel")
+    @discord.slash_command(
+        name="member_role_export",
+        description="Export linked CoC accounts for members with a role to Excel",
+        default_member_permissions=discord.Permissions(administrator=True),
+    )
     async def member_role_export(
         self,
         ctx: discord.ApplicationContext,
@@ -414,7 +426,11 @@ class LinkCog(discord.Cog):
             file=discord.File(buf, filename=filename),
         )
 
-    @discord.slash_command(name="member_role", description="Show all linked CoC accounts for members with a role")
+    @discord.slash_command(
+        name="member_role",
+        description="Show all linked CoC accounts for members with a role",
+        default_member_permissions=discord.Permissions(administrator=True),
+    )
     async def member_role(
         self,
         ctx: discord.ApplicationContext,
@@ -469,7 +485,11 @@ class LinkCog(discord.Cog):
             )
 
 
-    @discord.slash_command(name="verified_role", description="Show accounts and verification status for members with a role")
+    @discord.slash_command(
+        name="verified_role",
+        description="Show accounts and verification status for members with a role",
+        default_member_permissions=discord.Permissions(administrator=True),
+    )
     async def verified_role(
         self,
         ctx: discord.ApplicationContext,

@@ -103,10 +103,12 @@ class Embeds(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    embed_group = discord.SlashCommandGroup("embed", "Embed tools")
+    embed_group = discord.SlashCommandGroup(
+        "embed", "Embed tools",
+        default_member_permissions=discord.Permissions(administrator=True),
+    )
 
     @embed_group.command(name="send", description="Creates and sends a custom embed")
-    @commands.has_permissions(manage_messages=True)
     async def send_embed(
         self,
         ctx: discord.ApplicationContext,
@@ -119,7 +121,6 @@ class Embeds(commands.Cog):
         await ctx.send_modal(EmbedModal(color, channel, footer, thumbnail, image))
 
     @embed_group.command(name="edit", description="Edits an embed from a message (by ID)")
-    @commands.has_permissions(manage_messages=True)
     async def edit_embed(
         self,
         ctx: discord.ApplicationContext,

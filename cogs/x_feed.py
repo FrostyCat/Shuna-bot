@@ -183,10 +183,12 @@ class XFeedCog(discord.Cog):
             return True
         return str(guild_id) in X_ALLOWED_GUILDS
 
-    x_group = discord.SlashCommandGroup("x", "X (Twitter) feed subscriptions")
+    x_group = discord.SlashCommandGroup(
+        "x", "X (Twitter) feed subscriptions",
+        default_member_permissions=discord.Permissions(manage_guild=True),
+    )
 
     @x_group.command(name="follow", description="Subskrybuj profil X na kanale")
-    @discord.default_permissions(manage_guild=True)
     async def x_follow(
         self,
         ctx: discord.ApplicationContext,
@@ -239,7 +241,6 @@ class XFeedCog(discord.Cog):
             session.close()
 
     @x_group.command(name="unfollow", description="Odsubskrybuj profil X")
-    @discord.default_permissions(manage_guild=True)
     async def x_unfollow(
         self,
         ctx: discord.ApplicationContext,
@@ -268,7 +269,6 @@ class XFeedCog(discord.Cog):
             session.close()
 
     @x_group.command(name="set_role", description="Ustaw rolę tagowaną przy każdym nowym poście X")
-    @discord.default_permissions(manage_guild=True)
     async def x_set_role(
         self,
         ctx: discord.ApplicationContext,

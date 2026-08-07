@@ -209,7 +209,11 @@ class StatsCog(discord.Cog):
     async def before_daily_stats(self):
         await self.bot.wait_until_ready()
 
-    @discord.slash_command(name="set_stats_channel", description="Set channel for daily Legend League army stats")
+    @discord.slash_command(
+        name="set_stats_channel",
+        description="Set channel for daily Legend League army stats",
+        default_member_permissions=discord.Permissions(administrator=True),
+    )
     async def set_stats_channel(self, ctx: discord.ApplicationContext):
         await ctx.defer(ephemeral=True)
         loop    = asyncio.get_running_loop()
